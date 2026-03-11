@@ -1,0 +1,64 @@
+@import '@xyflow/react/dist/style.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  padding: 0;
+  background: #050b14;
+  color: #e2e8f0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0a1628;
+}
+::-webkit-scrollbar-thumb {
+  background: #1a2d4a;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2db3a6;
+}
+
+/* ReactFlow overrides for dark theme */
+.react-flow__background {
+  background: #050b14 !important;
+}
+.react-flow__minimap {
+  background: #0a1628 !important;
+  border: 1px solid #1a2d4a !important;
+  border-radius: 8px !important;
+}
+.react-flow__controls {
+  background: #0f1d32 !important;
+  border: 1px solid #1a2d4a !important;
+  border-radius: 8px !important;
+}
+.react-flow__controls button {
+  background: #0f1d32 !important;
+  color: #e2e8f0 !important;
+  border-color: #1a2d4a !important;
+}
+.react-flow__controls button:hover {
+  background: #1a2d4a !important;
+}
+.react-flow__edge-path {
+  stroke: #1a2d4a !important;
+  stroke-width: 2 !important;
+}
+.react-flow__connection-line {
+  stroke: #2db3a6 !important;
+}
