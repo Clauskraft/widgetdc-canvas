@@ -37,3 +37,132 @@ export async function graphRead(query: string, params: Record<string, unknown> =
 export async function graphWrite(query: string, params: Record<string, unknown> = {}) {
   return mcpCall('graph.write_cypher', { query, params });
 }
+
+// --- Canvas 5X API additions ---
+
+export async function graphExpand(nodeLabel: string, options?: {
+  depth?: number;
+  direction?: string;
+  relTypes?: string[];
+  limit?: number;
+}): Promise<{ nodes: unknown[]; edges: unknown[] }> {
+  // graph.expand uses { node_id, depth?, direction? } per Codex verification (LIN-52)
+  const result = await mcpCall<{ success: boolean; result?: { nodes?: unknown[]; edges?: unknown[] } }>(
+    'graph.expand',
+    {
+      node_id: nodeLabel,
+      depth: options?.depth ?? 1,
+      direction: options?.direction ?? 'both',
+    },
+  );
+  const inner = result?.result ?? {};
+  return {
+    nodes: (inner.nodes as unknown[]) ?? [],
+    edges: (inner.edges as unknown[]) ?? [],
+  };
+}
+
+// Fallback for graph.window/search (not production-ready per Codex)
+// Uses direct Cypher instead
+export async function graphNeighborSearch(name: string, relTypes?: string[], limit = 20): Promise<unknown[]> {
+  const relFilter = relTypes?.length
+    ? `AND type(r) IN [${relTypes.map(t => `'${t}'`).join(',')}]`
+    : '';
+  const query = `
+    MATCH (n)-[r]-(m)
+    WHERE toLower(n.name) = toLower($name) ${relFilter}
+    RETURN DISTINCT m, type(r) AS relType, labels(m)[0] AS nodeLabel
+    LIMIT $limit
+  `;
+  return graphRead(query, { name, limit });
+}
+
+export async function graphTextSearch(text: string, limit = 20): Promise<unknown[]> {
+  const query = `
+    MATCH (n)
+    WHERE n.name IS NOT NULL AND toLower(n.name) CONTAINS toLower($text)
+    RETURN n, labels(n)[0] AS nodeLabel
+    ORDER BY size(n.name)
+    LIMIT $limit
+  `;
+  return graphRead(query, { text, limit });
+}
+
+// --- Canvas 5X Phase 2: RLM Reasoning ---
+
+const RLM_URL = isDev ? '' : (import.meta.env.VITE_RLM_URL ?? 'https://rlm-engine-production.up.railway.app');
+
+export interface ReasonResponse {
+  recommendation: string;
+  thinking_steps?: string[];
+  confidence?: number;
+  sources?: string[];
+}
+
+export interface ComplianceGapRecord {
+  framework_id?: string;
+  framework_name?: string;
+  obligation_id?: string;
+  control_id?: string;
+  evidence_id?: string;
+  gap_type?: string;
+  severity?: string;
+  description?: string;
+}
+
+export async function reasonCall(query: string, context?: Record<string, unknown>): Promise<ReasonResponse> {
+  const res = await fetch(`${RLM_URL}/reason`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      instruction: query,
+      context: context ?? {},
+      enriched_prompt: query.length > 200 ? query : undefined,
+    }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!res.ok) throw new Error(`Reason call failed: ${res.status}`);
+  const data = await res.json();
+  return {
+    recommendation: data?.recommendation ?? data?.content ?? '',
+    thinking_steps: data?.thinking_steps ?? data?.steps ?? [],
+    confidence: data?.confidence,
+    sources: data?.sources ?? [],
+  };
+}
+
+export async function getComplianceGaps(frameworkId?: string): Promise<ComplianceGapRecord[]> {
+  const url = new URL(`${RLM_URL}/intelligence/compliance-gaps`);
+  if (frameworkId) url.searchParams.set('framework_id', frameworkId);
+  const res = await fetch(url.toString(), {
+    headers: { 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(45_000),
+  });
+  if (!res.ok) throw new Error(`Compliance gap call failed: ${res.status}`);
+  const data = await res.json();
+  return Array.isArray(data?.gaps) ? data.gaps as ComplianceGapRecord[] : [];
+}
+
+// Compliance keyword auto-detection for Semantic Arbitrage routing
+const COMPLIANCE_KEYWORDS = /\b(gdpr|compliance|regulation|legal|obligation|nis2|ai.act|dora|cra|cyber|privacy|data.protection|retsinformation|eur-lex)\b/i;
+
+export function isComplianceQuery(text: string): boolean {
+  return COMPLIANCE_KEYWORDS.test(text);
+}
+
+export interface ToolDefinition {
+  name: string;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
+  group?: string;
+}
+
+export async function listMcpTools(): Promise<ToolDefinition[]> {
+  const res = await fetch(`${API_URL}/api/mcp/tools`, {
+    headers: { 'Authorization': `Bearer ${API_KEY}` },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data?.tools ?? data ?? []) as ToolDefinition[];
+}

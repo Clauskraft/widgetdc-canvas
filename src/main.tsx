@@ -4,6 +4,11 @@ import { ReactFlowProvider } from '@xyflow/react';
 import { Canvas } from './components/Canvas';
 import { Toolbar } from './components/Toolbar';
 import { AIPanel } from './components/AIPanel';
+import { ToolPalette } from './components/ToolPalette';
+import { StatusBar } from './components/StatusBar';
+import { NodeInspector } from './components/NodeInspector';
+import { CommandPalette } from './components/CommandPalette';
+import { ToastProvider, useToast } from './components/Toast';
 import { useCanvasStore } from './store/canvasStore';
 import { generateShowcaseView } from './testcases/showcase-view';
 import './index.css';
@@ -40,30 +45,48 @@ function AutoLoader() {
   return null;
 }
 
+function ToastBridge() {
+  const { toast } = useToast();
+  useEffect(() => {
+    useCanvasStore.getState().setToast(toast);
+  }, [toast]);
+  return null;
+}
+
 function App() {
   return (
-    <ReactFlowProvider>
-      <div className="flex flex-col h-screen w-screen bg-neural-bg">
-        {/* Header */}
-        <div className="flex items-center px-4 py-2 bg-neural-surface border-b border-neural-border">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">🧠</span>
-            <h1 className="text-sm font-bold text-gray-100 tracking-wide">WidgeTDC Canvas</h1>
+    <ToastProvider>
+      <ReactFlowProvider>
+        <ToastBridge />
+        <CommandPalette />
+        <div className="flex flex-col h-screen w-screen bg-neural-bg">
+          {/* Header */}
+          <div className="flex items-center px-4 py-2 bg-neural-surface border-b border-neural-border">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🧠</span>
+              <h1 className="text-sm font-bold text-gray-100 tracking-wide">WidgeTDC Canvas</h1>
+            </div>
+            <span className="ml-3 text-xs text-gray-500">Competitive Intelligence Explorer</span>
+            <span className="ml-auto text-[10px] text-gray-600">Ctrl+K Command Palette</span>
           </div>
-          <span className="ml-3 text-xs text-gray-500">Competitive Intelligence Explorer</span>
-        </div>
 
-        {/* Toolbar */}
-        <Toolbar />
+          {/* Toolbar */}
+          <Toolbar />
 
-        {/* Main area */}
-        <div className="flex flex-1 overflow-hidden relative">
-          <Canvas />
-          <AIPanel />
-          <AutoLoader />
+          {/* Main area */}
+          <div className="flex flex-1 overflow-hidden relative">
+            <ToolPalette />
+            <Canvas />
+            <NodeInspector />
+            <AIPanel />
+            <AutoLoader />
+          </div>
+
+          {/* Status Bar */}
+          <StatusBar />
         </div>
-      </div>
-    </ReactFlowProvider>
+      </ReactFlowProvider>
+    </ToastProvider>
   );
 }
 

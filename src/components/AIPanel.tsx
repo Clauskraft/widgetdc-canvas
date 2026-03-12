@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Send, Loader2 } from 'lucide-react';
+import { X, Send, Loader2, ChevronDown, ChevronRight, ArrowDownToLine, BrainCircuit } from 'lucide-react';
 import { useCanvasStore } from '../store/canvasStore';
-import { graphRead, mcpCall } from '../lib/api';
+import { graphRead, graphTextSearch, mcpCall, isComplianceQuery } from '../lib/api';
+import { ragQuery, type SuggestedAction } from '../lib/rag';
 import type { CanvasNodeType } from './nodes';
 import { runPipeline, runFullEnrichment, DANISH_TARGETS } from '../testcases/competitive-intel-pipeline';
 import {
@@ -15,6 +16,10 @@ import { generateShowcaseView } from '../testcases/showcase-view';
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  thinkingSteps?: string[];
+  isReasoning?: boolean;
+  injectable?: boolean;
+  suggestedActions?: SuggestedAction[];
 }
 
 const COMMAND_MAP: {
@@ -87,6 +92,42 @@ const COMMAND_MAP: {
       const query = match[1]?.trim() ?? '';
       const records = await graphRead(query);
       return { records, nodeType: 'entity', labelField: 'name', message: `Query returned ${(records as unknown[]).length} records` };
+    },
+  },
+  // Canvas 5X: Text search
+  {
+    pattern: /^search:\s*(.+)$/i,
+    handler: async (match) => {
+      const text = match[1]?.trim() ?? '';
+      const records = await graphTextSearch(text, 30);
+      return { records, nodeType: 'entity' as CanvasNodeType, labelField: 'name', message: `Search "${text}": ${(records as unknown[]).length} results` };
+    },
+  },
+  // Canvas 5X: Expand command
+  {
+    pattern: /^expand:\s*(.+)$/i,
+    handler: async (match) => {
+      const nodeName = match[1]?.trim() ?? '';
+      const store = useCanvasStore.getState();
+      const target = store.nodes.find(n => (n.data.label as string)?.toLowerCase().includes(nodeName.toLowerCase()));
+      if (target) {
+        await store.expandNode(target.id);
+        return { records: [], nodeType: 'entity' as CanvasNodeType, labelField: 'name', message: `Expanded graph around "${target.data.label}"` };
+      }
+      return { records: [], nodeType: 'entity' as CanvasNodeType, labelField: 'name', message: `Node "${nodeName}" not found on canvas. Add it first.` };
+    },
+  },
+  // Canvas 5X: Show provenance
+  {
+    pattern: /^(show\s+)?provenance$/i,
+    handler: async () => {
+      const store = useCanvasStore.getState();
+      const sel = store.nodes.find(n => n.id === store.selectedNodeId);
+      if (!sel) return { records: [], nodeType: 'entity' as CanvasNodeType, labelField: 'name', message: 'Select a node first to view provenance.' };
+      const prov = sel.data.provenance as Record<string, unknown> | undefined;
+      if (!prov) return { records: [], nodeType: 'entity' as CanvasNodeType, labelField: 'name', message: `"${sel.data.label}" has no provenance data.` };
+      const msg = `Provenance for "${sel.data.label}":\n  Created by: ${prov.createdBy}\n  At: ${prov.createdAt}\n  Source: ${prov.source}\n  Confidence: ${prov.confidence ?? 'N/A'}\n  Parent: ${prov.parentNodeId ?? 'none'}`;
+      return { records: [], nodeType: 'entity' as CanvasNodeType, labelField: 'name', message: msg };
     },
   },
   {
@@ -232,6 +273,244 @@ const PIPELINE_COMMANDS: {
       return `Showcase loaded: ${nodes.length} nodes, ${edges.length} edges — full CI pipeline story`;
     },
   },
+  // Canvas 5X: Create query node
+  {
+    pattern: /^query:\s*(.+)$/is,
+    run: async (match, addMsg, _addNode) => {
+      const queryText = match[1]?.trim() ?? '';
+      const store = useCanvasStore.getState();
+      const isJson = queryText.startsWith('{');
+      store.addNodeWithData('query', {
+        label: isJson ? 'MCP Query' : 'Cypher Query',
+        nodeType: 'query',
+        queryType: isJson ? 'mcp' : 'cypher',
+        queryText,
+        queryStatus: 'idle',
+      });
+      addMsg('Query node created. Double-click to execute.');
+      return `Query node added to canvas:\n${queryText.slice(0, 200)}`;
+    },
+  },
+  // Canvas 5X: Generate artifact
+  {
+    pattern: /^generate:\s*(.+)$/is,
+    run: async (match, addMsg, _addNode) => {
+      const content = match[1]?.trim() ?? '';
+      const store = useCanvasStore.getState();
+      const isMermaid = content.startsWith('graph ') || content.startsWith('flowchart ') || content.startsWith('sequenceDiagram');
+      const artType = isMermaid ? 'mermaid' : 'markdown';
+      store.addNodeWithData('artifact', {
+        label: `Artifact: ${content.slice(0, 30)}`,
+        nodeType: 'artifact',
+        artifactType: artType,
+        artifactSource: content,
+        provenance: {
+          createdBy: 'ai',
+          createdAt: new Date().toISOString(),
+          source: 'ai-panel',
+        },
+      });
+      addMsg(`${artType} artifact created.`);
+      return `Artifact node (${artType}) added to canvas`;
+    },
+  },
+  // Canvas 5X: Reasoning commands
+  {
+    pattern: /^(reason|think|analyse|analyze):\s*(.+)$/is,
+    run: async (match, addMsg) => {
+      const query = match[2]?.trim() ?? '';
+      const isCompliance = isComplianceQuery(query);
+      addMsg(isCompliance ? 'Routing to Semantic Arbitrage (compliance detected)...' : 'Reasoning...');
+      try {
+        const store = useCanvasStore.getState();
+        const result = await store.reason(query);
+        // Create thought node on canvas
+        store.addNodeWithData('thought', {
+          label: query.slice(0, 50) + (query.length > 50 ? '...' : ''),
+          subtitle: isCompliance ? 'Compliance Reasoning' : 'AI Reasoning',
+          nodeType: 'thought',
+          thinkingSteps: result.thinking_steps,
+          reasoningStatus: 'complete',
+          provenance: {
+            createdBy: 'ai',
+            createdAt: new Date().toISOString(),
+            source: '/reason',
+            confidence: result.confidence,
+          },
+        });
+        // Return message with thinking steps info
+        const answer = result.recommendation;
+        const stepsInfo = result.thinking_steps?.length
+          ? `\n\n[${result.thinking_steps.length} thinking steps — expand thought node on canvas]`
+          : '';
+        const conf = result.confidence !== undefined ? `\nConfidence: ${(result.confidence * 100).toFixed(0)}%` : '';
+        return answer + stepsInfo + conf;
+      } catch (err) {
+        return `Reasoning failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    },
+  },
+  // Canvas 5X: Tender matching (G3)
+  {
+    pattern: /^tenders?:\s*(.+)$/is,
+    run: async (match, addMsg) => {
+      const capability = match[1]?.trim() ?? '';
+      addMsg(`Matching tenders for "${capability}"...`);
+      try {
+        const result = await mcpCall<{
+          success: boolean;
+          matches?: Array<{ tender_id: string; text: string; category: string; confidence: number; score: number }>;
+        }>('nexus.tender_match', { capability, limit: 10 });
+
+        if (!result?.success || !result.matches?.length) {
+          return `No tender matches found for "${capability}".`;
+        }
+
+        const store = useCanvasStore.getState();
+        for (const match of result.matches) {
+          store.addNodeWithData('evidence', {
+            label: match.text?.slice(0, 60) + ((match.text?.length ?? 0) > 60 ? '...' : ''),
+            subtitle: `${match.category ?? 'Tender'} (${((match.score ?? 0) * 100).toFixed(0)}%)`,
+            nodeType: 'evidence',
+            complianceScore: match.confidence ?? 0.5,
+            signalIntensity: (match.score ?? 0) > 0.8 ? 0.85 : 0.5,
+            provenance: {
+              createdBy: 'tool',
+              createdAt: new Date().toISOString(),
+              source: 'nexus.tender_match',
+              tool: 'nexus.tender_match',
+            },
+          });
+        }
+
+        return `Found ${result.matches.length} tender matches for "${capability}":\n` +
+          result.matches.map((m, i) => `  ${i + 1}. ${m.text?.slice(0, 50)} — ${m.category} (${((m.score ?? 0) * 100).toFixed(0)}%)`).join('\n');
+      } catch (err) {
+        return `Tender match failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    },
+  },
+  // Canvas 5X: Undo/Redo
+  {
+    pattern: /^undo$/i,
+    run: async () => {
+      useCanvasStore.getState().undo();
+      return 'Undo applied.';
+    },
+  },
+  {
+    pattern: /^redo$/i,
+    run: async () => {
+      useCanvasStore.getState().redo();
+      return 'Redo applied.';
+    },
+  },
+  // S21-S25: Cross-Reference
+  {
+    pattern: /^cross[- ]?reference:\s*(.+)$/i,
+    run: async (match, addMsg) => {
+      const nodeName = match[1]?.trim() ?? '';
+      const store = useCanvasStore.getState();
+      const target = store.nodes.find(n => (n.data.label as string)?.toLowerCase().includes(nodeName.toLowerCase()));
+      if (!target) return `Node "${nodeName}" not found on canvas.`;
+      addMsg(`Cross-referencing "${target.data.label}"...`);
+      await store.crossReference(target.id);
+      return `Cross-reference complete for "${target.data.label}". Check new edges and nodes on canvas.`;
+    },
+  },
+  // S21-S25: Audit Trail
+  {
+    pattern: /^audit\s+trail(\s+(json|markdown))?$/i,
+    run: async (match, addMsg) => {
+      const format = (match[2]?.trim().toLowerCase() ?? 'json') as 'json' | 'markdown';
+      addMsg(`Exporting audit trail as ${format}...`);
+      const result = await useCanvasStore.getState().exportAuditTrail(format);
+      return `Audit trail exported (${format}, ${result.length} chars). Content copied to clipboard if available.`;
+    },
+  },
+  // S21-S25: Analysis Pipeline
+  {
+    pattern: /^pipeline:\s*(.+)$/i,
+    run: async (match, addMsg) => {
+      const text = match[1]?.trim() ?? '';
+      const parts = text.split('|').map(s => s.trim());
+      const entityName = parts[0] ?? text;
+      const templateId = parts[1];
+      addMsg(`Running analysis pipeline for "${entityName}"${templateId ? ` with template "${templateId}"` : ''}...`);
+      const result = await useCanvasStore.getState().runAnalysisPipeline(entityName, templateId);
+      return `Pipeline complete for "${entityName}": ${result.nodeCount} nodes created.\n${result.narrative.slice(0, 300)}`;
+    },
+  },
+  // S21-S25: Replay Engagement
+  {
+    pattern: /^replay:\s*(.+)$/i,
+    run: async (match, addMsg) => {
+      const engagementId = match[1]?.trim() ?? '';
+      addMsg(`Replaying engagement "${engagementId}"...`);
+      await useCanvasStore.getState().replayEngagement(engagementId);
+      return `Engagement "${engagementId}" replayed on canvas. All historical nodes and edges restored.`;
+    },
+  },
+  // Strategic: Auto-Analyze
+  {
+    pattern: /^auto[- ]?analy[sz]e$/i,
+    run: async (_match, addMsg) => {
+      const store = useCanvasStore.getState();
+      if (!store.selectedNodeId) return 'Select a node first, then run auto-analyze.';
+      const node = store.nodes.find(n => n.id === store.selectedNodeId);
+      addMsg(`Auto-analyzing "${node?.data.label}"... (expand + tenders + reasoning in parallel)`);
+      await store.autoAnalyze(store.selectedNodeId);
+      return `Auto-analysis complete for "${node?.data.label}". Check the new nodes on canvas.`;
+    },
+  },
+  // Strategic: Narrative
+  {
+    pattern: /^(generate\s+)?narrative$/i,
+    run: async (_match, addMsg) => {
+      addMsg('Generating structured narrative report from canvas...');
+      const result = await useCanvasStore.getState().generateNarrative();
+      return result ? `Narrative generated (${result.length} chars). See artifact node on canvas.` : 'Narrative generation returned empty.';
+    },
+  },
+  // Strategic: Discover Patterns
+  {
+    pattern: /^(discover\s+)?patterns$/i,
+    run: async (_match, addMsg) => {
+      addMsg('Discovering cross-engagement patterns from strategic insights...');
+      await useCanvasStore.getState().discoverPatterns();
+      return 'Pattern discovery complete. Check insight + thought nodes on canvas.';
+    },
+  },
+  // Strategic: Evaluate Hypothesis
+  {
+    pattern: /^eval(uate)?\s+hypo(thesis)?$/i,
+    run: async (_match, addMsg) => {
+      const store = useCanvasStore.getState();
+      if (!store.selectedNodeId) return 'Select a thought/hypothesis node first.';
+      const node = store.nodes.find(n => n.id === store.selectedNodeId);
+      if (node?.type !== 'thought') return `Selected node "${node?.data.label}" is not a thought/hypothesis. Select a thought node.`;
+      addMsg(`Evaluating hypothesis: "${node.data.label}" against connected evidence...`);
+      await store.evaluateHypothesis(store.selectedNodeId);
+      return `Hypothesis evaluated. Check the updated score and edge colors on canvas.`;
+    },
+  },
+  // Strategic: Load Template
+  {
+    pattern: /^template:\s*(.+)$/i,
+    run: async (match, addMsg) => {
+      const templateName = match[1]?.trim().toLowerCase() ?? '';
+      const { CANVAS_TEMPLATES } = await import('../templates');
+      const tmpl = CANVAS_TEMPLATES.find(t =>
+        t.id.includes(templateName) || t.name.toLowerCase().includes(templateName)
+      );
+      if (!tmpl) {
+        return `Template "${templateName}" not found. Available:\n${CANVAS_TEMPLATES.map(t => `  - ${t.id}: ${t.name}`).join('\n')}`;
+      }
+      addMsg(`Loading template: ${tmpl.name}...`);
+      await useCanvasStore.getState().loadTemplate(tmpl.id);
+      return `Template "${tmpl.name}" loaded.`;
+    },
+  },
   {
     pattern: /^hypothesis:\s*(.+)$/is,
     run: async (match, addMsg, addNode) => {
@@ -300,10 +579,92 @@ const PIPELINE_COMMANDS: {
   },
 ];
 
+function MessageBubble({ msg, onInject, onRunCommand }: { msg: Message; onInject: (text: string, type?: CanvasNodeType) => string; onRunCommand?: (cmd: string) => void }) {
+  const [showThinking, setShowThinking] = useState(false);
+  const hasThinking = msg.thinkingSteps && msg.thinkingSteps.length > 0;
+
+  return (
+    <div
+      className={`text-sm whitespace-pre-wrap rounded-lg px-3 py-2 ${
+        msg.role === 'user'
+          ? 'bg-tdc-500/20 text-tdc-200 ml-8'
+          : 'bg-neural-panel text-gray-300 mr-8'
+      }`}
+    >
+      {msg.content}
+      {/* Thinking chain toggle */}
+      {hasThinking && (
+        <div className="mt-2 border-t border-neural-border/50 pt-1.5">
+          <button
+            onClick={() => setShowThinking(!showThinking)}
+            className="flex items-center gap-1 text-[11px] text-purple-400 hover:text-purple-300"
+          >
+            <BrainCircuit size={11} />
+            {showThinking ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+            {msg.thinkingSteps!.length} thinking steps
+          </button>
+          {showThinking && (
+            <div className="mt-1.5 border-l-2 border-purple-500/30 pl-2 space-y-1 max-h-[120px] overflow-y-auto">
+              {msg.thinkingSteps!.map((step, j) => (
+                <div key={j} className="flex items-start gap-1">
+                  <span className="text-[10px] text-purple-500 mt-0.5 shrink-0">{j + 1}.</span>
+                  <span className="text-[11px] text-gray-400">{step}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {/* Inject into Canvas button */}
+      {msg.injectable && msg.role === 'assistant' && msg.content.length > 20 && (
+        <button
+          onClick={() => onInject(msg.content, 'insight')}
+          className="mt-2 flex items-center gap-1 text-[11px] text-tdc-400 hover:text-tdc-300 transition-colors"
+        >
+          <ArrowDownToLine size={11} /> Inject into Canvas
+        </button>
+      )}
+      {/* Suggested actions from RAG */}
+      {msg.suggestedActions && msg.suggestedActions.length > 0 && onRunCommand && (
+        <div className="mt-2 border-t border-neural-border/50 pt-2 space-y-1">
+          <div className="text-[10px] text-gray-500 uppercase">Suggested next steps</div>
+          {msg.suggestedActions.map((action, i) => (
+            <button
+              key={i}
+              onClick={() => onRunCommand(action.command)}
+              className="block w-full text-left px-2 py-1 rounded text-[11px] text-tdc-300 hover:bg-tdc-500/20 transition-colors"
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AIPanel() {
-  const { aiPanelOpen, toggleAiPanel, addNodesFromGraph, addNode } = useCanvasStore();
+  const { aiPanelOpen, toggleAiPanel, addNodesFromGraph, addNode, reason, injectToCanvas } = useCanvasStore();
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'Commands:\n\nViews:\n- "view showcase" — full CI pipeline story\n- "view pipeline" — tool repurposing flow\n- "view market map" — competitor landscape\n- "view tech landscape" — shared SaaS\n- "view infra topology" — subdomain arch\n\nCI Pipeline:\n- "run ci pipeline Deloitte"\n- "run full enrichment" (all 10)\n\nNeo Aura:\n- "hypothesis: topic | reason | priority"\n- "fulfill: ghost-id | evidence | source | conf"\n- "show ghosts" — list active Ghost Nodes\n- "ghost metrics" — entropy + fulfillment\n\nGraph:\n- "show all agents/tools/servers"\n- "show all competitors/entities/endpoints"\n- "cypher: MATCH (n) RETURN n"\n\nNode types: server, endpoint, tool, pipeline, agent, entity, insight, evidence' },
+    { role: 'assistant', content: `Consulting Canvas — just ask in plain language.
+
+I understand your consulting workflow:
+  1. Scope & Discover — "help me scope a cybersecurity engagement"
+  2. Analyze & Assess — "run a DCF valuation for TechCo"
+  3. Synthesize & Recommend — "generate a report from this canvas"
+  4. Plan & Execute — "break this into tasks and milestones"
+  5. Review & Iterate — "what changed since the last iteration?"
+
+I know 74 frameworks (SWOT, DCF, BMC, PESTLE...), 30 domains, 38 processes, and 390 past engagements from the knowledge graph.
+
+Power commands:
+  search: keyword — find in graph
+  template: name — load canvas template
+  reason: question — deep AI reasoning
+  cypher: MATCH... — raw graph query
+  auto-analyze — full pipeline on selected node
+
+Shortcuts: Ctrl+K (commands), Ctrl+Z/Y (undo/redo), ? (this panel)` },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -315,8 +676,8 @@ export function AIPanel() {
 
   if (!aiPanelOpen) return null;
 
-  const handleSend = async () => {
-    const text = input.trim();
+  const handleSend = async (overrideText?: string) => {
+    const text = (overrideText ?? input).trim();
     if (!text || loading) return;
 
     setInput('');
@@ -355,16 +716,56 @@ export function AIPanel() {
       }
 
       if (!handled) {
-        // Fallback: try kg_rag.query
+        // RAG-powered consulting chat — enriched with graph context
         try {
-          const result = await mcpCall<{ result?: string }>('kg_rag.query', { question: text, max_evidence: 10 });
-          const answer = typeof result === 'string' ? result : (result?.result ?? JSON.stringify(result));
-          setMessages((prev) => [...prev, { role: 'assistant', content: String(answer).slice(0, 1000) }]);
-        } catch {
+          const store = useCanvasStore.getState();
           setMessages((prev) => [...prev, {
             role: 'assistant',
-            content: 'Command not recognized. Try:\n- "show all agents/services/tools/domains/tenders"\n- "show [type] for [name]"\n- "cypher: [query]"',
+            content: isComplianceQuery(text) ? 'Routing via Semantic Arbitrage + consulting RAG...' : 'Consulting RAG: gathering context...',
+            isReasoning: true,
           }]);
+
+          const result = await ragQuery(
+            text,
+            store.nodes,
+            store.edges,
+            store.selectedNodeId,
+          );
+
+          // Remove the "gathering..." message, add the real response
+          setMessages((prev) => {
+            const filtered = prev.filter((m, idx) => idx !== prev.length - 1 || !m.isReasoning);
+            return [...filtered, {
+              role: 'assistant',
+              content: result.answer,
+              thinkingSteps: result.thinkingSteps,
+              injectable: true,
+              suggestedActions: result.suggestedActions,
+            }];
+          });
+        } catch {
+          // Fallback: raw /reason with no context
+          try {
+            const store = useCanvasStore.getState();
+            const result = await store.reason(text);
+            setMessages((prev) => {
+              const filtered = prev.filter((m, idx) => idx !== prev.length - 1 || !m.isReasoning);
+              return [...filtered, {
+                role: 'assistant',
+                content: result.recommendation || 'No recommendation generated.',
+                thinkingSteps: result.thinking_steps,
+                injectable: true,
+              }];
+            });
+          } catch {
+            setMessages((prev) => {
+              const filtered = prev.filter((m, idx) => idx !== prev.length - 1 || !m.isReasoning);
+              return [...filtered, {
+                role: 'assistant',
+                content: 'No results. Try:\n- "reason: your question" — AI reasoning\n- "show all agents/tools/servers"\n- "cypher: MATCH (n) RETURN n"',
+              }];
+            });
+          }
         }
       }
     } catch (err) {
@@ -387,16 +788,7 @@ export function AIPanel() {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`text-sm whitespace-pre-wrap rounded-lg px-3 py-2 ${
-              msg.role === 'user'
-                ? 'bg-tdc-500/20 text-tdc-200 ml-8'
-                : 'bg-neural-panel text-gray-300 mr-8'
-            }`}
-          >
-            {msg.content}
-          </div>
+          <MessageBubble key={i} msg={msg} onInject={injectToCanvas} onRunCommand={(cmd) => handleSend(cmd)} />
         ))}
         {loading && (
           <div className="flex items-center gap-2 text-sm text-gray-400">
@@ -418,7 +810,7 @@ export function AIPanel() {
             className="flex-1 px-3 py-2 rounded-lg bg-neural-panel border border-neural-border text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-tdc-500"
           />
           <button
-            onClick={handleSend}
+            onClick={() => handleSend()}
             disabled={loading || !input.trim()}
             className="p-2 rounded-lg bg-tdc-500 hover:bg-tdc-600 text-white disabled:opacity-50 transition-colors"
           >

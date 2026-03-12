@@ -19,6 +19,15 @@ import {
   Lightbulb,
   FileSearch,
   FlaskConical,
+  Undo2,
+  Redo2,
+  Layers,
+  Terminal,
+  FileCode,
+  PanelLeftOpen,
+  BrainCircuit,
+  BookOpen,
+  AlertTriangle,
 } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
 import { toPng, toSvg } from 'html-to-image';
@@ -36,9 +45,15 @@ const NODE_OPTIONS: { type: CanvasNodeType; label: string; icon: typeof Server; 
   { type: 'pipeline', label: 'Pipeline / Workflow', icon: GitBranch,  group: 'ORCHESTRATION' },
   { type: 'agent',    label: 'Agent',               icon: Bot,        group: 'ORCHESTRATION' },
   // Intelligence
-  { type: 'entity',   label: 'Entity (Graph)',      icon: Database,   group: 'INTELLIGENCE' },
-  { type: 'insight',  label: 'Insight / Finding',   icon: Lightbulb,  group: 'INTELLIGENCE' },
-  { type: 'evidence', label: 'Evidence / Artifact', icon: FileSearch, group: 'INTELLIGENCE' },
+  { type: 'entity',   label: 'Entity (Graph)',      icon: Database,     group: 'INTELLIGENCE' },
+  { type: 'insight',  label: 'Insight / Finding',   icon: Lightbulb,    group: 'INTELLIGENCE' },
+  { type: 'evidence', label: 'Evidence / Artifact', icon: FileSearch,   group: 'INTELLIGENCE' },
+  // Reasoning
+  { type: 'thought',  label: 'Thought / Reasoning', icon: BrainCircuit, group: 'REASONING' },
+  // Sandbox + Meta
+  { type: 'query',    label: 'Query Node',          icon: Terminal,     group: 'SANDBOX' },
+  { type: 'artifact', label: 'Artifact',            icon: FileCode,     group: 'SANDBOX' },
+  { type: 'combo',    label: 'Combo Group',         icon: Layers,       group: 'META' },
 ];
 
 export function Toolbar() {
@@ -49,8 +64,11 @@ export function Toolbar() {
   const { fitView } = useReactFlow();
   const {
     addNode, removeSelected, layoutMode, setLayoutMode,
-    applyLayout, toggleAiPanel, saveToGraph, loadFromGraph,
+    applyLayout, toggleAiPanel, toggleToolPalette, toggleKnowledgeExplorer, toggleGapOverlay,
+    saveToGraph, loadFromGraph,
     clearCanvas, isLoading, selectedNodeId,
+    undo, redo, undoStack, redoStack,
+    groupSelected, knowledgeExplorerMode, gapOverlayMode,
   } = useCanvasStore();
 
   const handleTest = async () => {
@@ -170,6 +188,26 @@ export function Toolbar() {
 
       <div className="w-px h-6 bg-neural-border mx-1" />
 
+      {/* Undo/Redo */}
+      <button
+        onClick={undo}
+        disabled={undoStack.length === 0}
+        className="p-1.5 rounded-md bg-neural-panel hover:bg-neural-border text-gray-300 transition-colors disabled:opacity-30"
+        title="Undo (Ctrl+Z)"
+      >
+        <Undo2 size={14} />
+      </button>
+      <button
+        onClick={redo}
+        disabled={redoStack.length === 0}
+        className="p-1.5 rounded-md bg-neural-panel hover:bg-neural-border text-gray-300 transition-colors disabled:opacity-30"
+        title="Redo (Ctrl+Y)"
+      >
+        <Redo2 size={14} />
+      </button>
+
+      <div className="w-px h-6 bg-neural-border mx-1" />
+
       {/* Actions */}
       <button
         onClick={() => fitView({ padding: 0.2, duration: 300 })}
@@ -180,13 +218,22 @@ export function Toolbar() {
       </button>
 
       {selectedNodeId && (
-        <button
-          onClick={removeSelected}
-          className="p-1.5 rounded-md bg-red-900/30 hover:bg-red-900/50 text-red-400 transition-colors"
-          title="Delete Selected"
-        >
-          <Trash2 size={14} />
-        </button>
+        <>
+          <button
+            onClick={removeSelected}
+            className="p-1.5 rounded-md bg-red-900/30 hover:bg-red-900/50 text-red-400 transition-colors"
+            title="Delete Selected"
+          >
+            <Trash2 size={14} />
+          </button>
+          <button
+            onClick={groupSelected}
+            className="p-1.5 rounded-md bg-neural-panel hover:bg-neural-border text-gray-300 transition-colors"
+            title="Group connected nodes"
+          >
+            <Layers size={14} />
+          </button>
+        </>
       )}
 
       <button
@@ -259,6 +306,40 @@ export function Toolbar() {
       </div>
 
       <div className="flex-1" />
+
+      {/* Knowledge Explorer Toggle */}
+      <button
+        onClick={toggleKnowledgeExplorer}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
+          knowledgeExplorerMode
+            ? 'bg-purple-600 text-white'
+            : 'bg-neural-panel hover:bg-neural-border text-gray-200'
+        }`}
+        title="Knowledge Explorer — show only thoughts, insights, evidence"
+      >
+        <BookOpen size={14} /> {knowledgeExplorerMode ? 'Explorer ON' : 'Explorer'}
+      </button>
+
+      <button
+        onClick={() => void toggleGapOverlay()}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
+          gapOverlayMode
+            ? 'bg-amber-500 text-black'
+            : 'bg-neural-panel hover:bg-neural-border text-gray-200'
+        }`}
+        title="Gap Overlay — show compliance gaps from RLM"
+      >
+        <AlertTriangle size={14} /> {gapOverlayMode ? 'Gaps ON' : 'Gaps'}
+      </button>
+
+      {/* Tool Palette Toggle */}
+      <button
+        onClick={toggleToolPalette}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm bg-neural-panel hover:bg-neural-border text-gray-200 transition-colors"
+        title="MCP Tool Palette"
+      >
+        <PanelLeftOpen size={14} /> Tools
+      </button>
 
       {/* AI Panel Toggle */}
       <button
