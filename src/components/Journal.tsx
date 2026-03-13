@@ -2,8 +2,10 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { motion } from 'framer-motion';
-import { Sparkles, ArrowRight } from 'lucide-react';
+import { Sparkles, ArrowRight, Tablet, RefreshCcw } from 'lucide-react';
 import { useCanvasStore } from '../store/canvasStore';
+import { syncRemarkableNotes } from '../lib/connectors';
+import { useState } from 'react';
 
 interface JournalProps {
   isVisible: boolean;
@@ -12,6 +14,7 @@ interface JournalProps {
 
 export function Journal({ isVisible, onFlip }: JournalProps) {
   const { addNodeWithData } = useCanvasStore();
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const editor = useEditor({
     extensions: [
@@ -29,6 +32,17 @@ export function Journal({ isVisible, onFlip }: JournalProps) {
     },
   });
 
+  const handleSyncRemarkable = async () => {
+    setIsSyncing(true);
+    const notes = await syncRemarkableNotes();
+    if (editor && notes.length > 0) {
+      notes.forEach(n => {
+        editor.commands.insertContent(`<blockquote>${n.text}</blockquote><p></p>`);
+      });
+    }
+    setTimeout(() => setIsSyncing(false), 1000);
+  };
+
   const sendToCanvas = () => {
     if (!editor) return;
     const selectedText = editor.state.doc.textBetween(
@@ -38,7 +52,6 @@ export function Journal({ isVisible, onFlip }: JournalProps) {
     );
 
     if (selectedText) {
-      // Create a node on the canvas from this text
       addNodeWithData('insight', {
         label: selectedText.slice(0, 50) + (selectedText.length > 50 ? '...' : ''),
         subtitle: selectedText,
@@ -50,8 +63,8 @@ export function Journal({ isVisible, onFlip }: JournalProps) {
         }
       });
 
-      editor.commands.toggleBold(); // Visual feedback for now
-      onFlip(); // Flip back to canvas to see the new node
+      editor.commands.toggleBold();
+      onFlip();
     }
   };
 
@@ -72,20 +85,35 @@ export function Journal({ isVisible, onFlip }: JournalProps) {
         {/* Date Header */}
         <div className="pt-24 pb-8 flex justify-between items-end">
           <div>
-            <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-tdc-400 mb-4">Daily Notes</p>
+            <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-tdc-400 mb-4 flex items-center gap-2">
+              Daily Notes
+              {isSyncing && <RefreshCcw size={10} className="animate-spin text-slate-400" />}
+            </p>
             <h1 className="text-5xl font-serif text-slate-900 tracking-tight">
               {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </h1>
           </div>
-          <button
-            onClick={sendToCanvas}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-full shadow-lg hover:bg-tdc-500 transition-colors text-xs font-bold tracking-wide uppercase mb-2"
-            title="Extract selected text to Canvas"
-          >
-            <Sparkles size={14} className="text-amber-300" />
-            Send to Canvas
-            <ArrowRight size={14} />
-          </button>
+          
+          <div className="flex gap-2 mb-2">
+            <button
+              onClick={handleSyncRemarkable}
+              disabled={isSyncing}
+              className="flex items-center gap-2 px-4 py-2 bg-white text-slate-600 rounded-full shadow-sm border border-slate-200 hover:border-slate-300 transition-all text-xs font-bold uppercase tracking-wide"
+              title="Sync from reMarkable"
+            >
+              <Tablet size={14} className="text-slate-400" />
+              Sync reMarkable
+            </button>
+            <button
+              onClick={sendToCanvas}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-full shadow-lg hover:bg-tdc-500 transition-colors text-xs font-bold tracking-wide uppercase"
+              title="Extract selected text to Canvas"
+            >
+              <Sparkles size={14} className="text-amber-300" />
+              Send to Canvas
+              <ArrowRight size={14} />
+            </button>
+          </div>
         </div>
 
         {/* Editor Area */}

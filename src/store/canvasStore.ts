@@ -14,6 +14,7 @@ import type { CanvasNodeData, CanvasNodeType, ProvenanceData } from '../types/ca
 import { applyDagreLayout, alignNodesToColumns } from '../lib/layout';
 import { graphRead, graphWrite, graphExpand, graphNeighborSearch, mcpCall, reasonCall, isComplianceQuery, getComplianceGaps, type ComplianceGapRecord, type ReasonResponse } from '../lib/api';
 import { CANVAS_TEMPLATES, ENGAGEMENT_COLUMNS, type CanvasTemplate } from '../templates';
+import { fetchNotebookContext } from '../lib/connectors';
 
 // --- Undo/Redo snapshot ---
 interface CanvasSnapshot {
@@ -747,7 +748,7 @@ export const useCanvasStore = create<CanvasState>()(
         const state = get().expandStates.get(nodeId);
         if (!state || !state.hasMore) return;
 
-        const { nodes } = get();
+        const { nodes, edges } = get();
         const node = nodes.find(n => n.id === nodeId);
         if (!node) return;
         const label = node.data.label as string;
@@ -889,7 +890,7 @@ export const useCanvasStore = create<CanvasState>()(
       },
 
       executeQueryNode: async (nodeId) => {
-        const { nodes } = get();
+        const { nodes, edges } = get();
         const node = nodes.find(n => n.id === nodeId);
         if (!node || node.type !== 'query') return;
 
@@ -1650,7 +1651,21 @@ export const useCanvasStore = create<CanvasState>()(
               collectiveMemories = await graphRead(`MATCH (l:Lesson) WHERE toLower(l.topic) CONTAINS toLower($query) RETURN l.content AS content, l.outcome AS outcome LIMIT 3`, { query: label });
             } catch (e) {}
 
-            const result = await reasonCall(`Svar på: "${command}"\nKontekst: "${label}"\nNaboer: ${neighbors.join(', ')}\nErfaringer: ${collectiveMemories.length}`, { domain: 'contextual-node-oracle' });
+            updateStatus('thinking', 'Henter grounded viden fra Notebook (curated library)...');
+            const notebookContext = await fetchNotebookContext(label);
+
+            const result = await reasonCall(`
+Svar på: "${command}"
+Kontekst: "${label}"
+Naboer på lærred: ${neighbors.join(', ')}
+Tidligere erfaringer: ${collectiveMemories.length}
+
+[NOTEBOOK GROUNDING]
+${notebookContext}
+
+[INSTRUKS]
+Svar baseret på både lærredets kontekst og den grounded viden fra vores Notebook library.
+`, { domain: 'contextual-node-oracle' });
             
             const newId = get().addNodeWithData('insight', { label: result.recommendation.slice(0, 60), subtitle: result.recommendation, nodeType: 'insight', thinkingSteps: result.thinking_steps, provenance: { createdBy: 'ai', createdAt: new Date().toISOString(), source: `Orakel-svar: ${command}`, confidence: result.confidence } }, { x: node.position.x + 350, y: node.position.y });
             set(state => ({ edges: [...state.edges, { id: `edge-chat-${Date.now()}`, source: nodeId, target: newId, label: 'ORACLE_INSIGHT' }] }));
