@@ -20,14 +20,14 @@ export function Journal({ isVisible, onFlip }: JournalProps) {
     extensions: [
       StarterKit,
       Placeholder.configure({
-        placeholder: 'Start typing... Any text can become a node on the canvas.',
+        placeholder: 'Start typing... Your notes are the foundation of your strategy.',
         emptyEditorClass: 'is-editor-empty',
       }),
     ],
-    content: '',
+    content: `<h2>Meeting Notes — LEGO Strategy</h2><p>Focus on supply chain transparency and circular economy. Mentioned Billund facilities as testbed.</p>`,
     editorProps: {
       attributes: {
-        class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-xl mx-auto focus:outline-none min-h-screen pt-12 pb-40 text-slate-800 font-serif',
+        class: 'prose prose-slate prose-lg max-w-none focus:outline-none min-h-[60vh] text-slate-900 font-serif',
       },
     },
   });
@@ -40,20 +40,17 @@ export function Journal({ isVisible, onFlip }: JournalProps) {
         editor.commands.insertContent(`<blockquote>${n.text}</blockquote><p></p>`);
       });
     }
-    setTimeout(() => setIsSyncing(false), 1000);
+    setTimeout(() => setIsSyncing(false), 800);
   };
 
   const sendToCanvas = () => {
     if (!editor) return;
-    const selectedText = editor.state.doc.textBetween(
-      editor.state.selection.from,
-      editor.state.selection.to,
-      ' '
-    );
+    const { from, to } = editor.state.selection;
+    const selectedText = editor.state.doc.textBetween(from, to, ' ');
 
-    if (selectedText) {
+    if (selectedText && selectedText.length > 3) {
       addNodeWithData('insight', {
-        label: selectedText.slice(0, 50) + (selectedText.length > 50 ? '...' : ''),
+        label: selectedText.slice(0, 60) + (selectedText.length > 60 ? '...' : ''),
         subtitle: selectedText,
         nodeType: 'insight',
         provenance: {
@@ -63,7 +60,7 @@ export function Journal({ isVisible, onFlip }: JournalProps) {
         }
       });
 
-      editor.commands.toggleBold();
+      editor.commands.setBold();
       onFlip();
     }
   };
@@ -73,43 +70,45 @@ export function Journal({ isVisible, onFlip }: JournalProps) {
       initial={false}
       animate={{ 
         opacity: isVisible ? 1 : 0,
-        rotateY: isVisible ? 0 : -180,
         pointerEvents: isVisible ? 'auto' : 'none',
-        zIndex: isVisible ? 40 : -1
       }}
-      transition={{ duration: 0.8, type: 'spring', bounce: 0.2 }}
-      className="absolute inset-0 bg-[#Fdfcfaf0] overflow-y-auto backdrop-blur-3xl"
-      style={{ backfaceVisibility: 'hidden', transformStyle: 'preserve-3d' }}
+      transition={{ duration: 0.4 }}
+      className="absolute inset-0 bg-[#f8f9fa] overflow-y-auto"
+      style={{ 
+        backfaceVisibility: 'hidden', 
+        transform: 'rotateY(180deg)',
+        transformStyle: 'preserve-3d',
+        zIndex: isVisible ? 50 : -1
+      }}
     >
-      <div className="max-w-3xl mx-auto px-12 relative h-full">
-        {/* Date Header */}
-        <div className="pt-24 pb-8 flex justify-between items-end">
+      <div className="max-w-4xl mx-auto px-16 py-20 min-h-screen bg-white shadow-2xl border-x border-slate-200/50">
+        {/* Header */}
+        <div className="mb-12 flex justify-between items-start border-b border-slate-100 pb-8">
           <div>
-            <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-tdc-400 mb-4 flex items-center gap-2">
-              Daily Notes
-              {isSyncing && <RefreshCcw size={10} className="animate-spin text-slate-400" />}
+            <p className="text-[10px] font-black tracking-[0.3em] uppercase text-tdc-500 mb-3 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-tdc-500 animate-pulse" />
+              Agentic Journal
+              {isSyncing && <RefreshCcw size={12} className="animate-spin text-slate-400" />}
             </p>
             <h1 className="text-5xl font-serif text-slate-900 tracking-tight">
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })}
             </h1>
           </div>
           
-          <div className="flex gap-2 mb-2">
+          <div className="flex gap-3">
             <button
               onClick={handleSyncRemarkable}
               disabled={isSyncing}
-              className="flex items-center gap-2 px-4 py-2 bg-white text-slate-600 rounded-full shadow-sm border border-slate-200 hover:border-slate-300 transition-all text-xs font-bold uppercase tracking-wide"
-              title="Sync from reMarkable"
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-50 text-slate-600 rounded-full border border-slate-200 hover:bg-slate-100 transition-all text-[11px] font-bold uppercase tracking-wider"
             >
-              <Tablet size={14} className="text-slate-400" />
+              <Tablet size={14} className={isSyncing ? 'animate-bounce' : ''} />
               Sync reMarkable
             </button>
             <button
               onClick={sendToCanvas}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-full shadow-lg hover:bg-tdc-500 transition-colors text-xs font-bold tracking-wide uppercase"
-              title="Extract selected text to Canvas"
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-full shadow-xl hover:bg-tdc-600 transition-all text-[11px] font-bold uppercase tracking-wider active:scale-95"
             >
-              <Sparkles size={14} className="text-amber-300" />
+              <Sparkles size={14} className="text-amber-400" />
               Send to Canvas
               <ArrowRight size={14} />
             </button>
@@ -117,8 +116,15 @@ export function Journal({ isVisible, onFlip }: JournalProps) {
         </div>
 
         {/* Editor Area */}
-        <div className="mt-4">
+        <div className="relative">
           <EditorContent editor={editor} />
+        </div>
+        
+        {/* Footer info */}
+        <div className="mt-20 pt-8 border-t border-slate-50 text-center">
+          <p className="text-[10px] text-slate-300 uppercase tracking-widest font-medium">
+            Shift + Click to flip back • All changes are persisted locally
+          </p>
         </div>
       </div>
     </motion.div>

@@ -1615,20 +1615,25 @@ export const useCanvasStore = create<CanvasState>()(
 
       executeNodeCommand: async (nodeId, command) => {
         const node = get().nodes.find(n => n.id === nodeId);
-        if (!node) return;
-        const label = String(node.data?.label ?? '');
+        if (!node || !command.trim()) return;
+        
+        const label = String(node.data?.label || 'unnamed thought');
         const t = get()._toast;
 
         const updateStatus = (status: CanvasNodeData['reasoningStatus'], step?: string) => {
-          const targetNode = get().nodes.find(n => n.id === nodeId);
+          const targetNode = get().nodes.find(n => n.id === nodeId);       
           if (!targetNode) return;
-          const newSteps = step ? [...(targetNode.data.thinkingSteps as string[] || []), step] : targetNode.data.thinkingSteps;
+          const currentSteps = (targetNode.data.thinkingSteps as string[]) || [];
+          const newSteps = step ? [...currentSteps, step] : currentSteps;
           set(state => ({
-            nodes: state.nodes.map(n => n.id === nodeId ? { ...n, data: { ...n.data, reasoningStatus: status, thinkingSteps: newSteps } } : n)
+            nodes: state.nodes.map(n => n.id === nodeId ? { ...n, data: { ...n.data, reasoningStatus: status, thinkingSteps: newSteps } } : n)        
           }));
         };
 
-        updateStatus('thinking', `Starter 4-lags intelligens-check for "${label}"...`);
+        // Reset thinking steps for new command
+        set(state => ({
+          nodes: state.nodes.map(n => n.id === nodeId ? { ...n, data: { ...n.data, reasoningStatus: 'thinking', thinkingSteps: [`Modtog: "${command}"`] } } : n)
+        }));
 
         try {
           const cmd = command.toLowerCase().trim();
@@ -1636,43 +1641,51 @@ export const useCanvasStore = create<CanvasState>()(
             await get().expandNode(nodeId);
           } else if (cmd.startsWith('/analyze')) {
             await get().autoAnalyze(nodeId);
-          } else if (cmd === '/help' || cmd.includes('hvad kan du')) {
-            get().addNodeWithData('thought', { label: 'Oraklets Kapabiliteter', subtitle: 'Henter 4 lag: Intern, Ekstern, Egen, Fælles.', nodeType: 'thought' }, { x: node.position.x + 300, y: node.position.y });
+          } else if (cmd === '/help' || cmd.includes('hvad kan du')) {     
+            get().addNodeWithData('thought', { 
+              label: 'Oraklets Kapabiliteter', 
+              subtitle: 'Jeg ræsonnerer over 5 lag: Intern, Ekstern, Egen, Fælles og din kuraterede Notebook.', 
+              nodeType: 'thought' 
+            }, { x: node.position.x + 300, y: node.position.y });
           } else {
             let neighbors: string[] = [];
             let collectiveMemories: any[] = [];
+            
             try {
               const connectedEdges = get().edges.filter(e => e.source === nodeId || e.target === nodeId);
               const neighborIds = connectedEdges.map(e => e.source === nodeId ? e.target : e.source);
               neighbors = get().nodes.filter(n => neighborIds.includes(n.id)).map(n => `${n.data.label} (${n.type})`);
+              updateStatus('thinking', `Hentet ${neighbors.length} naboer fra lærredet.`);
             } catch (e) {}
 
             try {
-              collectiveMemories = await graphRead(`MATCH (l:Lesson) WHERE toLower(l.topic) CONTAINS toLower($query) RETURN l.content AS content, l.outcome AS outcome LIMIT 3`, { query: label });
+              collectiveMemories = await graphRead(`MATCH (l:Lesson) WHERE toLower(l.topic) CONTAINS toLower($query) RETURN l.content AS content, l.outcome AS outcome LIMIT 3`, { query: label !== 'unnamed thought' ? label : command });
+              updateStatus('thinking', `Fundet ${collectiveMemories.length} erfaringer i fællesskabets hukommelse.`);
             } catch (e) {}
 
             updateStatus('thinking', 'Henter grounded viden fra Notebook (curated library)...');
-            const notebookContext = await fetchNotebookContext(label);
+            const notebookContext = await fetchNotebookContext(label !== 'unnamed thought' ? label : command);
 
-            const result = await reasonCall(`
-Svar på: "${command}"
-Kontekst: "${label}"
-Naboer på lærred: ${neighbors.join(', ')}
-Tidligere erfaringer: ${collectiveMemories.length}
+            const result = await reasonCall(`Svar paa: "${command}" in context of "${label || 'thought'}".
+Internal: ${neighbors.join(', ') || 'None'}
+Global: ${collectiveMemories.length} lessons.
+Notebook: ${notebookContext.slice(0, 500)}`, { domain: 'contextual-node-oracle' });
 
-[NOTEBOOK GROUNDING]
-${notebookContext}
-
-[INSTRUKS]
-Svar baseret på både lærredets kontekst og den grounded viden fra vores Notebook library.
-`, { domain: 'contextual-node-oracle' });
+            const newId = get().addNodeWithData('insight', { 
+              label: result.recommendation.slice(0, 60) + (result.recommendation.length > 60 ? '...' : ''), 
+              subtitle: result.recommendation, 
+              nodeType: 'insight', 
+              thinkingSteps: result.thinking_steps, 
+              provenance: { createdBy: 'ai', createdAt: new Date().toISOString(), source: `Orakel-svar: ${command}`, confidence: result.confidence } 
+            }, { x: node.position.x + 350, y: node.position.y });
             
-            const newId = get().addNodeWithData('insight', { label: result.recommendation.slice(0, 60), subtitle: result.recommendation, nodeType: 'insight', thinkingSteps: result.thinking_steps, provenance: { createdBy: 'ai', createdAt: new Date().toISOString(), source: `Orakel-svar: ${command}`, confidence: result.confidence } }, { x: node.position.x + 350, y: node.position.y });
-            set(state => ({ edges: [...state.edges, { id: `edge-chat-${Date.now()}`, source: nodeId, target: newId, label: 'ORACLE_INSIGHT' }] }));
+            set(state => ({ edges: [...state.edges, { id: `edge-chat-${Date.now()}`, source: nodeId, target: newId, label: 'ORACLE_INSIGHT' }] }));   
           }
-          updateStatus('complete');
+          updateStatus('complete', 'Analyse færdig.');
         } catch (err) {
-          updateStatus('error', `Fejl: ${err instanceof Error ? err.message : String(err)}`);
+          const errMsg = err instanceof Error ? err.message : String(err);
+          updateStatus('error', `Fejl: ${errMsg}`);
+          t?.('error', `Oraklet fejlede: ${errMsg}`);
         }
       },
     }),
