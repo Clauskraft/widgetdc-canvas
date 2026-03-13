@@ -18,6 +18,16 @@ export default defineConfig({
         changeOrigin: true,
         secure: true,
       },
+      '/reason': {
+        target: 'https://rlm-engine-production.up.railway.app',
+        changeOrigin: true,
+        secure: true,
+      },
+      '/intelligence': {
+        target: 'https://rlm-engine-production.up.railway.app',
+        changeOrigin: true,
+        secure: true,
+      },
     },
   },
 });

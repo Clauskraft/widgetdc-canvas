@@ -1,4 +1,4 @@
-import type { CanvasNodeType } from '../components/nodes';
+import type { CanvasNodeType } from '../types/canvas';
 
 export interface CanvasTemplate {
   id: string;
@@ -56,18 +56,31 @@ export const CANVAS_TEMPLATES: CanvasTemplate[] = [
     layoutMode: 'mindmap',
   },
   {
-    id: 'engagement-canvas',
-    name: 'Engagement Canvas (Structured)',
-    description: '6-column methodology: Brief → Hypotheses → Evidence → Analysis → Recs → Deliverables',
-    queries: [],
+    id: 'h10-strategic-north-star',
+    name: 'H10 Strategic North Star',
+    description: '10-year vision breakdown: North Star → Pillars → H5 → H3 → H1 → 90-Day Action Plan.',
+    queries: [
+      { cypher: "MATCH (n:StrategicGoal) RETURN n LIMIT 5", nodeType: 'entity', labelField: 'name' },
+      { cypher: "MATCH (p:StrategicPillar) RETURN p LIMIT 10", nodeType: 'insight', labelField: 'name' },
+    ],
     autoAnalyze: false,
     layoutMode: 'freeform',
-    columns: ['BRIEF', 'HYPOTHESES', 'EVIDENCE', 'ANALYSIS', 'RECOMMENDATIONS', 'DELIVERABLES'],
+    columns: ['VISION', 'PILLARS', 'MARKET', 'GAPS', 'H5_MIDPOINT', 'H3_MOMENTUM', 'H1_LAUNCH', 'RISKS', 'FINANCE', 'ACTION_PLAN'],
   },
 ];
 
 // Column mapping for engagement canvas layout
 export const ENGAGEMENT_COLUMNS: Record<string, { nodeTypes: CanvasNodeType[]; x: number; color: string }> = {
+  'VISION':          { nodeTypes: ['entity'],              x: 0,    color: '#f4bb00' },
+  'PILLARS':         { nodeTypes: ['insight'],             x: 280,  color: '#22c55e' },
+  'MARKET':          { nodeTypes: ['entity'],              x: 560,  color: '#3b82f6' },
+  'GAPS':            { nodeTypes: ['thought'],             x: 840,  color: '#f97316' },
+  'H5_MIDPOINT':     { nodeTypes: ['thought'],             x: 1120, color: '#8b5cf6' },
+  'H3_MOMENTUM':     { nodeTypes: ['thought'],             x: 1400, color: '#a855f7' },
+  'H1_LAUNCH':       { nodeTypes: ['thought'],             x: 1680, color: '#ec4899' },
+  'RISKS':           { nodeTypes: ['insight'],             x: 1960, color: '#ef4444' },
+  'FINANCE':         { nodeTypes: ['evidence'],            x: 2240, color: '#14b8a6' },
+  'ACTION_PLAN':     { nodeTypes: ['artifact'],            x: 2520, color: '#06b6d4' },
   'BRIEF':           { nodeTypes: ['entity', 'server'],    x: 0,    color: '#64748b' },
   'HYPOTHESES':      { nodeTypes: ['thought'],             x: 280,  color: '#8b5cf6' },
   'EVIDENCE':        { nodeTypes: ['evidence'],            x: 560,  color: '#f97316' },

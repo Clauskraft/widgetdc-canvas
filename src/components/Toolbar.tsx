@@ -33,7 +33,7 @@ import { useReactFlow } from '@xyflow/react';
 import { toPng, toSvg } from 'html-to-image';
 import { useCanvasStore } from '../store/canvasStore';
 import { mcpCall } from '../lib/api';
-import type { CanvasNodeType } from './nodes';
+import type { CanvasNodeType } from '../types/canvas';
 
 const NODE_OPTIONS: { type: CanvasNodeType; label: string; icon: typeof Server; group: string }[] = [
   // Infrastructure
@@ -64,7 +64,7 @@ export function Toolbar() {
   const { fitView } = useReactFlow();
   const {
     addNode, removeSelected, layoutMode, setLayoutMode,
-    applyLayout, toggleAiPanel, toggleToolPalette, toggleKnowledgeExplorer, toggleGapOverlay,
+    applyLayout, alignLayout, toggleAiPanel, toggleToolPalette, toggleKnowledgeExplorer, toggleGapOverlay,
     saveToGraph, loadFromGraph,
     clearCanvas, isLoading, selectedNodeId,
     undo, redo, undoStack, redoStack,
@@ -184,6 +184,13 @@ export function Toolbar() {
         title="Layout Left-Right"
       >
         <ArrowLeftRight size={14} />
+      </button>
+      <button
+        onClick={alignLayout}
+        className="flex items-center gap-1 px-2 py-1.5 rounded-md bg-neural-panel hover:bg-neural-border text-amber-400 font-bold text-[10px] uppercase tracking-tighter transition-all border border-amber-500/20"
+        title="Align Strategy Columns"
+      >
+        <LayoutGrid size={14} /> Align
       </button>
 
       <div className="w-px h-6 bg-neural-border mx-1" />

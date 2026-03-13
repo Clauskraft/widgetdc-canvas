@@ -3,7 +3,7 @@ import { X, Send, Loader2, ChevronDown, ChevronRight, ArrowDownToLine, BrainCirc
 import { useCanvasStore } from '../store/canvasStore';
 import { graphRead, graphTextSearch, mcpCall, isComplianceQuery } from '../lib/api';
 import { ragQuery, type SuggestedAction } from '../lib/rag';
-import type { CanvasNodeType } from './nodes';
+import type { CanvasNodeType } from '../types/canvas';
 import { runPipeline, runFullEnrichment, DANISH_TARGETS } from '../testcases/competitive-intel-pipeline';
 import {
   generatePipelineView,

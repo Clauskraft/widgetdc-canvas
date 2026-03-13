@@ -9,9 +9,9 @@
         "secondary": "#4A90E2",
         "accent": "#1A1A1A",
         "background": "#FFFFFF",
-        "backgroundAlt": "#F8FAFC",
+        "background_alt": "#F8FAFC",
         "text": "#1A1A1A",
-        "textMuted": "#6B7280",
+        "text_muted": "#6B7280",
         "border": "#E2E8F0",
         "success": "#10B981",
         "warning": "#F59E0B",
@@ -19,9 +19,9 @@
         "highlight": "#EBF5FB"
       },
       "typography": {
-        "headingFont": "TDC Sans",
-        "bodyFont": "TDC Sans",
-        "fontSizes": {
+        "heading_font": "TDC Sans",
+        "body_font": "TDC Sans",
+        "font_sizes": {
           "title": 44,
           "subtitle": 20,
           "heading1": 28,
@@ -45,9 +45,9 @@
         "secondary": "#0066CC",
         "accent": "#00A3E0",
         "background": "#FFFFFF",
-        "backgroundAlt": "#F5F5F5",
+        "background_alt": "#F5F5F5",
         "text": "#333333",
-        "textMuted": "#666666",
+        "text_muted": "#666666",
         "border": "#D4D4D4",
         "success": "#2E7D32",
         "warning": "#E65100",
@@ -55,9 +55,9 @@
         "highlight": "#E3F2FD"
       },
       "typography": {
-        "headingFont": "Georgia",
-        "bodyFont": "Arial",
-        "fontSizes": {
+        "heading_font": "Georgia",
+        "body_font": "Arial",
+        "font_sizes": {
           "title": 40,
           "subtitle": 18,
           "heading1": 24,
@@ -81,9 +81,9 @@
         "secondary": "#818CF8",
         "accent": "#6366F1",
         "background": "#0F172A",
-        "backgroundAlt": "#1E293B",
+        "background_alt": "#1E293B",
         "text": "#F8FAFC",
-        "textMuted": "#94A3B8",
+        "text_muted": "#94A3B8",
         "border": "#4A5568",
         "success": "#22C55E",
         "warning": "#ED8936",
@@ -91,9 +91,45 @@
         "highlight": "#2D3748"
       },
       "typography": {
-        "headingFont": "Arial",
-        "bodyFont": "Arial",
-        "fontSizes": {
+        "heading_font": "Arial",
+        "body_font": "Arial",
+        "font_sizes": {
+          "title": 44,
+          "subtitle": 20,
+          "heading1": 28,
+          "heading2": 22,
+          "heading3": 18,
+          "body": 16,
+          "caption": 12
+        }
+      },
+      "spacing": {
+        "margin": 0.5,
+        "padding": 0.3,
+        "gutter": 0.2
+      }
+    },
+    {
+      "id": "bcg",
+      "name": "BCG Style",
+      "colors": {
+        "primary": "#00693E",
+        "secondary": "#2E8540",
+        "accent": "#7CB342",
+        "background": "#FFFFFF",
+        "background_alt": "#FFFFFF",
+        "text": "#1A1A1A",
+        "text_muted": "#666666",
+        "border": "#D4D4D4",
+        "success": "#2E7D32",
+        "warning": "#E65100",
+        "error": "#C62828",
+        "highlight": "#E8F5E9"
+      },
+      "typography": {
+        "heading_font": "Arial",
+        "body_font": "Arial",
+        "font_sizes": {
           "title": 44,
           "subtitle": 20,
           "heading1": 28,

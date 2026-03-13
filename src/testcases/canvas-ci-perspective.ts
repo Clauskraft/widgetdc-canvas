@@ -9,7 +9,7 @@
  */
 
 import type { Node, Edge } from '@xyflow/react';
-import type { CanvasNodeData, CanvasNodeType } from '../components/nodes';
+import type { CanvasNodeData, CanvasNodeType } from '../types/canvas';
 import { graphRead } from '../lib/api';
 import { applyDagreLayout } from '../lib/layout';
 

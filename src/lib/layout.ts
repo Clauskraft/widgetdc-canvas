@@ -1,5 +1,7 @@
 import dagre from '@dagrejs/dagre';
 import type { Node, Edge } from '@xyflow/react';
+import { ENGAGEMENT_COLUMNS } from '../templates';
+import { CanvasNodeType } from '../types/canvas';
 
 const NODE_WIDTH = 220;
 const NODE_HEIGHT = 80;
@@ -34,6 +36,40 @@ export function applyDagreLayout<T extends Record<string, unknown>>(
         x: pos.x - NODE_WIDTH / 2,
         y: pos.y - NODE_HEIGHT / 2,
       },
+    };
+  });
+}
+
+/**
+ * Loop 4: Smart Snapping
+ * Aligns nodes to the strategic H10 grid defined in ENGAGEMENT_COLUMNS.
+ */
+export function alignNodesToColumns<T extends Record<string, unknown>>(
+  nodes: Node<T>[]
+): Node<T>[] {
+  const columnCounts: Record<string, number> = {};
+  const HEADER_HEIGHT = 120;
+  const COLUMN_SPACING_Y = 140;
+
+  return nodes.map((node) => {
+    const nodeType = (node.type || 'entity') as CanvasNodeType;
+    let targetX = node.position.x;
+    let targetY = node.position.y;
+
+    // Find assigned column
+    for (const [colName, colDef] of Object.entries(ENGAGEMENT_COLUMNS)) {
+      if (colDef.nodeTypes.includes(nodeType)) {
+        const count = columnCounts[colName] || 0;
+        targetX = colDef.x + 30; // 30px offset for padding
+        targetY = HEADER_HEIGHT + count * COLUMN_SPACING_Y;
+        columnCounts[colName] = count + 1;
+        break;
+      }
+    }
+
+    return {
+      ...node,
+      position: { x: targetX, y: targetY },
     };
   });
 }

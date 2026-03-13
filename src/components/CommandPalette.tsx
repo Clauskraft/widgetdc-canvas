@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, GitBranch, Terminal, Wrench, Bot, Database, Lightbulb, FileSearch, BrainCircuit, Layers, Sparkles, Save, Upload, Trash2, LayoutGrid, BookOpen, Link2, FileCheck } from 'lucide-react';
 import { useCanvasStore } from '../store/canvasStore';
-import type { CanvasNodeType } from './nodes';
+import type { CanvasNodeType } from '../types/canvas';
 
 interface PaletteItem {
   id: string;

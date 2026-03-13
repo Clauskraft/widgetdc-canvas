@@ -8,13 +8,13 @@ This specification defines the "Option C" contract for the WidgeTDC Foundry. The
 **Auth:** `Bearer <WIDGETDC_API_KEY>`
 
 ### A. Request Schema (Input from RLM)
-The RLM sends an array of "Intent Sections".
+The RLM sends a JSON object conforming to the `foundry_option_c_contract.json` schema.
 
 ```json
 {
-  "jobId": "uuid-v4",
-  "targetFormat": "pptx | docx | pdf",
-  "themeId": "mckinsey | tdc | dark",
+  "job_id": "uuid-v4",
+  "target_format": "pptx | docx | pdf",
+  "theme_id": "tdc | mckinsey | dark",
   "metadata": {
     "title": "Market Strategy 2026",
     "author": "Oracle Agent",
@@ -22,19 +22,30 @@ The RLM sends an array of "Intent Sections".
   },
   "sections": [
     {
-      "type": "title_slide | executive_summary | content | diagram | table | metric_grid",
+      "type": "title",
       "content": {
-        "title": "Section Title",
-        "subtitle": "Key takeaway headline",
-        "body": "Markdown or structured text",
-        "items": ["Point 1", "Point 2"],
-        "data": [ { "label": "Revenue", "value": 100 } ]
+        "title": "Market Strategy 2026",
+        "subtitle": "Prepared by WidgeTDC Oracle"
       },
-      "visualIntent": {
-        "layout": "split | centered | grid",
-        "emphasis": "high | normal",
-        "diagramType": "swot | roadmap | architecture"
-      }
+      "quality_gate": { "confidence": 0.99, "source_count": 12 }
+    },
+    {
+      "type": "executive_summary",
+      "content": {
+        "body": "The Nordic consulting market is undergoing a fundamental shift towards..."
+      },
+      "quality_gate": { "confidence": 0.92, "source_count": 45 }
+    },
+    {
+      "type": "risk_matrix",
+      "content": {
+        "data": [
+          { "label": "Geopolitical", "value": "High" },
+          { "label": "Technical Debt", "value": "Medium" }
+        ]
+      },
+      "visual_intent": { "layout": "grid", "emphasis": "high" },
+      "quality_gate": { "confidence": 0.85, "source_count": 8 }
     }
   ]
 }
@@ -47,16 +58,16 @@ The Backend returns the binary artifact or a retrieval link, plus a manifest.
 {
   "status": "success | error",
   "artifact": {
-    "fileName": "Strategy_2026.pptx",
-    "contentType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "file_name": "Strategy_2026.pptx",
+    "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     "size": 1024000,
-    "downloadUrl": "https://.../retrieve/uuid"
+    "download_url": "https://.../retrieve/uuid"
   },
   "manifest": {
-    "promptHash": "sha256",
-    "renderTimeMs": 450,
+    "prompt_hash": "sha256",
+    "render_time_ms": 450,
     "version": "1.2.0",
-    "qualityGate": {
+    "quality_gate": {
       "score": 0.98,
       "checks": [
         { "id": "theme_adherence", "passed": true },
@@ -67,17 +78,24 @@ The Backend returns the binary artifact or a retrieval link, plus a manifest.
 }
 ```
 
-## 3. Section Types & Capabilities
-- **`title_slide`:** Mandatory start. Requires title/subtitle.
-- **`diagram`:** Uses the `DiagramService` (D3/Drawio) to render vector assets based on `diagramType`.
-- **`metric_grid`:** Specifically for financial data (DCF, TCO). Maps to high-contrast visual blocks.
+## 3. Mandatory Components
+
+### A. The Shared Registry
+Both RLM and Backend must reference the `foundry_theme_registry.json`.
+- **RLM:** Uses `theme_id` to determine content length constraints (e.g., McKinsey slides have less space for text than Dark slides).
+- **Backend:** Uses `theme_id` to look up hex codes and fonts during rendering.
+
+### B. The Quality Gate
+The `quality_gate` per section is the "W1 fix" mandated by Claude.
+- **Synthesizer:** Must calculate confidence based on RAG source relevance.
+- **Renderer:** Must reject or flag sections where `confidence < 0.6`.
 
 ## 4. Why Option C?
-1. **RLM focus:** No need for LLMs to understand binary file formats or complex CSS.
-2. **Backend precision:** Python/TS renderers use battle-tested libraries (python-pptx, docx-js) for pixel-perfect results.
+1. **RLM focus:** No need for LLMs to understand binary file formats (python-pptx) or complex CSS.
+2. **Backend precision:** TypeScript renderers use battle-tested libraries (pptxgenjs, docx-js) for pixel-perfect results.
 3. **Auditability:** The `section-array` is human-readable and provides a perfect log of "what the AI wanted to build".
 
 ---
-**Status:** TASK 3 DELIVERABLE SUBMITTED.
+**Status:** TASK 3 DELIVERABLE REFINED & SUBMITTED.
 **Owner:** Gemini Architect
 **Reference:** LIN-79, Task 3 (P1)

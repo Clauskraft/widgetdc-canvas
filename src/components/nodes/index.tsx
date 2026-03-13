@@ -1,77 +1,27 @@
 import { memo, useState } from 'react';
-import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
+import { Handle, Position, NodeToolbar, useStore, type NodeProps, type Node } from '@xyflow/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Server, Bot, Wrench, Database, Lightbulb, FileSearch,
   GitBranch, Plug, Terminal, FileCode, Layers,
-  ChevronDown, ChevronRight, Play, BrainCircuit, Shield,
+  ChevronDown, ChevronRight, Play, BrainCircuit, Shield, Sparkles, Link2
 } from 'lucide-react';
+import { useCanvasStore } from '../../store/canvasStore';
+import type { CanvasNodeData, CanvasNodeType, CanvasNode } from '../../types/canvas';
 
-/**
- * 12 Node Types — 6 Layers reflecting Canvas 5X architecture
- *
- * INFRASTRUCTURE:  server | endpoint
- * CAPABILITY:      tool
- * ORCHESTRATION:   pipeline | agent
- * INTELLIGENCE:    entity | insight | evidence | artifact
- * REASONING:       thought
- * SANDBOX:         query
- * META:            combo
- */
-export type CanvasNodeType =
-  | 'server'    // Infrastructure: servers, bridges, gateways, databases
-  | 'endpoint'  // Infrastructure: API endpoints, MCP routes
-  | 'tool'      // Capability: MCP tools (329 across 56 namespaces)
-  | 'pipeline'  // Orchestration: workflows, sequences, pipelines
-  | 'agent'     // Orchestration: autonomous actors (8 agents)
-  | 'entity'    // Intelligence: graph data nodes (Competitor, Domain, etc.)
-  | 'insight'   // Intelligence: findings, analysis, recommendations
-  | 'evidence'  // Intelligence: data artifacts, source material
-  | 'artifact'  // Intelligence: rendered content (mermaid, charts, markdown)
-  | 'thought'   // Reasoning: MLTM thinking chains, reasoning steps
-  | 'query'     // Sandbox: executable Cypher/MCP queries
-  | 'combo';    // Meta: collapsed group of nodes
-
-export interface ProvenanceData {
-  createdBy: 'manual' | 'query' | 'expand' | 'tool' | 'ai' | 'pipeline' | 'harvest';
-  createdAt: string;
-  source: string;
-  confidence?: number;
-  parentNodeId?: string;
-  tool?: string;
-  query?: string;
-}
-
-export interface CanvasNodeData extends Record<string, unknown> {
-  label: string;
-  subtitle?: string;
-  nodeType: CanvasNodeType;
-  metadata?: Record<string, unknown>;
-  provenance?: ProvenanceData;
-  // Query node specifics
-  queryText?: string;
-  queryType?: 'cypher' | 'mcp';
-  queryStatus?: 'idle' | 'running' | 'success' | 'error';
-  queryResultCount?: number;
-  // Artifact specifics
-  artifactType?: 'mermaid' | 'markdown' | 'chart' | 'table' | 'html';
-  artifactSource?: string;
-  // Combo specifics
-  childCount?: number;
-  collapsed?: boolean;
-  // Thought/Reasoning specifics
-  thinkingSteps?: string[];
-  reasoningStatus?: 'thinking' | 'complete' | 'error';
-  // Regulatory badge
-  regulatoryLevel?: 'strict' | 'guideline' | 'info';
-  complianceScore?: number;
-  // Ghost/rejected rendering
-  isRejected?: boolean;
-  rejectionReason?: string;
-  // Signal intensity for aura glow
-  signalIntensity?: number;
-}
-
-export type CanvasNode = Node<CanvasNodeData>;
+// Strict comparison for memoization to fix O(N) re-render bottleneck (Audit Day 5)
+const areNodePropsEqual = (prev: NodeProps<CanvasNode>, next: NodeProps<CanvasNode>) => {
+  return (
+    prev.id === next.id &&
+    prev.selected === next.selected &&
+    prev.data.label === next.data.label &&
+    prev.data.reasoningStatus === next.data.reasoningStatus &&
+    prev.data.hasProactiveRecommendation === next.data.hasProactiveRecommendation &&
+    prev.data.thinkingSteps?.length === next.data.thinkingSteps?.length &&
+    prev.data.complianceScore === next.data.complianceScore &&
+    prev.data.signalIntensity === next.data.signalIntensity
+  );
+};
 
 const NODE_CONFIG: Record<CanvasNodeType, { color: string; icon: typeof Server; layerLabel: string }> = {
   server:   { color: '#64748b', icon: Server,       layerLabel: 'INFRA' },
@@ -112,59 +62,153 @@ const REGULATORY_COLORS = {
   info: { bg: '#6b728033', border: '#6b7280', label: 'INFO' },
 } as const;
 
-function BaseNode({ data }: NodeProps<CanvasNode>) {
+function FloatingToolbar({ id, nodeType, isVisible }: { id: string; nodeType: CanvasNodeType; isVisible: boolean }) {
+  const { expandNode, autoAnalyze, crossReference, matchTenders, evaluateHypothesis } = useCanvasStore();
+
+  const getActions = () => {
+    const actions = [];
+    
+    // Core expansion actions
+    if (['entity', 'agent', 'thought'].includes(nodeType)) {
+      actions.push({ id: 'expand', label: 'Expand', icon: GitBranch, color: 'text-sky-400', onClick: () => expandNode(id) });
+    }
+
+    // Intelligence actions
+    actions.push({ id: 'analyze', label: 'Analyze', icon: Sparkles, color: 'text-purple-400', onClick: () => autoAnalyze(id) });
+
+    if (['entity', 'agent'].includes(nodeType)) {
+      actions.push({ id: 'tenders', label: 'Tenders', icon: Search, color: 'text-amber-400', onClick: () => matchTenders(id) });
+    }
+
+    if (['insight', 'evidence', 'artifact'].includes(nodeType)) {
+      actions.push({ id: 'link', label: 'Link', icon: Link2, color: 'text-emerald-400', onClick: () => crossReference(id) });
+    }
+
+    if (nodeType === 'thought') {
+      actions.push({ id: 'evaluate', label: 'Score', icon: Shield, color: 'text-rose-400', onClick: () => evaluateHypothesis(id) });
+    }
+
+    return actions;
+  };
+
+  const actions = getActions();
+
+  return (
+    <NodeToolbar isVisible={isVisible} position={Position.Top} className="mb-3 z-[100]">
+      <AnimatePresence>
+        {isVisible && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.9 }}
+            className="flex items-center gap-0.5 p-1 bg-neural-surface/95 backdrop-blur-2xl border border-neural-border shadow-2xl rounded-2xl"
+          >
+            {actions.map((action, i) => (
+              <div key={action.id} className="flex items-center">
+                {i > 0 && <div className="w-px h-4 bg-neural-border/50 mx-0.5" />}
+                <button
+                  onClick={action.onClick}
+                  className={`flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest ${action.color} hover:bg-white/5 rounded-xl transition-all active:scale-95`}
+                  title={action.label}
+                >
+                  <action.icon size={14} />
+                  <span className="hidden sm:inline">{action.label}</span>
+                </button>
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </NodeToolbar>
+  );
+}
+
+function BaseNode({ id, data, selected }: NodeProps<CanvasNode>) {
+  const { executeNodeCommand } = useCanvasStore();
+  const zoom = useStore((s) => s.transform[2]);
+  const isLowDetail = zoom < 0.6;
+
   const config = NODE_CONFIG[data.nodeType] ?? NODE_CONFIG.entity;
   const Icon = config.icon;
   const isGhost = /ghost/i.test(data.subtitle ?? '');
   const isRejected = data.isRejected === true;
+  const status = (data.reasoningStatus as string) ?? 'complete';
   const provenance = data.provenance;
   const confidenceStyle = getConfidenceStyle(provenance?.confidence);
   const badge = provenance ? PROVENANCE_BADGES[provenance.createdBy] : null;
   const intensity = (data.signalIntensity as number) ?? 0;
   const hasAura = intensity > 0.8;
+  const hasProactive = !!data.hasProactiveRecommendation;
   const regLevel = data.regulatoryLevel as keyof typeof REGULATORY_COLORS | undefined;
   const compScore = data.complianceScore as number | undefined;
 
+  const auraColor = intensity > 0.8 ? '#ef4444' : (hasProactive ? '#fbbf24' : config.color);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      const val = e.currentTarget.value.trim();
+      if (val) {
+        executeNodeCommand(id, val);
+        if (val.startsWith('/') || val.includes('?')) {
+          e.currentTarget.value = data.label; 
+        }
+      }
+      e.currentTarget.blur();
+    }
+  };
+
   return (
     <>
+      <FloatingToolbar id={id} isVisible={selected} />
       <Handle type="target" position={Position.Top} className="!bg-neural-border !w-2 !h-2" />
-      {/* Aura glow ring for high-intensity signals */}
-      {hasAura && (
+      
+      {/* Aura optimized: Hide glow at low zoom unless selected */}
+      {(hasAura || hasProactive || status === 'thinking') && (!isLowDetail || selected) && (
         <div
-          className="absolute -inset-2 rounded-xl animate-pulse pointer-events-none"
+          className="absolute -inset-3 rounded-2xl animate-pulse pointer-events-none z-0"
           style={{
-            background: `radial-gradient(ellipse, ${config.color}40 0%, transparent 70%)`,
-            boxShadow: `0 0 20px ${config.color}60`,
+            background: `radial-gradient(ellipse, ${auraColor}25 0%, transparent 75%)`,
+            boxShadow: `0 0 35px ${auraColor}${intensity > 0.9 ? '90' : '40'}`,
           }}
         />
       )}
+
       <div
         className={[
-          'relative px-4 py-3 rounded-lg border bg-neural-surface shadow-lg min-w-[180px] max-w-[280px] cursor-grab active:cursor-grabbing',
+          'relative px-4 py-3 rounded-xl border bg-neural-surface shadow-lg min-w-[180px] max-w-[280px] cursor-grab active:cursor-grabbing transition-all duration-500',
           isGhost ? 'border-dashed border-neural-border' : 'border-neural-border',
           isRejected ? 'border-dashed' : '',
+          selected ? 'ring-2 shadow-2xl ring-opacity-60 scale-[1.02]' : '',
+          hasProactive ? 'border-amber-500/50' : ''
         ].join(' ')}
         style={{
           borderLeftWidth: 4,
           borderLeftColor: config.color,
           opacity: isRejected ? 0.3 : (isGhost ? 0.8 : undefined),
+          ...(selected ? { ringColor: auraColor } : {}),
           ...confidenceStyle,
         }}
-        title={isRejected ? `Rejected: ${data.rejectionReason ?? 'Quality gate failed'}` : undefined}
       >
-        {isGhost && (
-          <div
-            className="absolute left-0 top-0 bottom-0 w-1 rounded-l-lg animate-pulse"
-            style={{ backgroundColor: config.color }}
-          />
+        {hasProactive && (
+          <div className="absolute -top-2 -right-2 bg-amber-500 rounded-full p-1 shadow-lg animate-bounce z-20">
+            <Sparkles size={10} className="text-black" />
+          </div>
         )}
         <div className="flex items-center gap-2">
           <Icon size={16} style={{ color: config.color }} />
-          <span className="text-sm font-semibold text-gray-100 truncate">
-            {data.label}
-          </span>
-          {/* Regulatory badge */}
-          {regLevel && (
+          <input
+            className="bg-transparent border-none outline-none font-bold text-gray-100 text-sm truncate flex-1"
+            defaultValue={data.label}
+            onKeyDown={handleKeyDown}
+          />
+          {!isLowDetail && status === 'thinking' && (
+            <div className="flex gap-0.5">
+              <div className="w-1 h-1 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <div className="w-1 h-1 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+            </div>
+          )}
+          {/* Regulatory badge: Hide at low zoom */}
+          {!isLowDetail && regLevel && (
             <span
               className="ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide"
               style={{
@@ -178,36 +222,39 @@ function BaseNode({ data }: NodeProps<CanvasNode>) {
             </span>
           )}
         </div>
-        {data.subtitle && (
-          <p className="text-xs text-gray-400 mt-1 truncate">{data.subtitle}</p>
+
+        {/* Details: Hide at low zoom */}
+        {!isLowDetail && (
+          <>
+            {data.subtitle && (
+              <p className="text-[11px] text-gray-400 mt-1 truncate opacity-70 leading-tight">{data.subtitle}</p>
+            )}
+            {compScore !== undefined && (
+              <div className="mt-2 h-1 rounded-full bg-neural-border/50 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{
+                    width: `${compScore * 100}%`,
+                    backgroundColor: compScore >= 0.8 ? '#22c55e' : compScore >= 0.5 ? '#eab308' : '#ef4444',
+                  }}
+                />
+              </div>
+            )}
+          </>
         )}
-        {/* Compliance score bar — values are 0.0-1.0, display as percentage */}
-        {compScore !== undefined && (
-          <div className="mt-1.5 h-1 rounded-full bg-neural-border overflow-hidden" title={`Compliance: ${(compScore * 100).toFixed(0)}%`}>
-            <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${compScore * 100}%`,
-                backgroundColor: compScore >= 0.8 ? '#22c55e' : compScore >= 0.5 ? '#eab308' : '#ef4444',
-              }}
-            />
-          </div>
-        )}
-        <div className="flex items-center gap-1.5 mt-1.5">
+
+        <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-neural-border/20">
           <span
-            className="inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium"
-            style={{ backgroundColor: config.color + '22', color: config.color }}
+            className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter"
+            style={{ backgroundColor: `${config.color}20`, color: config.color }}
           >
             {data.nodeType}
           </span>
-          <span className="text-[9px] text-gray-500 uppercase tracking-wider">
+          <span className="text-[8px] text-gray-500 uppercase font-bold tracking-widest">
             {config.layerLabel}
           </span>
-          {badge && (
-            <span
-              className="text-[10px] ml-auto"
-              title={`Source: ${provenance?.createdBy} (${provenance?.source ?? 'unknown'})`}
-            >
+          {!isLowDetail && badge && (
+            <span className="text-[10px] ml-auto opacity-60 hover:opacity-100 transition-opacity cursor-help" title={`Source: ${provenance?.createdBy}`}>
               {badge.icon}
             </span>
           )}
@@ -218,10 +265,15 @@ function BaseNode({ data }: NodeProps<CanvasNode>) {
   );
 }
 
-function QueryNode({ data }: NodeProps<CanvasNode>) {
+function QueryNode({ id, data, selected }: NodeProps<CanvasNode>) {
+  const { executeNodeCommand } = useCanvasStore();
+  const zoom = useStore((s) => s.transform[2]);
+  const isLowDetail = zoom < 0.6;
+
   const [expanded, setExpanded] = useState(true);
   const config = NODE_CONFIG.query;
   const status = data.queryStatus ?? 'idle';
+  const reasoningStatus = (data.reasoningStatus as string) ?? 'complete';
 
   const statusColors: Record<string, string> = {
     idle: '#6b7280',
@@ -230,27 +282,47 @@ function QueryNode({ data }: NodeProps<CanvasNode>) {
     error: '#ef4444',
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      const val = e.currentTarget.value.trim();
+      if (val) executeNodeCommand(id, val);
+      e.currentTarget.blur();
+    }
+  };
+
   return (
     <>
+      <FloatingToolbar id={id} isVisible={selected} />
       <Handle type="target" position={Position.Top} className="!bg-neural-border !w-2 !h-2" />
       <div
-        className="relative px-4 py-3 rounded-lg border bg-neural-surface shadow-lg min-w-[220px] max-w-[320px] cursor-grab active:cursor-grabbing border-neural-border"
-        style={{ borderLeftWidth: 4, borderLeftColor: config.color }}
+        className="relative px-4 py-3 rounded-lg border bg-neural-surface shadow-lg min-w-[220px] max-w-[320px] cursor-grab active:cursor-grabbing border-neural-border transition-shadow"
+        style={{ 
+          borderLeftWidth: 4, 
+          borderLeftColor: config.color,
+          ...(selected ? { boxShadow: `0 0 0 2px ${config.color}40` } : {})
+        }}
       >
         <div className="flex items-center gap-2">
           <Terminal size={16} style={{ color: config.color }} />
-          <span className="text-sm font-semibold text-gray-100 truncate flex-1">
-            {data.label}
-          </span>
-          <button
-            onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
-            className="p-0.5 rounded hover:bg-neural-border text-gray-400"
-          >
-            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          </button>
+          <input
+            className="bg-transparent border-none outline-none font-semibold text-gray-100 text-sm truncate flex-1"
+            defaultValue={data.label}
+            onKeyDown={handleKeyDown}
+          />
+          {!isLowDetail && reasoningStatus === 'thinking' && (
+            <Sparkles size={12} className="text-purple-400 animate-pulse shrink-0" />
+          )}
+          {!isLowDetail && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+              className="p-0.5 rounded hover:bg-neural-border text-gray-400"
+            >
+              {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </button>
+          )}
         </div>
 
-        {expanded && data.queryText && (
+        {!isLowDetail && expanded && data.queryText && (
           <pre className="mt-2 px-2 py-1.5 rounded bg-neural-panel text-[11px] text-gray-300 font-mono overflow-x-auto max-h-[80px] overflow-y-auto whitespace-pre-wrap">
             {data.queryText}
           </pre>
@@ -271,7 +343,7 @@ function QueryNode({ data }: NodeProps<CanvasNode>) {
           {status === 'running' && (
             <div className="w-2 h-2 rounded-full animate-ping absolute" style={{ backgroundColor: '#eab308' }} />
           )}
-          {data.queryResultCount !== undefined && (
+          {!isLowDetail && data.queryResultCount !== undefined && (
             <span className="text-[10px] text-gray-500 ml-auto">{data.queryResultCount} results</span>
           )}
           <Play size={12} className="ml-auto text-gray-500 hover:text-green-400 cursor-pointer" />
@@ -282,22 +354,47 @@ function QueryNode({ data }: NodeProps<CanvasNode>) {
   );
 }
 
-function ArtifactNode({ data }: NodeProps<CanvasNode>) {
+function ArtifactNode({ id, data, selected }: NodeProps<CanvasNode>) {
+  const { executeNodeCommand } = useCanvasStore();
+  const zoom = useStore((s) => s.transform[2]);
+  const isLowDetail = zoom < 0.6;
+
   const config = NODE_CONFIG.artifact;
   const artType = data.artifactType ?? 'markdown';
+  const reasoningStatus = (data.reasoningStatus as string) ?? 'complete';
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      const val = e.currentTarget.value.trim();
+      if (val) executeNodeCommand(id, val);
+      e.currentTarget.blur();
+    }
+  };
 
   return (
     <>
+      <FloatingToolbar id={id} isVisible={selected} />
       <Handle type="target" position={Position.Top} className="!bg-neural-border !w-2 !h-2" />
       <div
-        className="relative px-4 py-3 rounded-lg border bg-neural-surface shadow-lg min-w-[200px] max-w-[400px] cursor-grab active:cursor-grabbing border-neural-border"
-        style={{ borderLeftWidth: 4, borderLeftColor: config.color }}
+        className="relative px-4 py-3 rounded-lg border bg-neural-surface shadow-lg min-w-[200px] max-w-[400px] cursor-grab active:cursor-grabbing border-neural-border transition-shadow"
+        style={{ 
+          borderLeftWidth: 4, 
+          borderLeftColor: config.color,
+          ...(selected ? { boxShadow: `0 0 0 2px ${config.color}40` } : {})
+        }}
       >
         <div className="flex items-center gap-2">
           <FileCode size={16} style={{ color: config.color }} />
-          <span className="text-sm font-semibold text-gray-100 truncate">{data.label}</span>
+          <input
+            className="bg-transparent border-none outline-none font-semibold text-gray-100 text-sm truncate flex-1"
+            defaultValue={data.label}
+            onKeyDown={handleKeyDown}
+          />
+          {!isLowDetail && reasoningStatus === 'thinking' && (
+            <Sparkles size={12} className="text-purple-400 animate-pulse shrink-0" />
+          )}
         </div>
-        {data.artifactSource && (
+        {!isLowDetail && data.artifactSource && (
           <div className="mt-2 rounded bg-neural-panel p-2 max-h-[120px] overflow-auto">
             <pre className="text-[11px] text-gray-300 font-mono whitespace-pre-wrap">
               {data.artifactSource.slice(0, 500)}
@@ -313,7 +410,7 @@ function ArtifactNode({ data }: NodeProps<CanvasNode>) {
             {artType}
           </span>
           <span className="text-[9px] text-gray-500 uppercase tracking-wider">ARTIFACT</span>
-          {data.provenance && (
+          {!isLowDetail && data.provenance && (
             <span className="text-[10px] ml-auto" title={`Source: ${data.provenance.createdBy}`}>
               {PROVENANCE_BADGES[data.provenance.createdBy]?.icon ?? ''}
             </span>
@@ -325,74 +422,149 @@ function ArtifactNode({ data }: NodeProps<CanvasNode>) {
   );
 }
 
-function ThoughtNode({ data }: NodeProps<CanvasNode>) {
-  const [expanded, setExpanded] = useState(false);
+function ThoughtNode({ id, data, selected }: NodeProps<CanvasNode>) {
+  const { executeNodeCommand } = useCanvasStore();
+  const zoom = useStore((s) => s.transform[2]);
+  const isLowDetail = zoom < 0.6;
+
   const config = NODE_CONFIG.thought;
   const steps = (data.thinkingSteps as string[]) ?? [];
   const status = (data.reasoningStatus as string) ?? 'complete';
+  const label = (data?.label as string) || '';
+  const content = (data?.subtitle as string) || '';
+  const isNew = !!data?.isNew;
+  const intensity = (data.signalIntensity as number) ?? 0;
+  const hasAura = intensity > 0.8;
+  const hasProactive = !!data.hasProactiveRecommendation;
+
+  const auraColor = intensity > 0.8 ? '#ef4444' : (hasProactive ? '#fbbf24' : config.color);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      const val = e.currentTarget.value.trim();
+      if (val) {
+        executeNodeCommand(id, val);
+        if (val.startsWith('/') || val.includes('?')) {
+          e.currentTarget.value = data.label; 
+        }
+      }
+      e.currentTarget.blur();
+    }
+  };
 
   return (
     <>
-      <Handle type="target" position={Position.Top} className="!bg-neural-border !w-2 !h-2" />
-      <div
-        className="relative px-4 py-3 rounded-lg border bg-neural-surface shadow-lg min-w-[200px] max-w-[320px] cursor-grab active:cursor-grabbing border-neural-border"
-        style={{ borderLeftWidth: 4, borderLeftColor: config.color }}
+      <FloatingToolbar id={id} isVisible={selected} />
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: 'spring', bounce: 0.5, duration: 0.6 }}
+        className={`relative px-6 py-4 rounded-2xl shadow-lg border backdrop-blur-md transition-all duration-500
+          ${selected 
+            ? 'bg-neural-surface/90 border-purple-500 ring-4 ring-purple-500/10 shadow-purple-500/20 scale-[1.02]' 
+            : 'bg-neural-surface/80 border-neural-border hover:border-purple-300/50'
+          }
+          ${hasProactive ? 'border-amber-500/50' : ''}
+        `}
+        style={{ minWidth: 240 }}
       >
-        <div className="flex items-center gap-2">
-          <BrainCircuit size={16} style={{ color: config.color }} />
-          <span className="text-sm font-semibold text-gray-100 truncate flex-1">
-            {data.label}
-          </span>
-          {status === 'thinking' && (
-            <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-          )}
-          {steps.length > 0 && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
-              className="p-0.5 rounded hover:bg-neural-border text-gray-400"
-            >
-              {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-            </button>
-          )}
-        </div>
-        {data.subtitle && (
-          <p className="text-xs text-gray-400 mt-1 truncate">{data.subtitle}</p>
+        {/* Aura optimized: Hide glow at low zoom unless selected */}
+        {(hasAura || hasProactive || status === 'thinking') && (!isLowDetail || selected) && (
+          <div 
+            className="absolute -inset-4 rounded-3xl animate-pulse pointer-events-none -z-10"
+            style={{
+              background: `radial-gradient(ellipse, ${auraColor}20 0%, transparent 75%)`,
+              boxShadow: `0 0 40px ${auraColor}${intensity > 0.9 ? '80' : '30'}`,
+            }}
+          />
         )}
-        {/* Reasoning chain timeline */}
-        {expanded && steps.length > 0 && (
-          <div className="mt-2 border-l-2 border-purple-500/40 pl-3 space-y-1.5 max-h-[150px] overflow-y-auto">
-            {steps.map((step, i) => (
-              <div key={i} className="flex items-start gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-purple-400 mt-1.5 shrink-0" />
-                <span className="text-[11px] text-gray-300">{step}</span>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="flex items-center gap-1.5 mt-1.5">
-          <span
-            className="inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium"
-            style={{ backgroundColor: config.color + '22', color: config.color }}
+
+        {/* Orakel Prik (Handle) - Kun synlig når markeret */}
+        {selected && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="absolute -right-3 top-1/2 -translate-y-1/2 z-10"
           >
-            {steps.length > 0 ? `${steps.length} steps` : 'thought'}
-          </span>
-          <span className="text-[9px] text-gray-500 uppercase tracking-wider">REASONING</span>
+            <Handle
+              type="source"
+              position={Position.Right}
+              className="w-6 h-6 rounded-full bg-purple-500 border-[3px] border-neural-surface shadow-xl shadow-purple-500/40 cursor-crosshair hover:scale-125 transition-transform flex items-center justify-center"
+              isConnectable={true}
+            >
+              <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+            </Handle>
+          </motion.div>
+        )}
+
+        {/* Target handle - usynlig men nødvendig for forbindelser */}
+        <Handle
+          type="target"
+          position={Position.Left}
+          className="w-0 h-0 opacity-0 pointer-events-none"
+          isConnectable={true}
+        />
+
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2 mb-1">
+            <BrainCircuit size={14} style={{ color: config.color }} />
+            <span className="text-[9px] text-gray-500 uppercase tracking-wider font-black">
+              {steps.length > 0 ? `${steps.length} steps` : 'Reasoning'}
+            </span>
+            {!isLowDetail && status === 'thinking' && (
+              <div className="flex gap-1 ml-auto">
+                <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            )}
+            {hasProactive && !selected && (
+              <Sparkles size={12} className="text-amber-400 animate-pulse ml-auto" />
+            )}
+          </div>
+          <input
+            autoFocus={isNew}
+            className="bg-transparent border-none outline-none font-bold text-gray-100 text-lg placeholder-gray-600 w-full"
+            placeholder="Hvad tænker du?"
+            defaultValue={label}
+            onKeyDown={handleKeyDown}
+          />
+          {!isLowDetail && content && (
+            <p className="text-sm text-gray-400 font-medium leading-relaxed mt-1 opacity-80 whitespace-pre-wrap italic border-l-2 border-neural-border/30 pl-3">
+              {content}
+            </p>
+          )}
+          
+          {/* Reasoning chain: Hide at low zoom */}
+          {!isLowDetail && steps.length > 0 && (
+            <div className="mt-3 border-l-2 border-purple-500/40 pl-3 space-y-1.5 max-h-[100px] overflow-y-auto pr-2 custom-scrollbar">
+              {steps.map((step, i) => (
+                <div key={i} className="flex items-start gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-purple-400 mt-1.5 shrink-0" />
+                  <span className="text-[11px] text-gray-300 opacity-80">{step}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
-      <Handle type="source" position={Position.Bottom} className="!bg-neural-border !w-2 !h-2" />
+      </motion.div>
     </>
   );
 }
 
-function ComboNode({ data }: NodeProps<CanvasNode>) {
+function ComboNode({ id, data, selected }: NodeProps<CanvasNode>) {
   const config = NODE_CONFIG.combo;
 
   return (
     <>
+      <FloatingToolbar id={id} isVisible={selected} />
       <Handle type="target" position={Position.Top} className="!bg-neural-border !w-2 !h-2" />
       <div
-        className="relative px-4 py-3 rounded-lg border-2 border-dashed bg-neural-surface shadow-lg min-w-[160px] cursor-grab active:cursor-grabbing"
-        style={{ borderColor: config.color }}
+        className="relative px-4 py-3 rounded-lg border-2 border-dashed bg-neural-surface shadow-lg min-w-[160px] cursor-grab active:cursor-grabbing transition-shadow"
+        style={{ 
+          borderColor: config.color,
+          ...(selected ? { boxShadow: `0 0 0 2px ${config.color}40` } : {})
+        }}
       >
         <div className="flex items-center gap-2">
           <Layers size={16} style={{ color: config.color }} />
@@ -413,11 +585,12 @@ function ComboNode({ data }: NodeProps<CanvasNode>) {
   );
 }
 
-export const MemoizedNode = memo(BaseNode);
-const MemoizedQueryNode = memo(QueryNode);
-const MemoizedArtifactNode = memo(ArtifactNode);
-const MemoizedThoughtNode = memo(ThoughtNode);
-const MemoizedComboNode = memo(ComboNode);
+// Strict Memoization with comparison logic
+export const MemoizedNode = memo(BaseNode, areNodePropsEqual);
+const MemoizedQueryNode = memo(QueryNode, areNodePropsEqual);
+const MemoizedArtifactNode = memo(ArtifactNode, areNodePropsEqual);
+const MemoizedThoughtNode = memo(ThoughtNode, areNodePropsEqual);
+const MemoizedComboNode = memo(ComboNode, areNodePropsEqual);
 
 export const nodeTypes = {
   server: MemoizedNode,

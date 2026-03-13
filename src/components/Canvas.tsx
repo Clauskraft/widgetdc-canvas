@@ -5,15 +5,18 @@ import {
   Controls,
   MiniMap,
   BackgroundVariant,
+  Panel,
   type NodeMouseHandler,
   type ReactFlowInstance,
   type Node,
   type Edge,
+  type OnConnectEnd,
 } from '@xyflow/react';
-import { GitBranch, Play, Layers, Terminal, Search, X, Link2, Sparkles } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useCanvasStore } from '../store/canvasStore';
 import { nodeTypes } from './nodes';
-import type { CanvasNodeType } from './nodes';
+import { ENGAGEMENT_COLUMNS } from '../templates';
+import type { CanvasNodeType } from '../types/canvas';
 
 const NODE_COLORS: Record<string, string> = {
   server:   '#64748b',
@@ -30,23 +33,17 @@ const NODE_COLORS: Record<string, string> = {
   combo:    '#6b7280',
 };
 
-interface ContextMenuState {
-  x: number;
-  y: number;
-  nodeId: string;
-  nodeType: string;
-}
-
 // Knowledge Explorer: only show AgentMemory/Lesson/Thought-related nodes
-const KNOWLEDGE_NODE_TYPES = new Set(['thought', 'insight', 'evidence']);
+const KNOWLEDGE_NODE_TYPES = new Set(['thought', 'insight', 'evidence', 'entity']); 
+// Actually, in our graph, Lessons might be 'entity' nodes with specific labels.
+// We'll refine the filter to also check for subtitle or data properties.
 
 export function Canvas() {
   const {
     nodes, edges,
     onNodesChange, onEdgesChange, onConnect,
     selectNode, addNode, addNodeWithData,
-    expandNode, expandMore, groupSelected, ungroupCombo, executeQueryNode,
-    matchTenders, crossReference, autoAnalyze,
+    expandNode, expandMore, ungroupCombo, executeQueryNode,
     undo, redo, isLoading, knowledgeExplorerMode,
     expandStates,
     removeSelected, saveToGraph, toggleAiPanel,
@@ -62,13 +59,16 @@ export function Canvas() {
     : edges;
 
   const reactFlowRef = useRef<ReactFlowInstance<Node<Record<string, unknown>>, Edge> | null>(null);
-  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [isSimulatingAI, setIsSimulatingAI] = useState(false);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts (Loop 7: Gesture Language)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       // Skip if user is typing in an input/textarea
       if ((e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'TEXTAREA') return;
+      
+      const { selectedNodeId, nodes, selectNode, expandNode, undo, redo, removeSelected, saveToGraph, toggleAiPanel } = useCanvasStore.getState();
+
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
         undo();
@@ -82,15 +82,47 @@ export function Canvas() {
         saveToGraph();
       } else if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
         toggleAiPanel();
+      } 
+      // Nudging (Loop 7)
+      else if (selectedNodeId && (e.ctrlKey || e.metaKey) && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+        const offset = 10;
+        const currentNodes = useCanvasStore.getState().nodes;
+        useCanvasStore.setState({
+          nodes: currentNodes.map(n => n.id === selectedNodeId ? {
+            ...n, position: {
+              x: n.position.x + (e.key === 'ArrowRight' ? offset : e.key === 'ArrowLeft' ? -offset : 0),
+              y: n.position.y + (e.key === 'ArrowDown' ? offset : e.key === 'ArrowUp' ? -offset : 0)
+            }
+          } : n)
+        });
+      }
+      // Quick Expand (Loop 7)
+      else if (selectedNodeId && (e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        expandNode(selectedNodeId);
+      }
+      // Strategic Navigation (Loop 7)
+      else if (e.key === 'Tab') {
+        e.preventDefault();
+        const sortedNodes = [...nodes].sort((a, b) => a.position.x - b.position.x || a.position.y - b.position.y);
+        const currentIndex = sortedNodes.findIndex(n => n.id === selectedNodeId);
+        const nextIndex = e.shiftKey 
+          ? (currentIndex <= 0 ? sortedNodes.length - 1 : currentIndex - 1)
+          : (currentIndex >= sortedNodes.length - 1 ? 0 : currentIndex + 1);
+        if (sortedNodes[nextIndex]) {
+          selectNode(sortedNodes[nextIndex].id);
+          // Focus the view on the new node
+          reactFlowRef.current?.setCenter(sortedNodes[nextIndex].position.x, sortedNodes[nextIndex].position.y, { zoom: 1, duration: 400 });
+        }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [undo, redo, removeSelected, saveToGraph, toggleAiPanel]);
+  }, []); // Empty deps because we pull fresh state from get() inside the handler to avoid closure staleness
 
   const onNodeClick: NodeMouseHandler = useCallback((_event, node) => {
     selectNode(node.id);
-    setContextMenu(null);
   }, [selectNode]);
 
   // Double-click: expand graph node or execute query node
@@ -104,21 +136,38 @@ export function Canvas() {
     }
   }, [expandNode, executeQueryNode, ungroupCombo]);
 
-  // Right-click context menu
-  const onNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
-    event.preventDefault();
-    setContextMenu({
-      x: event.clientX,
-      y: event.clientY,
-      nodeId: node.id,
-      nodeType: node.type ?? 'entity',
-    });
-  }, []);
-
-  const onPaneClick = useCallback(() => {
+  const onPaneClick = useCallback((event: React.MouseEvent) => {
     selectNode(null);
-    setContextMenu(null);
+
+    // Double click to create new thought node (Vision interaction - Optimized Loop 1)
+    if (event.detail === 2 && reactFlowRef.current) {
+      const position = reactFlowRef.current.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+      useCanvasStore.getState().addThoughtNodeAt(position);
+    }
   }, [selectNode]);
+
+  const onConnectEnd: OnConnectEnd = useCallback(
+    async (event, connectionState) => {
+      if (!connectionState.isValid && connectionState.fromNode?.id) {
+        setIsSimulatingAI(true);
+        try {
+          // Minimum 800ms delay for the "magic feel"
+          await Promise.all([
+            expandNode(connectionState.fromNode.id).catch(() => {
+              // Ignore expansion errors for local unsaved nodes
+            }),
+            new Promise(resolve => setTimeout(resolve, 800))
+          ]);
+        } finally {
+          setIsSimulatingAI(false);
+        }
+      }
+    },
+    [expandNode],
+  );
 
   const onDrop = useCallback(
     (event: React.DragEvent) => {
@@ -157,105 +206,91 @@ export function Canvas() {
     event.dataTransfer.dropEffect = 'move';
   }, []);
 
-  const handleContextAction = useCallback((action: string) => {
-    if (!contextMenu) return;
-    const { nodeId, nodeType } = contextMenu;
-    setContextMenu(null);
-
-    switch (action) {
-      case 'expand':
-        expandNode(nodeId);
-        break;
-      case 'expandMore':
-        expandMore(nodeId);
-        break;
-      case 'execute':
-        executeQueryNode(nodeId);
-        break;
-      case 'group':
-        groupSelected();
-        break;
-      case 'ungroup':
-        ungroupCombo(nodeId);
-        break;
-      case 'matchTenders':
-        matchTenders(nodeId);
-        break;
-      case 'crossReference':
-        crossReference(nodeId);
-        break;
-      case 'autoAnalyze':
-        autoAnalyze(nodeId);
-        break;
-      case 'query': {
-        // Create a query node linked to this node
-        const store = useCanvasStore.getState();
-        const parent = store.nodes.find(n => n.id === nodeId);
-        if (parent) {
-          const qId = addNodeWithData('query', {
-            label: `Query: ${parent.data.label}`,
-            nodeType: 'query',
-            queryType: 'cypher',
-            queryText: `MATCH (n)-[r]-(m)\nWHERE toLower(n.name) = toLower('${parent.data.label}')\nRETURN m, type(r) AS relType\nLIMIT 20`,
-            queryStatus: 'idle',
-          }, {
-            x: parent.position.x + 250,
-            y: parent.position.y,
-          });
-          useCanvasStore.setState({
-            edges: [...store.edges, {
-              id: `edge-ctx-${Date.now()}`,
-              source: nodeId,
-              target: qId,
-              label: 'QUERY_FOR',
-            }],
-          });
-        }
-        break;
-      }
-      default:
-        break;
-    }
-  }, [contextMenu, expandNode, expandMore, executeQueryNode, groupSelected, ungroupCombo, matchTenders, crossReference, autoAnalyze, addNodeWithData]);
-
   return (
-    <div className="flex-1 h-full relative">
+    <div className="flex-1 h-full relative" data-testid="main-canvas">
+      {/* Strategic Column Headers Overlay (Vision Edition) */}
+      {!knowledgeExplorerMode && (
+        <div className="absolute top-[10px] left-0 right-0 h-14 z-10 pointer-events-none overflow-hidden select-none">
+          <div className="flex px-10 gap-0">
+            {Object.entries(ENGAGEMENT_COLUMNS).slice(0, 10).map(([name, col]) => (
+              <div 
+                key={name} 
+                className="flex flex-col items-center border-l border-neural-border/20 first:border-none pt-2"
+                style={{ width: 280, minWidth: 280 }}
+              >
+                <div 
+                  className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.25em] mb-2 shadow-sm border border-transparent transition-all"
+                  style={{ 
+                    color: col.color, 
+                    backgroundColor: `${col.color}15`,
+                    borderColor: `${col.color}25` 
+                  }}
+                >
+                  {name.replace('_', ' ')}
+                </div>
+                <div className="w-full h-[2px] bg-gradient-to-r from-transparent via-neural-border/30 to-transparent" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <ReactFlow
         nodes={displayNodes}
         edges={displayEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onConnectEnd={onConnectEnd}
         onNodeClick={onNodeClick}
         onNodeDoubleClick={onNodeDoubleClick}
-        onNodeContextMenu={onNodeContextMenu}
         onPaneClick={onPaneClick}
         onDrop={onDrop}
         onDragOver={onDragOver}
         onInit={(instance) => { reactFlowRef.current = instance; }}
         nodeTypes={nodeTypes}
         fitView
+        onlyRenderVisibleElements={true}
+        minZoom={0.1}
         snapToGrid
         snapGrid={[15, 15]}
-        connectionLineStyle={{ strokeWidth: 3, stroke: '#2db3a6' }}
+        connectionLineStyle={{ strokeWidth: 3, stroke: '#8b5cf6' }}
         defaultEdgeOptions={{
-          style: { strokeWidth: 2, stroke: '#1a2d4a' },
+          style: { strokeWidth: 2, stroke: '#334155' },
           type: 'smoothstep',
           animated: true,
           labelStyle: { fill: '#94a3b8', fontSize: 10, fontWeight: 500 },
-          labelBgStyle: { fill: '#0a1628', fillOpacity: 0.85 },
+          labelBgStyle: { fill: '#0f1d32', fillOpacity: 0.85 },
           labelBgPadding: [4, 2] as [number, number],
           labelBgBorderRadius: 4,
         }}
         proOptions={{ hideAttribution: true }}
       >
-        <Background variant={BackgroundVariant.Dots} color="#1a2d4a" gap={20} size={1} />
+        <Background variant={BackgroundVariant.Dots} color="#334155" gap={20} size={1} />
         <Controls position="bottom-left" />
         <MiniMap
           position="bottom-right"
           nodeColor={(node) => NODE_COLORS[node.type ?? 'entity'] ?? '#f4bb00'}
           maskColor="rgba(5, 11, 20, 0.8)"
         />
+
+        {/* The Oracle AI Expansion Simulation Panel */}
+        {isSimulatingAI && (
+          <Panel position="top-center" className="mt-8 z-50">
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-neural-surface/90 backdrop-blur-xl px-8 py-4 rounded-full shadow-2xl border border-purple-500/30 flex items-center gap-6"
+            >
+              <div className="flex gap-2">
+                <div className="w-3 h-3 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-3 h-3 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '200ms' }} />
+                <div className="w-3 h-3 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '400ms' }} />
+              </div>
+              <span className="text-base font-bold text-gray-100 tracking-tight">Oraklet søger i grafen...</span>
+            </motion.div>
+          </Panel>
+        )}
       </ReactFlow>
 
       {/* Knowledge Explorer mode indicator */}
@@ -293,86 +328,6 @@ export function Canvas() {
           </button>
         );
       })}
-
-      {/* Context Menu */}
-      {contextMenu && (
-        <div
-          className="fixed bg-neural-panel border border-neural-border rounded-lg shadow-xl z-[100] py-1 min-w-[180px]"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-        >
-          {contextMenu.nodeType !== 'combo' && (
-            <>
-              <button
-                onClick={() => handleContextAction('expand')}
-                className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-gray-200 hover:bg-neural-border"
-              >
-                <GitBranch size={14} className="text-gray-500" /> Expand neighbors
-              </button>
-              {expandStates.get(contextMenu.nodeId)?.hasMore && (
-                <button
-                  onClick={() => handleContextAction('expandMore')}
-                  className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-tdc-300 hover:bg-neural-border"
-                >
-                  Load more ({expandStates.get(contextMenu.nodeId)?.loaded}/{expandStates.get(contextMenu.nodeId)?.totalAvailable})
-                </button>
-              )}
-            </>
-          )}
-          {contextMenu.nodeType === 'query' && (
-            <button
-              onClick={() => handleContextAction('execute')}
-              className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-green-400 hover:bg-neural-border"
-            >
-              <Play size={14} /> Execute query
-            </button>
-          )}
-          {contextMenu.nodeType === 'combo' && (
-            <button
-              onClick={() => handleContextAction('ungroup')}
-              className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-gray-200 hover:bg-neural-border"
-            >
-              <Layers size={14} className="text-gray-500" /> Ungroup nodes
-            </button>
-          )}
-          <button
-            onClick={() => handleContextAction('group')}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-gray-200 hover:bg-neural-border"
-          >
-            <Layers size={14} className="text-gray-500" /> Group connected
-          </button>
-          <button
-            onClick={() => handleContextAction('query')}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-gray-200 hover:bg-neural-border"
-          >
-            <Terminal size={14} className="text-gray-500" /> Create query node
-          </button>
-          <button
-            onClick={() => handleContextAction('matchTenders')}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-amber-400 hover:bg-neural-border"
-          >
-            <Search size={14} /> Match Tenders
-          </button>
-          <button
-            onClick={() => handleContextAction('crossReference')}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-blue-400 hover:bg-neural-border"
-          >
-            <Link2 size={14} /> Cross-Reference
-          </button>
-          <button
-            onClick={() => handleContextAction('autoAnalyze')}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-purple-400 hover:bg-neural-border"
-          >
-            <Sparkles size={14} /> Auto-Analyze
-          </button>
-          <div className="border-t border-neural-border my-1" />
-          <button
-            onClick={() => setContextMenu(null)}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-gray-500 hover:bg-neural-border"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
     </div>
   );
 }

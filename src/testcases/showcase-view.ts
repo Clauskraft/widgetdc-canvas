@@ -18,7 +18,7 @@
  */
 
 import type { Node, Edge } from '@xyflow/react';
-import type { CanvasNodeData } from '../components/nodes';
+import type { CanvasNodeData, CanvasNodeType } from '../types/canvas';
 import { graphRead } from '../lib/api';
 
 export async function generateShowcaseView(): Promise<{ nodes: Node<CanvasNodeData>[]; edges: Edge[] }> {

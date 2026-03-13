@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState } from 'react';
+import { StrictMode, useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ReactFlowProvider } from '@xyflow/react';
 import { Canvas } from './components/Canvas';
@@ -20,9 +20,9 @@ function AutoLoader() {
     let cancelled = false;
     (async () => {
       try {
-        const { nodes, edges } = await generateShowcaseView();
+        // Run the H10 Strategic North Star flow as the default experience
+        await useCanvasStore.getState().loadTemplate('h10-strategic-north-star');
         if (cancelled) return;
-        useCanvasStore.setState({ nodes, edges, aiPanelOpen: true });
         setStatus('ready');
       } catch {
         if (!cancelled) setStatus('error');
@@ -30,17 +30,6 @@ function AutoLoader() {
     })();
     return () => { cancelled = true; };
   }, []);
-
-  if (status === 'loading') {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center bg-neural-bg/80 z-50 pointer-events-none">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-tdc-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm text-gray-400">Loading CI Pipeline Showcase...</span>
-        </div>
-      </div>
-    );
-  }
 
   return null;
 }
@@ -59,22 +48,30 @@ function App() {
       <ReactFlowProvider>
         <ToastBridge />
         <CommandPalette />
-        <div className="flex flex-col h-screen w-screen bg-neural-bg">
-          {/* Header */}
-          <div className="flex items-center px-4 py-2 bg-neural-surface border-b border-neural-border">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">🧠</span>
+        <div className="flex flex-col h-screen w-screen bg-neural-bg overflow-hidden">
+          {/* Header - Minimalist */}
+          <div className="absolute top-0 left-0 right-0 p-4 pointer-events-none z-50 flex items-center justify-between">
+            <div className="flex items-center gap-3 bg-neural-surface/80 backdrop-blur-md px-4 py-2 rounded-full border border-neural-border shadow-lg pointer-events-auto">
+              <span className="text-xl">🧠</span>
               <h1 className="text-sm font-bold text-gray-100 tracking-wide">WidgeTDC Canvas</h1>
+              <span className="text-xs text-gray-500 border-l border-neural-border pl-3">Vision Edition</span>
             </div>
-            <span className="ml-3 text-xs text-gray-500">Competitive Intelligence Explorer</span>
-            <span className="ml-auto text-[10px] text-gray-600">Ctrl+K Command Palette</span>
+            
+            <div className="flex items-center gap-4">
+              <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest bg-neural-surface/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-neural-border pointer-events-auto">
+                Dobbeltklik for ny tanke
+              </span>
+              <span className="text-[10px] text-purple-400 font-medium uppercase tracking-widest bg-purple-500/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-purple-500/20 pointer-events-auto">
+                Træk fra prik = Orakel
+              </span>
+              <span className="text-[10px] text-gray-600 bg-neural-surface/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-neural-border pointer-events-auto">
+                Ctrl+K Commands
+              </span>
+            </div>
           </div>
 
-          {/* Toolbar */}
-          <Toolbar />
-
-          {/* Main area */}
-          <div className="flex flex-1 overflow-hidden relative">
+          <div className="flex flex-1 overflow-hidden relative mt-0">
+            {/* Keeping the toolbars but they might be hidden/managed by their own state */}
             <ToolPalette />
             <Canvas />
             <NodeInspector />
@@ -82,7 +79,6 @@ function App() {
             <AutoLoader />
           </div>
 
-          {/* Status Bar */}
           <StatusBar />
         </div>
       </ReactFlowProvider>
@@ -90,8 +86,17 @@ function App() {
   );
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+const container = document.getElementById('root');
+if (container) {
+  // Expose store for Stability Audit (Day 5)
+  if (import.meta.env.DEV) {
+    (window as any).useCanvasStore = useCanvasStore;
+  }
+
+  const root = createRoot(container);
+  root.render(
+    <StrictMode>
+      <App />
+    </StrictMode>
+  );
+}
