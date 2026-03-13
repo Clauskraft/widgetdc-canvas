@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { X, Search, Wrench, GripVertical } from 'lucide-react';
+import { X, Search, Wrench, GripVertical, Zap, Activity } from 'lucide-react';
 import { useCanvasStore } from '../store/canvasStore';
 import { listMcpTools, type ToolDefinition } from '../lib/api';
 
 export function ToolPalette() {
-  const { toolPaletteOpen, toggleToolPalette } = useCanvasStore();
+  const { toolPaletteOpen, toggleToolPalette, runCriticalSynthesis, discoverPatterns } = useCanvasStore();
   const [tools, setTools] = useState<ToolDefinition[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
@@ -50,11 +50,29 @@ export function ToolPalette() {
       <div className="flex items-center justify-between px-3 py-2.5 border-b border-neural-border">
         <div className="flex items-center gap-1.5">
           <Wrench size={14} className="text-indigo-400" />
-          <span className="text-sm font-semibold text-gray-100">MCP Tools</span>
-          <span className="text-[10px] text-gray-500">({tools.length})</span>
+          <span className="text-sm font-semibold text-gray-100">Foundry Toolbox</span>
         </div>
         <button onClick={toggleToolPalette} className="p-1 rounded hover:bg-neural-border text-gray-400">
           <X size={14} />
+        </button>
+      </div>
+
+      {/* Strategic Actions */}
+      <div className="px-3 py-3 border-b border-neural-border space-y-2">
+        <p className="text-[10px] font-black tracking-widest text-gray-500 uppercase px-1">Strategic Engine</p>
+        <button
+          onClick={runCriticalSynthesis}
+          className="w-full flex items-center gap-2 px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-lg text-xs font-bold transition-all group"
+        >
+          <Zap size={14} className="group-hover:animate-pulse" />
+          Critical Synthesis
+        </button>
+        <button
+          onClick={discoverPatterns}
+          className="w-full flex items-center gap-2 px-3 py-2 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-300 rounded-lg text-xs font-bold transition-all"
+        >
+          <Activity size={14} />
+          Discover Patterns
         </button>
       </div>
 

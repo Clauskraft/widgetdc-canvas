@@ -117,6 +117,7 @@ interface CanvasState {
   alignLayout: () => void;
   verifyNode: (nodeId: string) => Promise<void>;
   assessConsequences: (nodeId: string) => Promise<void>;
+  runCriticalSynthesis: () => Promise<void>;
 
   // Toast callback (set by provider)
   _toast?: (type: 'success' | 'error' | 'info', msg: string) => void;
@@ -1506,6 +1507,61 @@ Svar i JSON format: {
           t?.('success', `Consequence assessment complete for "${label}"`);
         } catch (err) {
           t?.('error', `Assessment failed: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      runCriticalSynthesis: async () => {
+        const { nodes } = get();
+        const t = get()._toast;
+        if (nodes.length === 0) return;
+
+        set({ isLoading: true });
+        t?.('info', 'Kører Critical Synthesis: Holder jeres strategi op mod den nyeste empiri...');
+
+        try {
+          get().pushSnapshot();
+          const canvasContext = nodes.map(n => `- ${n.data.label}: ${n.data.subtitle || ''}`).join('\n');
+          
+          // Fetch grounded context for the main topics on the canvas
+          const mainTopics = nodes.slice(0, 3).map(n => n.data.label).join(', ');
+          const notebookContext = await fetchNotebookContext(mainTopics);
+
+          const prompt = `Udfør en Critical Synthesis af følgende strategi-lærred mod vores empiriske forskning.
+          
+[LÆRRED KONTEKST]
+${canvasContext}
+
+[EMPIRISK FORSKNING / NOTEBOOK]
+${notebookContext}
+
+Find:
+1. Blinde vinkler (hvad mangler?)
+2. Metodiske konflikter (hvor strider strategien mod empiri?)
+3. Evidens-gap (hvor er bevisførelsen svag?)
+
+Svar i Markdown format.`;
+
+          const result = await reasonCall(prompt, { domain: 'critical-synthesis' });
+
+          get().addNodeWithData('artifact', {
+            label: 'Critical Synthesis Report',
+            subtitle: 'Strategisk sammensmeltning vs. Empiri',
+            nodeType: 'artifact',
+            artifactType: 'markdown',
+            artifactSource: result.recommendation,
+            provenance: {
+              createdBy: 'ai',
+              createdAt: new Date().toISOString(),
+              source: 'Critical Synthesis Mode',
+              confidence: result.confidence
+            }
+          });
+
+          t?.('success', 'Synthesis færdig. Rapport oprettet på lærredet.');
+        } catch (err) {
+          t?.('error', `Synthesis fejlede: ${err instanceof Error ? err.message : String(err)}`);
         } finally {
           set({ isLoading: false });
         }
