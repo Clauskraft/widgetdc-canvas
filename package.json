@@ -10,6 +10,9 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "^1.1.4",
+    "@tiptap/extension-placeholder": "^3.20.1",
+    "@tiptap/react": "^3.20.1",
+    "@tiptap/starter-kit": "^3.20.1",
     "@xyflow/react": "^12.6.0",
     "clsx": "^2.1.1",
     "framer-motion": "^12.36.0",
@@ -22,6 +25,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
+    "@tailwindcss/typography": "^0.5.19",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.0.0",

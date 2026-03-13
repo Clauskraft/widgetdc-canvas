@@ -38,18 +38,42 @@ export async function syncRemarkableNotes(): Promise<{ text: string; id: string 
 }
 
 /**
- * NotebookLM Bridge
- * Vision: Ground the Oracle's reasoning in a specific set of documents.
+ * NotebookLM Bridge (Direct Hack)
+ * Vision: Programmatic control over your NotebookLM notebooks via unofficial API.
+ */
+export async function syncNotebookLM(): Promise<{ success: boolean; notebookId?: string; error?: string }> {
+  try {
+    const result = await mcpCall<{ success: boolean; notebook_id?: string; error?: string }>('system.run_python', {
+      script: 'scripts/notebooklm_sync.py'
+    });
+    return { success: result.success, notebookId: result.notebook_id, error: result.error };
+  } catch (e) {
+    return { success: false, error: 'Kunne ikke kontakte NotebookLM-broen.' };
+  }
+}
+
+/**
+ * Real-time Grounded Query
  */
 export async function fetchNotebookContext(topic: string): Promise<string> {
   try {
-    // Call MCP tool to fetch grounded knowledge from our NotebookLM equivalent (Meilisearch or RAG)
-    const result = await mcpCall<{ answer: string }>('knowledge.search_grounded', {
-      query: topic,
-      source_type: 'curated_library'
+    const result = await mcpCall<{ success: boolean; answer?: string; error?: string }>('system.run_python', {
+      script: 'scripts/notebooklm_sync.py',
+      args: ['--ask', topic]
     });
-    return result.answer;
+    
+    if (result.success && result.answer) {
+      return result.answer;
+    }
+    return `[NotebookLM Error] ${result.error || 'Intet svar.'}`;
   } catch (e) {
-    return 'Ingen specifik Notebook-kontekst fundet for dette emne.';
+    return 'Ingen specifik Notebook-kontekst fundet (Broen er nede).';
   }
+}
+
+export async function saveNotebookLMCookie(cookie: string): Promise<void> {
+  await mcpCall('system.save_config', {
+    file: 'notebooklm_config.json',
+    data: { '__Secure-1PSID': cookie }
+  });
 }

@@ -1,0 +1,48 @@
+{
+  "job_id": "test-sharp-run-001",
+  "target_format": "pptx",
+  "theme_id": "tdc",
+  "metadata": {
+    "title": "Sharp Test: Market Strategy 2026",
+    "author": "Steve / Gemini",
+    "client": "WidgeTDC Global"
+  },
+  "sections": [
+    {
+      "type": "title",
+      "content": {
+        "title": "Market Strategy 2026",
+        "subtitle": "Accelerating towards 100,000 feet"
+      },
+      "quality_gate": { "confidence": 1.0, "source_count": 5 }
+    },
+    {
+      "type": "executive_summary",
+      "content": {
+        "title": "Executive Summary",
+        "items": [
+          "Market demand for AI-driven spatial reasoning is growing 45% YoY",
+          "WidgeTDC Foundry provides the only integrated synthesis-to-render pipeline",
+          "Target: 1,000 active strategic canvases by Q4"
+        ]
+      },
+      "quality_gate": { "confidence": 0.95, "source_count": 12 }
+    },
+    {
+      "type": "analysis",
+      "content": {
+        "title": "Competitive Landscape",
+        "body": "McKinsey and BCG are struggling with legacy PowerPoint workflows. Our Option C architecture provides 10x speed advantage by decoupling reasoning from pixel-pushing."
+      },
+      "quality_gate": { "confidence": 0.88, "source_count": 8 }
+    },
+    {
+      "type": "recommendation",
+      "content": {
+        "title": "Strategic Recommendation",
+        "body": "Full-scale rollout of the 10-loop optimization pass across all consulting frontends to ensure zero-latency user experience."
+      },
+      "quality_gate": { "confidence": 0.99, "source_count": 3 }
+    }
+  ]
+}
