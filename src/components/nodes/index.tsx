@@ -2,7 +2,7 @@ import { memo, useState } from 'react';
 import { Handle, Position, NodeToolbar, useStore, type NodeProps, type Node } from '@xyflow/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Server, Bot, Wrench, Database, Lightbulb, FileSearch,
+  Server, Bot, Wrench, Database, Lightbulb, FileSearch, Search,
   GitBranch, Plug, Terminal, FileCode, Layers,
   ChevronDown, ChevronRight, Play, BrainCircuit, Shield, Sparkles, Link2
 } from 'lucide-react';
@@ -159,7 +159,7 @@ function BaseNode({ id, data, selected }: NodeProps<CanvasNode>) {
 
   return (
     <>
-      <FloatingToolbar id={id} isVisible={selected} />
+      <FloatingToolbar id={id} nodeType={data.nodeType} isVisible={selected} />
       <Handle type="target" position={Position.Top} className="!bg-neural-border !w-2 !h-2" />
       
       {/* Aura optimized: Hide glow at low zoom unless selected */}
@@ -292,7 +292,7 @@ function QueryNode({ id, data, selected }: NodeProps<CanvasNode>) {
 
   return (
     <>
-      <FloatingToolbar id={id} isVisible={selected} />
+      <FloatingToolbar id={id} nodeType={data.nodeType} isVisible={selected} />
       <Handle type="target" position={Position.Top} className="!bg-neural-border !w-2 !h-2" />
       <div
         className="relative px-4 py-3 rounded-lg border bg-neural-surface shadow-lg min-w-[220px] max-w-[320px] cursor-grab active:cursor-grabbing border-neural-border transition-shadow"
@@ -373,7 +373,7 @@ function ArtifactNode({ id, data, selected }: NodeProps<CanvasNode>) {
 
   return (
     <>
-      <FloatingToolbar id={id} isVisible={selected} />
+      <FloatingToolbar id={id} nodeType={data.nodeType} isVisible={selected} />
       <Handle type="target" position={Position.Top} className="!bg-neural-border !w-2 !h-2" />
       <div
         className="relative px-4 py-3 rounded-lg border bg-neural-surface shadow-lg min-w-[200px] max-w-[400px] cursor-grab active:cursor-grabbing border-neural-border transition-shadow"
@@ -454,7 +454,7 @@ function ThoughtNode({ id, data, selected }: NodeProps<CanvasNode>) {
 
   return (
     <>
-      <FloatingToolbar id={id} isVisible={selected} />
+      <FloatingToolbar id={id} nodeType={data.nodeType} isVisible={selected} />
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -557,7 +557,7 @@ function ComboNode({ id, data, selected }: NodeProps<CanvasNode>) {
 
   return (
     <>
-      <FloatingToolbar id={id} isVisible={selected} />
+      <FloatingToolbar id={id} nodeType={data.nodeType} isVisible={selected} />
       <Handle type="target" position={Position.Top} className="!bg-neural-border !w-2 !h-2" />
       <div
         className="relative px-4 py-3 rounded-lg border-2 border-dashed bg-neural-surface shadow-lg min-w-[160px] cursor-grab active:cursor-grabbing transition-shadow"

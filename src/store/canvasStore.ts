@@ -1581,6 +1581,37 @@ export const useCanvasStore = create<CanvasState>()(
         return lines.join('\n');
       },
 
+      runAnalysisPipeline: async (entityName, templateId) => {
+        const t = get()._toast;
+        set({ isLoading: true });
+        try {
+          get().pushSnapshot();
+          get().clearCanvas();
+
+          if (templateId) {
+            await get().loadTemplate(templateId);
+          }
+
+          const entityId = get().addNodeWithData('entity', {
+            label: entityName,
+            nodeType: 'entity',
+            provenance: { createdBy: 'pipeline', createdAt: new Date().toISOString(), source: 'analysis-pipeline' },
+          });
+
+          await get().expandNode(entityId);
+          await get().autoAnalyze(entityId);
+          const narrative = await get().generateNarrative();
+
+          const result = { nodeCount: get().nodes.length, narrative };
+          return result;
+        } catch (err) {
+          t?.('error', `Pipeline failed: ${err instanceof Error ? err.message : String(err)}`);
+          return { nodeCount: get().nodes.length, narrative: '' };
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
       executeNodeCommand: async (nodeId, command) => {
         const node = get().nodes.find(n => n.id === nodeId);
         if (!node) return;
