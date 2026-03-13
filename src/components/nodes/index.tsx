@@ -63,7 +63,7 @@ const REGULATORY_COLORS = {
 } as const;
 
 function FloatingToolbar({ id, nodeType, isVisible }: { id: string; nodeType: CanvasNodeType; isVisible: boolean }) {
-  const { expandNode, autoAnalyze, crossReference, matchTenders, evaluateHypothesis } = useCanvasStore();
+  const { expandNode, autoAnalyze, crossReference, matchTenders, evaluateHypothesis, verifyNode } = useCanvasStore();
 
   const getActions = () => {
     const actions = [];
@@ -72,6 +72,9 @@ function FloatingToolbar({ id, nodeType, isVisible }: { id: string; nodeType: Ca
     if (['entity', 'agent', 'thought'].includes(nodeType)) {
       actions.push({ id: 'expand', label: 'Expand', icon: GitBranch, color: 'text-sky-400', onClick: () => expandNode(id) });
     }
+
+    // Empirical Validity Layer (New)
+    actions.push({ id: 'verify', label: 'Verify', icon: Shield, color: 'text-emerald-400', onClick: () => verifyNode(id) });
 
     // Intelligence actions
     actions.push({ id: 'analyze', label: 'Analyze', icon: Sparkles, color: 'text-purple-400', onClick: () => autoAnalyze(id) });
@@ -85,7 +88,7 @@ function FloatingToolbar({ id, nodeType, isVisible }: { id: string; nodeType: Ca
     }
 
     if (nodeType === 'thought') {
-      actions.push({ id: 'evaluate', label: 'Score', icon: Shield, color: 'text-rose-400', onClick: () => evaluateHypothesis(id) });
+      actions.push({ id: 'score', label: 'Hypothesis', icon: BrainCircuit, color: 'text-rose-400', onClick: () => evaluateHypothesis(id) });
     }
 
     return actions;

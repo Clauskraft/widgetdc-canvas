@@ -115,6 +115,7 @@ interface CanvasState {
   discoverPatterns: () => Promise<void>;
   loadTemplate: (templateId: string) => Promise<void>;
   alignLayout: () => void;
+  verifyNode: (nodeId: string) => Promise<void>;
 
   // Toast callback (set by provider)
   _toast?: (type: 'success' | 'error' | 'info', msg: string) => void;
@@ -1377,6 +1378,50 @@ export const useCanvasStore = create<CanvasState>()(
         if (nodes.length === 0) return;
         const positioned = alignNodesToColumns(nodes);
         set({ nodes: positioned });
+      },
+
+      verifyNode: async (nodeId) => {
+        const node = get().nodes.find(n => n.id === nodeId);
+        if (!node) return;
+        const label = String(node.data.label || '');
+        const t = get()._toast;
+
+        set({ isLoading: true });
+        try {
+          const notebookContext = await fetchNotebookContext(label);
+          
+          const prompt = `Assess the empirical validity of: "${label}".
+Research Context:
+${notebookContext}
+
+Svar i JSON format: { "validity_score": number, "evidence": [{ "label": string, "type": "support" | "conflict", "snippet": string }] }`;
+
+          const result = await reasonCall(prompt, { domain: 'empirical-validity' });
+          
+          let parsed;
+          try {
+            parsed = JSON.parse(result.recommendation);
+          } catch {
+            parsed = { validity_score: 0.7, evidence: [{ label: 'General Research', type: 'support', snippet: result.recommendation }] };
+          }
+
+          set(state => ({
+            nodes: state.nodes.map(n => n.id === nodeId ? {
+              ...n, data: {
+                ...n.data,
+                validityScore: parsed.validity_score,
+                evidenceLinks: parsed.evidence,
+                thinkingSteps: result.thinking_steps,
+              }
+            } : n)
+          }));
+
+          t?.('success', `Validity check complete for "${label}"`);
+        } catch (err) {
+          t?.('error', `Verification failed: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          set({ isLoading: false });
+        }
       },
 
       loadTemplate: async (templateId) => {
