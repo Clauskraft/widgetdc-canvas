@@ -1,0 +1,102 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://widgetdc.com/schemas/foundry_option_c_contract.json",
+  "title": "WidgeTDC Foundry Option C Contract",
+  "description": "The canonical JSON structure defining the contract between the RLM reasoning engine (synthesis) and the Backend renderer (generation).",
+  "type": "object",
+  "required": ["job_id", "target_format", "theme_id", "metadata", "sections"],
+  "properties": {
+    "job_id": {
+      "type": "string",
+      "description": "UUID for the generation job"
+    },
+    "target_format": {
+      "type": "string",
+      "enum": ["pptx", "docx", "pdf"]
+    },
+    "theme_id": {
+      "type": "string",
+      "description": "Reference to the unified theme registry ID (e.g., 'tdc', 'mckinsey', 'dark')"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["title", "author", "client"],
+      "properties": {
+        "title": { "type": "string" },
+        "author": { "type": "string" },
+        "client": { "type": "string" },
+        "date": { "type": "string", "format": "date" }
+      }
+    },
+    "sections": {
+      "type": "array",
+      "description": "Ordered array of structural elements to be rendered",
+      "items": { "$ref": "#/definitions/section" },
+      "minItems": 1
+    }
+  },
+  "definitions": {
+    "section": {
+      "type": "object",
+      "required": ["type", "content", "quality_gate"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "title",
+            "executive_summary",
+            "kpi_dashboard",
+            "analysis",
+            "recommendation",
+            "risk_matrix",
+            "timeline",
+            "quote",
+            "callout",
+            "chart",
+            "table",
+            "diagram"
+          ]
+        },
+        "content": {
+          "type": "object",
+          "description": "Type-specific content payload",
+          "properties": {
+            "title": { "type": "string" },
+            "subtitle": { "type": "string" },
+            "body": { "type": "string" },
+            "items": { "type": "array", "items": { "type": "string" } },
+            "data": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "label": { "type": "string" },
+                  "value": { "type": ["number", "string"] }
+                }
+              }
+            }
+          }
+        },
+        "visual_intent": {
+          "type": "object",
+          "description": "Optional hints for the rendering engine",
+          "properties": {
+            "layout": { "type": "string", "enum": ["split", "centered", "grid"] },
+            "emphasis": { "type": "string", "enum": ["high", "normal", "low"] },
+            "diagram_type": { "type": "string" }
+          }
+        },
+        "quality_gate": {
+          "type": "object",
+          "required": ["confidence", "source_count"],
+          "properties": {
+            "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+            "source_count": { "type": "integer", "minimum": 0 },
+            "content_length": { "type": "integer" },
+            "is_approved": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}
