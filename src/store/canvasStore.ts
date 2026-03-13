@@ -116,6 +116,7 @@ interface CanvasState {
   loadTemplate: (templateId: string) => Promise<void>;
   alignLayout: () => void;
   verifyNode: (nodeId: string) => Promise<void>;
+  assessConsequences: (nodeId: string) => Promise<void>;
 
   // Toast callback (set by provider)
   _toast?: (type: 'success' | 'error' | 'info', msg: string) => void;
@@ -1419,6 +1420,92 @@ Svar i JSON format: { "validity_score": number, "evidence": [{ "label": string, 
           t?.('success', `Validity check complete for "${label}"`);
         } catch (err) {
           t?.('error', `Verification failed: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      assessConsequences: async (nodeId) => {
+        const node = get().nodes.find(n => n.id === nodeId);
+        if (!node) return;
+        const label = String(node.data.label || '');
+        const t = get()._toast;
+
+        set({ isLoading: true });
+        t?.('info', `Evaluating consequences for "${label}"...`);
+
+        try {
+          get().pushSnapshot();
+          const prompt = `Som strategisk Orakel, udfør en dyb konsekvensanalyse af: "${label}".
+Analysér tre dimensioner:
+1. Direct Impact (Førsteordenseffekt)
+2. Ripple Effect (Andenordenseffekt / Systemisk påvirkning)
+3. Historical Analog Risk (Black Swan / Risiko baseret på lignende historiske cases)
+
+Svar i JSON format: {
+  "direct": { "label": string, "detail": string },
+  "ripple": { "label": string, "detail": string },
+  "risk": { "label": string, "detail": string }
+}`;
+
+          const result = await reasonCall(prompt, { domain: 'consequence-engine' });
+          let parsed;
+          try {
+            parsed = JSON.parse(result.recommendation);
+          } catch {
+            parsed = {
+              direct: { label: 'Direct Impact', detail: result.recommendation.slice(0, 100) },
+              ripple: { label: 'Ripple Effect', detail: 'Potentiel systemisk påvirkning identificeret.' },
+              risk: { label: 'Analog Risk', detail: 'Historisk analog risiko kræver dybere analyse.' }
+            };
+          }
+
+          const parentPos = node.position;
+          const newNodes: Node[] = [
+            {
+              id: nextNodeId(),
+              type: 'insight',
+              position: { x: parentPos.x + 300, y: parentPos.y - 100 },
+              data: { 
+                label: parsed.direct.label, subtitle: parsed.direct.detail, nodeType: 'insight',
+                provenance: { createdBy: 'ai', createdAt: new Date().toISOString(), source: 'Consequence Engine: Direct' }
+              }
+            },
+            {
+              id: nextNodeId(),
+              type: 'insight',
+              position: { x: parentPos.x + 350, y: parentPos.y },
+              data: { 
+                label: parsed.ripple.label, subtitle: parsed.ripple.detail, nodeType: 'insight',
+                provenance: { createdBy: 'ai', createdAt: new Date().toISOString(), source: 'Consequence Engine: Ripple' }
+              }
+            },
+            {
+              id: nextNodeId(),
+              type: 'insight',
+              position: { x: parentPos.x + 300, y: parentPos.y + 100 },
+              data: { 
+                label: parsed.risk.label, subtitle: parsed.risk.detail, nodeType: 'insight', signalIntensity: 0.9,
+                provenance: { createdBy: 'ai', createdAt: new Date().toISOString(), source: 'Consequence Engine: Risk' }
+              }
+            }
+          ];
+
+          const newEdges: Edge[] = newNodes.map(n => ({
+            id: `edge-cons-${Date.now()}-${n.id}`,
+            source: nodeId,
+            target: n.id,
+            label: 'CONSEQUENCE'
+          }));
+
+          set(state => ({
+            nodes: [...state.nodes, ...newNodes],
+            edges: [...state.edges, ...newEdges]
+          }));
+
+          t?.('success', `Consequence assessment complete for "${label}"`);
+        } catch (err) {
+          t?.('error', `Assessment failed: ${err instanceof Error ? err.message : String(err)}`);
         } finally {
           set({ isLoading: false });
         }

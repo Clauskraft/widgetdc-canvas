@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Server, Bot, Wrench, Database, Lightbulb, FileSearch, Search,
   GitBranch, Plug, Terminal, FileCode, Layers,
-  ChevronDown, ChevronRight, Play, BrainCircuit, Shield, Sparkles, Link2
+  ChevronDown, ChevronRight, Play, BrainCircuit, Shield, Sparkles, Link2, Activity
 } from 'lucide-react';
 import { useCanvasStore } from '../../store/canvasStore';
 import type { CanvasNodeData, CanvasNodeType, CanvasNode } from '../../types/canvas';
@@ -63,7 +63,7 @@ const REGULATORY_COLORS = {
 } as const;
 
 function FloatingToolbar({ id, nodeType, isVisible }: { id: string; nodeType: CanvasNodeType; isVisible: boolean }) {
-  const { expandNode, autoAnalyze, crossReference, matchTenders, evaluateHypothesis, verifyNode } = useCanvasStore();
+  const { expandNode, autoAnalyze, crossReference, matchTenders, evaluateHypothesis, verifyNode, assessConsequences } = useCanvasStore();
 
   const getActions = () => {
     const actions = [];
@@ -75,6 +75,9 @@ function FloatingToolbar({ id, nodeType, isVisible }: { id: string; nodeType: Ca
 
     // Empirical Validity Layer (New)
     actions.push({ id: 'verify', label: 'Verify', icon: Shield, color: 'text-emerald-400', onClick: () => verifyNode(id) });
+
+    // Consequence Engine (New)
+    actions.push({ id: 'consequences', label: 'Impact', icon: Activity, color: 'text-rose-500', onClick: () => assessConsequences(id) });
 
     // Intelligence actions
     actions.push({ id: 'analyze', label: 'Analyze', icon: Sparkles, color: 'text-purple-400', onClick: () => autoAnalyze(id) });
