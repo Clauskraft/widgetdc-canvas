@@ -14,7 +14,7 @@ import type { CanvasNodeData, CanvasNodeType, ProvenanceData } from '../types/ca
 import { applyDagreLayout, alignNodesToColumns } from '../lib/layout';
 import { graphRead, graphWrite, graphExpand, graphNeighborSearch, mcpCall, reasonCall, isComplianceQuery, getComplianceGaps, type ComplianceGapRecord, type ReasonResponse } from '../lib/api';
 import { CANVAS_TEMPLATES, ENGAGEMENT_COLUMNS, type CanvasTemplate } from '../templates';
-import { fetchNotebookContext } from '../lib/connectors';
+import { fetchNotebookContext, injectNotebookContext, triggerAudioOverview } from '../lib/connectors';
 
 // --- Undo/Redo snapshot ---
 interface CanvasSnapshot {
@@ -146,6 +146,9 @@ interface CanvasState {
 
   // S26: Contextual Node Chat / Commands
   executeNodeCommand: (nodeId: string, command: string) => Promise<void>;
+
+  // S27: Neural Tunnel / NotebookLM Audio Overviews
+  generateBriefing: () => Promise<void>;
 }
 
 export interface ActionRecommendation {
@@ -1874,6 +1877,61 @@ Notebook: ${notebookContext.slice(0, 500)}`, { domain: 'contextual-node-oracle' 
           const errMsg = err instanceof Error ? err.message : String(err);
           updateStatus('error', `Fejl: ${errMsg}`);
           t?.('error', `Oraklet fejlede: ${errMsg}`);
+        }
+      },
+
+      generateBriefing: async () => {
+        const { nodes, edges } = get();
+        const t = get()._toast;
+        if (nodes.length === 0) return;
+
+        set({ isLoading: true });
+        t?.('info', 'Forbereder Neural Tunnel: Transformer lærred til empirisk kontekst...');
+
+        try {
+          // 1. Format context as Markdown
+          const nodeLines = nodes.map(n => `- ${n.data.label} (${n.type}): ${n.data.subtitle || ''}`);
+          const edgeLines = edges.map(e => {
+            const source = nodes.find(n => n.id === e.source)?.data.label || 'Unknown';
+            const target = nodes.find(n => n.id === e.target)?.data.label || 'Unknown';
+            return `- ${source} --(${(e as any).label || 'RELATES'})--> ${target}`;
+          });
+
+          const markdown = `# Strategic Canvas Context\n\n## Entities & Insights\n${nodeLines.join('\n')}\n\n## Relationships\n${edgeLines.join('\n')}`;
+
+          // 2. Inject context
+          t?.('info', 'Inicerer context injection i NotebookLM...');
+          const injectSuccess = await injectNotebookContext(markdown);
+          if (!injectSuccess) throw new Error('Kunne ikke injicere kontekst.');
+
+          // 3. Trigger audio generation
+          t?.('info', 'Trigger Audio Overview generation (Podcast format)...');
+          const audioResult = await triggerAudioOverview();
+          if (!audioResult.success) throw new Error(audioResult.message || 'Audio trigger fejlede.');
+
+          // 4. Create Briefing Node
+          const avgX = nodes.reduce((s, n) => s + n.position.x, 0) / nodes.length;
+          const avgY = nodes.reduce((s, n) => s + n.position.y, 0) / nodes.length;
+
+          get().addNodeWithData('artifact', {
+            label: 'Neural Briefing: Strategy Podcast',
+            subtitle: 'Programmatic Audio Overview (NotebookLM)',
+            nodeType: 'artifact',
+            artifactType: 'audio',
+            reasoningStatus: 'thinking',
+            thinkingSteps: ['Context Injected', 'Audio Generation Triggered', 'Waiting for sync...'],
+            provenance: {
+              createdBy: 'ai',
+              createdAt: new Date().toISOString(),
+              source: 'Neural Tunnel (NotebookLM)',
+            }
+          }, { x: avgX, y: avgY - 250 });
+
+          t?.('success', 'Neural Tunnel aktiv! Din Briefing Node er under generering (2-5 min).');
+        } catch (err) {
+          t?.('error', `Neural Tunnel fejlede: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          set({ isLoading: false });
         }
       },
     }),

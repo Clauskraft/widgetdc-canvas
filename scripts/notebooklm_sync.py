@@ -36,19 +36,46 @@ def sync():
         if not target_notebook:
             target_notebook = client.create_notebook("WidgeTDC Strategy Station")
 
-        # 2. HANDLE "ASK" MODE (Grounded Query)
-        if len(sys.argv) > 1 and sys.argv[1] == "--ask":
-            query = sys.argv[2] if len(sys.argv) > 2 else ""
+        # 2. HANDLE MODES
+        args = sys.argv[1:]
+        
+        # ASK MODE: Grounded Q&A
+        if "--ask" in args:
+            query = args[args.index("--ask") + 1] if args.index("--ask") + 1 < len(args) else ""
             if not query:
                 print(json.dumps({"success": False, "error": "Query empty."}))
                 return
-            
-            # Use the chat method of the notebook/client
             response = client.ask(target_notebook.id, query)
             print(json.dumps({"success": True, "answer": response.content}))
             return
 
-        # 3. HANDLE SYNC MODE (Default)
+        # CONTEXT MODE: Direct Text Injection (Breakthrough)
+        if "--context" in args:
+            content = args[args.index("--context") + 1] if args.index("--context") + 1 < len(args) else ""
+            if not content:
+                print(json.dumps({"success": False, "error": "Content empty."}))
+                return
+            # Save context as a temporary source
+            temp_path = os.path.join(config_dir, "canvas_context.md")
+            with open(temp_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            client.add_source(target_notebook.id, temp_path)
+            print(json.dumps({"success": True, "message": "Neural context injected."}))
+            return
+
+        # AUDIO MODE: Trigger Podcast Generation (Breakthrough)
+        if "--generate-audio" in args:
+            # Trigger artifact generation
+            try:
+                # In most notebooklm-py versions, this triggers the RPC for audio overview
+                client.create_audio_overview(target_notebook.id)
+                print(json.dumps({"success": True, "message": "Audio Overview generation triggered (2-5 min)."}))
+                return
+            except Exception as e:
+                print(json.dumps({"success": False, "error": f"Audio generation failed: {str(e)}"}))
+                return
+
+        # DEFAULT SYNC MODE: Upload strategic files
         docs_dir = os.path.join(os.path.expanduser("~"), "Documents", "NotebookLM")
         if os.path.exists(docs_dir):
             files = [f for f in os.listdir(docs_dir) if f.endswith(".md") or f.endswith(".pdf")]

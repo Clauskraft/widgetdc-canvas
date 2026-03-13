@@ -53,6 +53,37 @@ export async function syncNotebookLM(): Promise<{ success: boolean; notebookId?:
 }
 
 /**
+ * Inject Canvas Context into NotebookLM
+ */
+export async function injectNotebookContext(markdown: string): Promise<boolean> {
+  try {
+    const result = await mcpCall<{ success: boolean }>('system.run_python', {
+      script: 'scripts/notebooklm_sync.py',
+      args: ['--context', markdown]
+    });
+    return result.success;
+  } catch (e) {
+    console.error('Context injection failed', e);
+    return false;
+  }
+}
+
+/**
+ * Trigger Audio Overview Generation
+ */
+export async function triggerAudioOverview(): Promise<{ success: boolean; message?: string }> {
+  try {
+    const result = await mcpCall<{ success: boolean; message?: string }>('system.run_python', {
+      script: 'scripts/notebooklm_sync.py',
+      args: ['--generate-audio']
+    });
+    return result;
+  } catch (e) {
+    return { success: false, message: 'Audio trigger failed.' };
+  }
+}
+
+/**
  * Real-time Grounded Query
  */
 export async function fetchNotebookContext(topic: string): Promise<string> {
@@ -68,6 +99,36 @@ export async function fetchNotebookContext(topic: string): Promise<string> {
     return `[NotebookLM Error] ${result.error || 'Intet svar.'}`;
   } catch (e) {
     return 'Ingen specifik Notebook-kontekst fundet (Broen er nede).';
+  }
+}
+
+/**
+ * Inject raw context into NotebookLM (Breakthrough)
+ */
+export async function injectNotebookContext(content: string): Promise<boolean> {
+  try {
+    const result = await mcpCall<{ success: boolean }>('system.run_python', {
+      script: 'scripts/notebooklm_sync.py',
+      args: ['--context', content]
+    });
+    return result.success;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Trigger Audio Overview generation (Breakthrough)
+ */
+export async function triggerAudioBriefing(): Promise<{ success: boolean; message?: string }> {
+  try {
+    const result = await mcpCall<{ success: boolean; message?: string; error?: string }>('system.run_python', {
+      script: 'scripts/notebooklm_sync.py',
+      args: ['--generate-audio']
+    });
+    return { success: result.success, message: result.message || result.error };
+  } catch (e) {
+    return { success: false, message: 'Kunne ikke kontakte briefing-motoren.' };
   }
 }
 

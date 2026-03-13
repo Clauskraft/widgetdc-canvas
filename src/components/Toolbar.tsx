@@ -69,6 +69,7 @@ export function Toolbar() {
     clearCanvas, isLoading, selectedNodeId,
     undo, redo, undoStack, redoStack,
     groupSelected, knowledgeExplorerMode, gapOverlayMode,
+    generateBriefing,
   } = useCanvasStore();
 
   const handleTest = async () => {
@@ -313,6 +314,16 @@ export function Toolbar() {
       </div>
 
       <div className="flex-1" />
+
+      {/* Neural Briefing (NotebookLM) */}
+      <button
+        onClick={generateBriefing}
+        disabled={isLoading}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm bg-neural-panel hover:bg-neural-border text-purple-400 transition-colors border border-purple-500/20 disabled:opacity-50"
+        title="Neural Briefing — Generate Audio Overview in NotebookLM"
+      >
+        <BrainCircuit size={14} /> Briefing
+      </button>
 
       {/* Knowledge Explorer Toggle */}
       <button
