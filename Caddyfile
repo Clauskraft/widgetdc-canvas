@@ -7,7 +7,7 @@ file_server
 try_files {path} /index.html
 
 # Proxy API calls to backend
-reverse_proxy /api/* {$BACKEND_URL:https://backend-production-d3da.up.railway.app} {
+reverse_proxy /api/* https://backend-production-d3da.up.railway.app {
 	header_up Host {upstream_hostport}
 	header_up Authorization "Bearer {$WIDGETDC_API_KEY}"
 }
