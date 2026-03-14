@@ -29,13 +29,7 @@ export async function syncRemarkableNotes(): Promise<{ text: string; id: string 
     return [];
   } catch (e) {
     console.error('reMarkable sync failed:', e);
-    // Mock for demo/vision if API fails
-    return [
-      { 
-        id: 'rm-mock-1', 
-        text: 'Møde med LEGO: Vi skal kigge på deres supply chain i Billund. Fokus på bæredygtighed.' 
-      }
-    ];
+    return [];
   }
 }
 
