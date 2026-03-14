@@ -114,6 +114,7 @@ interface CanvasState {
   generateNarrative: () => Promise<string>;
   evaluateHypothesis: (thoughtNodeId: string) => Promise<void>;
   discoverPatterns: () => Promise<void>;
+  loadFoundryBlocks: (blockType?: string) => Promise<void>;
   loadTemplate: (templateId: string) => Promise<void>;
   alignLayout: () => void;
   verifyNode: (nodeId: string) => Promise<void>;
@@ -1404,6 +1405,59 @@ export const useCanvasStore = create<CanvasState>()(
           t?.('success', `Discovered patterns across ${domains.size} domains`);
         } catch (err) {
           t?.('error', `Pattern discovery failed: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      loadFoundryBlocks: async (blockType) => {
+        const t = get()._toast;
+        set({ isLoading: true });
+        try {
+          const BLOCK_LABELS = ['AnswerBlock', 'Pattern', 'ControlPack', 'MigrationPath', 'ReplacementCandidate'];
+          const labelFilter = blockType
+            ? `AND $blockLabel IN labels(b)`
+            : `AND any(lbl IN labels(b) WHERE lbl IN $blockLabels)`;
+          const params = blockType
+            ? { blockLabel: blockType, blockLabels: BLOCK_LABELS }
+            : { blockLabels: BLOCK_LABELS };
+          const records = await graphRead(
+            `MATCH (b)
+             WHERE b.id IS NOT NULL ${labelFilter}
+             RETURN b, labels(b)[0] AS blockLabel
+             ORDER BY b.updated_at DESC
+             LIMIT 50`,
+            params,
+          );
+          if (records.length === 0) {
+            t?.('info', 'No Foundry blocks found in graph');
+            return;
+          }
+          get().pushSnapshot();
+          const baseX = 100;
+          let x = baseX;
+          let y = 100;
+          const newEdges: Array<{ id: string; source: string; target: string; label: string }> = [];
+          const ts = Date.now();
+          for (const raw of records) {
+            const rec = raw as Record<string, unknown>;
+            const b = rec.b as Record<string, unknown> | undefined;
+            const label = String(b?.title ?? b?.name ?? rec.blockLabel ?? 'Block');
+            const nType = nodeTypeFromLabel(String(rec.blockLabel ?? ''));
+            const newId = get().addNodeWithData(nType, {
+              label,
+              subtitle: String(b?.description ?? '').slice(0, 200),
+              nodeType: nType,
+              blockConfidence: typeof b?.confidence === 'number' ? b.confidence as number : undefined,
+              blockSource: typeof b?.source === 'string' ? b.source as string : undefined,
+              provenance: { createdBy: 'query', createdAt: new Date().toISOString(), source: 'loadFoundryBlocks', confidence: typeof b?.confidence === 'number' ? b.confidence as number : undefined },
+            }, { x, y });
+            x += 300;
+            if (x > 1200) { x = baseX; y += 200; }
+          }
+          t?.('success', `Loaded ${records.length} Foundry blocks`);
+        } catch (err) {
+          t?.('error', `Load blocks failed: ${err instanceof Error ? err.message : String(err)}`);
         } finally {
           set({ isLoading: false });
         }

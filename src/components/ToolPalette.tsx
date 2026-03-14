@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { X, Search, Wrench, GripVertical, Zap, Activity } from 'lucide-react';
+import { X, Search, Wrench, GripVertical, Zap, Activity, Blocks } from 'lucide-react';
 import { useCanvasStore } from '../store/canvasStore';
 import { listMcpTools, type ToolDefinition } from '../lib/api';
 
 export function ToolPalette() {
-  const { toolPaletteOpen, toggleToolPalette, runCriticalSynthesis, discoverPatterns } = useCanvasStore();
+  const { toolPaletteOpen, toggleToolPalette, runCriticalSynthesis, discoverPatterns, loadFoundryBlocks } = useCanvasStore();
   const [tools, setTools] = useState<ToolDefinition[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
@@ -73,6 +73,13 @@ export function ToolPalette() {
         >
           <Activity size={14} />
           Discover Patterns
+        </button>
+        <button
+          onClick={() => loadFoundryBlocks()}
+          className="w-full flex items-center gap-2 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-lg text-xs font-bold transition-all"
+        >
+          <Blocks size={14} />
+          Load Foundry Blocks
         </button>
       </div>
 
