@@ -73,7 +73,7 @@ function App() {
                 <div className="flex items-center gap-3 bg-neural-surface/80 backdrop-blur-md px-4 py-2 rounded-full border border-neural-border shadow-lg pointer-events-auto">
                   <span className="text-xl">🧠</span>
                   <h1 className="text-sm font-bold text-gray-100 tracking-wide">WidgeTDC Canvas</h1>
-                  <span className="text-xs text-gray-500 border-l border-neural-border pl-3">Vision Edition</span>
+                  <span className="text-xs text-gray-500 border-l border-neural-border pl-3">Se Cockpit-version</span>
                 </div>
                 
                 <div className="flex items-center gap-4">
