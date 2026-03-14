@@ -1,7 +1,7 @@
 // In dev mode, Vite proxy handles /api → backend (avoids CORS)
 // In production, use the full URL
 const isDev = import.meta.env.DEV;
-const API_URL = '';
+const API_URL = isDev ? '' : (import.meta.env.VITE_API_URL ?? '');
 const API_KEY = import.meta.env.VITE_API_KEY ?? '';
 
 export async function mcpCall<T = unknown>(tool: string, payload: Record<string, unknown> = {}): Promise<T> {
