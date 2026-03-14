@@ -1,7 +1,7 @@
 import { type Node } from '@xyflow/react';
 
 /**
- * 12 Node Types — 6 Layers reflecting Canvas 5X architecture
+ * 17 Node Types — 7 Layers reflecting Canvas 5X + Foundry architecture
  *
  * INFRASTRUCTURE:  server | endpoint
  * CAPABILITY:      tool
@@ -9,6 +9,7 @@ import { type Node } from '@xyflow/react';
  * INTELLIGENCE:    entity | insight | evidence | artifact
  * REASONING:       thought
  * SANDBOX:         query
+ * FOUNDRY:         answer-block | pattern | control-pack | migration-path | replacement-candidate
  * META:            combo
  */
 export type CanvasNodeType =
@@ -23,7 +24,26 @@ export type CanvasNodeType =
   | 'artifact'  // Intelligence: rendered content (mermaid, charts, markdown)
   | 'thought'   // Reasoning: MLTM thinking chains, reasoning steps
   | 'query'     // Sandbox: executable Cypher/MCP queries
+  | 'answer-block'           // Foundry: structured advisory answers
+  | 'pattern'                // Foundry: reusable architectural patterns
+  | 'control-pack'           // Foundry: security/compliance control sets
+  | 'migration-path'         // Foundry: migration/transition plans
+  | 'replacement-candidate'  // Foundry: alternative solution proposals
   | 'combo';    // Meta: collapsed group of nodes
+
+/** Foundry block types — the 5 core blocks per ADR-001 */
+export const FOUNDRY_BLOCK_TYPES: CanvasNodeType[] = [
+  'answer-block', 'pattern', 'control-pack', 'migration-path', 'replacement-candidate',
+];
+
+/** Typed edge semantics for Foundry relationships */
+export type FoundryEdgeType =
+  | 'USES_PATTERN'
+  | 'MITIGATES'
+  | 'REPLACES'
+  | 'ALTERNATIVE_TO'
+  | 'HAS_BLOCK'
+  | 'IMPLEMENTED_BY';
 
 export interface ProvenanceData {
   createdBy: 'manual' | 'query' | 'expand' | 'tool' | 'ai' | 'pipeline' | 'harvest';
@@ -67,6 +87,9 @@ export interface CanvasNodeData extends Record<string, unknown> {
   // Empirical Validity Layer
   validityScore?: number; // 0.0 - 1.0
   evidenceLinks?: Array<{ label: string; url?: string; snippet?: string; type: 'support' | 'conflict' }>;
+  // Foundry block specifics
+  blockConfidence?: number; // 0.0 - 1.0 from graph source
+  blockSource?: string; // originating engagement/session
 }
 
 export type CanvasNode = Node<CanvasNodeData>;

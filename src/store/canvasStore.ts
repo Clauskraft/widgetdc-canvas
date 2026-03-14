@@ -168,6 +168,13 @@ function nextNodeId() {
 
 function nodeTypeFromLabel(label: string): CanvasNodeType {
   const l = label.toLowerCase();
+  // Foundry building blocks (ADR-001 — 5 core blocks)
+  if (l.includes('answerblock') || l.includes('answer_block') || l.includes('answer block')) return 'answer-block';
+  if (l.includes('controlpack') || l.includes('control_pack') || l.includes('control pack')) return 'control-pack';
+  if (l.includes('migrationpath') || l.includes('migration_path') || l.includes('migration path')) return 'migration-path';
+  if (l.includes('replacementcandidate') || l.includes('replacement_candidate') || l.includes('replacement candidate')) return 'replacement-candidate';
+  if (l === 'pattern' || l.includes('pattern') && !l.includes('anti')) return 'pattern';
+  // Standard types
   if (l.includes('agent')) return 'agent';
   if (l.includes('tool') || l.includes('mcp')) return 'tool';
   if (l.includes('service') || l.includes('server')) return 'server';

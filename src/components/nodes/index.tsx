@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Server, Bot, Wrench, Database, Lightbulb, FileSearch, Search,
   GitBranch, Plug, Terminal, FileCode, Layers,
-  ChevronDown, ChevronRight, Play, BrainCircuit, Shield, Sparkles, Link2, Activity
+  ChevronDown, ChevronRight, Play, BrainCircuit, Shield, Sparkles, Link2, Activity,
+  BookOpen, Fingerprint, Route, ArrowLeftRight, Blocks
 } from 'lucide-react';
 import { useCanvasStore } from '../../store/canvasStore';
 import type { CanvasNodeData, CanvasNodeType, CanvasNode } from '../../types/canvas';
@@ -35,6 +36,11 @@ const NODE_CONFIG: Record<CanvasNodeType, { color: string; icon: typeof Server; 
   artifact: { color: '#ec4899', icon: FileCode,     layerLabel: 'INTELLIGENCE' },
   thought:  { color: '#8b5cf6', icon: BrainCircuit, layerLabel: 'REASONING' },
   query:    { color: '#a855f7', icon: Terminal,      layerLabel: 'SANDBOX' },
+  'answer-block':          { color: '#0ea5e9', icon: BookOpen,        layerLabel: 'FOUNDRY' },
+  'pattern':               { color: '#6366f1', icon: Fingerprint,     layerLabel: 'FOUNDRY' },
+  'control-pack':          { color: '#ef4444', icon: Shield,          layerLabel: 'FOUNDRY' },
+  'migration-path':        { color: '#f59e0b', icon: Route,           layerLabel: 'FOUNDRY' },
+  'replacement-candidate': { color: '#06b6d4', icon: ArrowLeftRight,  layerLabel: 'FOUNDRY' },
   combo:    { color: '#6b7280', icon: Layers,        layerLabel: 'META' },
 };
 
@@ -86,7 +92,7 @@ function FloatingToolbar({ id, nodeType, isVisible }: { id: string; nodeType: Ca
       actions.push({ id: 'tenders', label: 'Tenders', icon: Search, color: 'text-amber-400', onClick: () => matchTenders(id) });
     }
 
-    if (['insight', 'evidence', 'artifact'].includes(nodeType)) {
+    if (['insight', 'evidence', 'artifact', 'answer-block', 'pattern', 'control-pack', 'migration-path', 'replacement-candidate'].includes(nodeType)) {
       actions.push({ id: 'link', label: 'Link', icon: Link2, color: 'text-emerald-400', onClick: () => crossReference(id) });
     }
 
@@ -591,12 +597,101 @@ function ComboNode({ id, data, selected }: NodeProps<CanvasNode>) {
   );
 }
 
+/** Foundry Block Node — Double-border visual identity per Gemini ADR-001 */
+function FoundryBlockNode({ id, data, selected }: NodeProps<CanvasNode>) {
+  const { executeNodeCommand } = useCanvasStore();
+  const zoom = useStore((s) => s.transform[2]);
+  const isLowDetail = zoom < 0.6;
+
+  const config = NODE_CONFIG[data.nodeType] ?? NODE_CONFIG.entity;
+  const Icon = config.icon;
+  const confidence = (data.blockConfidence as number) ?? (data.provenance?.confidence);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      const val = e.currentTarget.value.trim();
+      if (val) executeNodeCommand(id, val);
+      e.currentTarget.blur();
+    }
+  };
+
+  return (
+    <>
+      <FloatingToolbar id={id} nodeType={data.nodeType} isVisible={selected} />
+      <Handle type="target" position={Position.Top} className="!bg-neural-border !w-2 !h-2" />
+      <div
+        className={[
+          'relative px-4 py-3 rounded-xl shadow-lg min-w-[200px] max-w-[300px] cursor-grab active:cursor-grabbing transition-all',
+          selected ? 'ring-2 ring-opacity-60 scale-[1.02]' : '',
+        ].join(' ')}
+        style={{
+          border: `3px double ${config.color}`,
+          backgroundColor: 'var(--neural-surface, #1a1a2e)',
+          ...(selected ? { boxShadow: `0 0 20px ${config.color}40`, ringColor: config.color } : {}),
+        }}
+      >
+        {/* Foundry badge */}
+        <div className="absolute -top-2.5 right-3 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest"
+          style={{ backgroundColor: `${config.color}30`, color: config.color, border: `1px solid ${config.color}50` }}>
+          <Blocks size={8} />
+          FOUNDRY
+        </div>
+
+        <div className="flex items-center gap-2 mt-1">
+          <Icon size={16} style={{ color: config.color }} />
+          <input
+            className="bg-transparent border-none outline-none font-bold text-gray-100 text-sm truncate flex-1"
+            defaultValue={data.label}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
+
+        {!isLowDetail && data.subtitle && (
+          <p className="text-[11px] text-gray-400 mt-1 truncate opacity-70 leading-tight">{data.subtitle}</p>
+        )}
+
+        {/* Confidence bar */}
+        {!isLowDetail && confidence !== undefined && (
+          <div className="mt-2 h-1.5 rounded-full bg-neural-border/50 overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-700"
+              style={{
+                width: `${confidence * 100}%`,
+                backgroundColor: confidence >= 0.8 ? '#22c55e' : confidence >= 0.5 ? '#eab308' : '#ef4444',
+              }}
+            />
+          </div>
+        )}
+
+        <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-neural-border/20">
+          <span
+            className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter"
+            style={{ backgroundColor: `${config.color}20`, color: config.color }}
+          >
+            {data.nodeType}
+          </span>
+          <span className="text-[8px] text-gray-500 uppercase font-bold tracking-widest">
+            {config.layerLabel}
+          </span>
+          {!isLowDetail && data.blockSource && (
+            <span className="text-[9px] text-gray-500 ml-auto truncate max-w-[80px]" title={data.blockSource as string}>
+              {data.blockSource as string}
+            </span>
+          )}
+        </div>
+      </div>
+      <Handle type="source" position={Position.Bottom} className="!bg-neural-border !w-2 !h-2" />
+    </>
+  );
+}
+
 // Strict Memoization with comparison logic
 export const MemoizedNode = memo(BaseNode, areNodePropsEqual);
 const MemoizedQueryNode = memo(QueryNode, areNodePropsEqual);
 const MemoizedArtifactNode = memo(ArtifactNode, areNodePropsEqual);
 const MemoizedThoughtNode = memo(ThoughtNode, areNodePropsEqual);
 const MemoizedComboNode = memo(ComboNode, areNodePropsEqual);
+const MemoizedFoundryBlockNode = memo(FoundryBlockNode, areNodePropsEqual);
 
 export const nodeTypes = {
   server: MemoizedNode,
@@ -610,5 +705,10 @@ export const nodeTypes = {
   artifact: MemoizedArtifactNode,
   thought: MemoizedThoughtNode,
   query: MemoizedQueryNode,
+  'answer-block': MemoizedFoundryBlockNode,
+  'pattern': MemoizedFoundryBlockNode,
+  'control-pack': MemoizedFoundryBlockNode,
+  'migration-path': MemoizedFoundryBlockNode,
+  'replacement-candidate': MemoizedFoundryBlockNode,
   combo: MemoizedComboNode,
 };
