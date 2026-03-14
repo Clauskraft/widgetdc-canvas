@@ -1,5 +1,7 @@
 import { mcpCall } from './api';
 
+const NOTEBOOKLM_SCRIPT = 'scripts/notebooklm_sync.py';
+
 export interface ExternalSource {
   id: string;
   name: string;
@@ -44,7 +46,7 @@ export async function syncRemarkableNotes(): Promise<{ text: string; id: string 
 export async function syncNotebookLM(): Promise<{ success: boolean; notebookId?: string; error?: string }> {
   try {
     const result = await mcpCall<{ success: boolean; notebook_id?: string; error?: string }>('system.run_python', {
-      script: 'scripts/notebooklm_sync.py'
+      script: NOTEBOOKLM_SCRIPT
     });
     return { success: result.success, notebookId: result.notebook_id, error: result.error };
   } catch (e) {
@@ -58,7 +60,7 @@ export async function syncNotebookLM(): Promise<{ success: boolean; notebookId?:
 export async function injectNotebookContext(markdown: string): Promise<boolean> {
   try {
     const result = await mcpCall<{ success: boolean }>('system.run_python', {
-      script: 'scripts/notebooklm_sync.py',
+      script: NOTEBOOKLM_SCRIPT,
       args: ['--context', markdown]
     });
     return result.success;
@@ -74,7 +76,7 @@ export async function injectNotebookContext(markdown: string): Promise<boolean> 
 export async function triggerAudioOverview(): Promise<{ success: boolean; message?: string }> {
   try {
     const result = await mcpCall<{ success: boolean; message?: string }>('system.run_python', {
-      script: 'scripts/notebooklm_sync.py',
+      script: NOTEBOOKLM_SCRIPT,
       args: ['--generate-audio']
     });
     return result;
@@ -89,7 +91,7 @@ export async function triggerAudioOverview(): Promise<{ success: boolean; messag
 export async function fetchNotebookContext(topic: string): Promise<string> {
   try {
     const result = await mcpCall<{ success: boolean; answer?: string; error?: string }>('system.run_python', {
-      script: 'scripts/notebooklm_sync.py',
+      script: NOTEBOOKLM_SCRIPT,
       args: ['--ask', topic]
     });
     
@@ -99,36 +101,6 @@ export async function fetchNotebookContext(topic: string): Promise<string> {
     return `[NotebookLM Error] ${result.error || 'Intet svar.'}`;
   } catch (e) {
     return 'Ingen specifik Notebook-kontekst fundet (Broen er nede).';
-  }
-}
-
-/**
- * Inject raw context into NotebookLM (Breakthrough)
- */
-export async function injectNotebookContext(content: string): Promise<boolean> {
-  try {
-    const result = await mcpCall<{ success: boolean }>('system.run_python', {
-      script: 'scripts/notebooklm_sync.py',
-      args: ['--context', content]
-    });
-    return result.success;
-  } catch (e) {
-    return false;
-  }
-}
-
-/**
- * Trigger Audio Overview generation (Breakthrough)
- */
-export async function triggerAudioBriefing(): Promise<{ success: boolean; message?: string }> {
-  try {
-    const result = await mcpCall<{ success: boolean; message?: string; error?: string }>('system.run_python', {
-      script: 'scripts/notebooklm_sync.py',
-      args: ['--generate-audio']
-    });
-    return { success: result.success, message: result.message || result.error };
-  } catch (e) {
-    return { success: false, message: 'Kunne ikke kontakte briefing-motoren.' };
   }
 }
 

@@ -3,3 +3,6 @@ dist
 .env
 .env.local
 *.tsbuildinfo
+notebooklm_config.json
+canvas_context.md
+PROJECT_FILE_MAP.txt

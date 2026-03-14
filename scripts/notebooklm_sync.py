@@ -7,13 +7,18 @@ def sync():
     # Load configuration
     config_dir = os.path.join(os.path.expanduser("~"), ".widget-tdc")
     if not os.path.exists(config_dir):
-        os.makedirs(config_dir)
+        os.makedirs(config_dir, mode=0o700)
     
     config_path = os.path.join(config_dir, "notebooklm_config.json")
     if not os.path.exists(config_path):
         print(json.dumps({"success": False, "error": "Configuration missing. Please set your __Secure-1PSID cookie."}))
         return
 
+    # Secure file permissions on config
+    try:
+        os.chmod(config_path, 0o600)
+    except OSError:
+        pass  # Windows may not support chmod
     with open(config_path, "r") as f:
         config = json.load(f)
 
@@ -38,10 +43,16 @@ def sync():
 
         # 2. HANDLE MODES
         args = sys.argv[1:]
-        
+
+        def get_arg(flag):
+            if flag not in args:
+                return None
+            idx = args.index(flag) + 1
+            return args[idx] if idx < len(args) else ""
+
         # ASK MODE: Grounded Q&A
-        if "--ask" in args:
-            query = args[args.index("--ask") + 1] if args.index("--ask") + 1 < len(args) else ""
+        query = get_arg("--ask")
+        if query is not None:
             if not query:
                 print(json.dumps({"success": False, "error": "Query empty."}))
                 return
@@ -50,8 +61,8 @@ def sync():
             return
 
         # CONTEXT MODE: Direct Text Injection (Breakthrough)
-        if "--context" in args:
-            content = args[args.index("--context") + 1] if args.index("--context") + 1 < len(args) else ""
+        content = get_arg("--context")
+        if content is not None:
             if not content:
                 print(json.dumps({"success": False, "error": "Content empty."}))
                 return

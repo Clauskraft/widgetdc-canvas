@@ -45,6 +45,7 @@ interface CanvasState {
   layoutMode: 'mindmap' | 'freeform';
   canvasId: string;
   isLoading: boolean;
+  pendingOps: number;
   aiPanelOpen: boolean;
   toolPaletteOpen: boolean;
   selectedNodeId: string | null;
@@ -267,6 +268,7 @@ export const useCanvasStore = create<CanvasState>()(
       layoutMode: 'freeform',
       canvasId: 'default',
       isLoading: false,
+      pendingOps: 0,
       aiPanelOpen: false,
       toolPaletteOpen: false,
       selectedNodeId: null,
@@ -293,15 +295,21 @@ export const useCanvasStore = create<CanvasState>()(
       pushSnapshot: () => {
         const { nodes, edges, undoStack } = get();
         const snapshot: CanvasSnapshot = {
-          nodes: nodes.map(n => ({ ...n })),
-          edges: edges.map(e => ({ ...e })),
+          nodes: nodes.map(n => ({
+            ...n,
+            data: { ...n.data,
+              thinkingSteps: n.data.thinkingSteps ? [...(n.data.thinkingSteps as string[])] : undefined,
+              evidenceLinks: n.data.evidenceLinks ? (n.data.evidenceLinks as Array<Record<string, unknown>>).map(l => ({ ...l })) : undefined,
+            },
+          })),
+          edges: edges.map(e => ({ ...e, style: e.style ? { ...e.style } : undefined })),
         };
         const stack = [...undoStack, snapshot].slice(-MAX_UNDO);
         set({ undoStack: stack, redoStack: [] });
       },
 
       undo: () => {
-        const { undoStack, nodes, edges } = get();
+        const { undoStack, redoStack, nodes, edges } = get();
         if (undoStack.length === 0) return;
         const prev = undoStack[undoStack.length - 1];
         const current: CanvasSnapshot = { nodes: [...nodes], edges: [...edges] };
@@ -309,12 +317,12 @@ export const useCanvasStore = create<CanvasState>()(
           nodes: prev.nodes,
           edges: prev.edges,
           undoStack: undoStack.slice(0, -1),
-          redoStack: [...get().redoStack, current],
+          redoStack: [...redoStack, current],
         });
       },
 
       redo: () => {
-        const { redoStack, nodes, edges } = get();
+        const { redoStack, undoStack, nodes, edges } = get();
         if (redoStack.length === 0) return;
         const next = redoStack[redoStack.length - 1];
         const current: CanvasSnapshot = { nodes: [...nodes], edges: [...edges] };
@@ -322,7 +330,7 @@ export const useCanvasStore = create<CanvasState>()(
           nodes: next.nodes,
           edges: next.edges,
           redoStack: redoStack.slice(0, -1),
-          undoStack: [...get().undoStack, current],
+          undoStack: [...undoStack, current],
         });
       },
 
@@ -1891,10 +1899,11 @@ Notebook: ${notebookContext.slice(0, 500)}`, { domain: 'contextual-node-oracle' 
         try {
           // 1. Format context as Markdown
           const nodeLines = nodes.map(n => `- ${n.data.label} (${n.type}): ${n.data.subtitle || ''}`);
+          const nodeMap = new Map(nodes.map(n => [n.id, n.data.label]));
           const edgeLines = edges.map(e => {
-            const source = nodes.find(n => n.id === e.source)?.data.label || 'Unknown';
-            const target = nodes.find(n => n.id === e.target)?.data.label || 'Unknown';
-            return `- ${source} --(${(e as any).label || 'RELATES'})--> ${target}`;
+            const source = nodeMap.get(e.source) ?? 'Unknown';
+            const target = nodeMap.get(e.target) ?? 'Unknown';
+            return `- ${source} --(${(e as Edge & { label?: string }).label || 'RELATES'})--> ${target}`;
           });
 
           const markdown = `# Strategic Canvas Context\n\n## Entities & Insights\n${nodeLines.join('\n')}\n\n## Relationships\n${edgeLines.join('\n')}`;
@@ -1939,7 +1948,20 @@ Notebook: ${notebookContext.slice(0, 500)}`, { domain: 'contextual-node-oracle' 
       name: 'widgetdc-canvas-storage',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
-        nodes: state.nodes,
+        nodes: state.nodes.map(n => ({
+          ...n,
+          data: {
+            ...n.data,
+            thinkingSteps: undefined,
+            evidenceLinks: undefined,
+            artifactSource: typeof n.data.artifactSource === 'string'
+              ? (n.data.artifactSource as string).slice(0, 500)
+              : undefined,
+            subtitle: typeof n.data.subtitle === 'string' && (n.data.subtitle as string).length > 200
+              ? (n.data.subtitle as string).slice(0, 200)
+              : n.data.subtitle,
+          },
+        })),
         edges: state.edges,
         layoutMode: state.layoutMode,
         canvasId: state.canvasId,

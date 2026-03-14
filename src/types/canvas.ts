@@ -47,7 +47,7 @@ export interface CanvasNodeData extends Record<string, unknown> {
   queryStatus?: 'idle' | 'running' | 'success' | 'error';
   queryResultCount?: number;
   // Artifact specifics
-  artifactType?: 'mermaid' | 'markdown' | 'chart' | 'table' | 'html';
+  artifactType?: 'mermaid' | 'markdown' | 'chart' | 'table' | 'html' | 'audio' | 'summary' | 'faq' | 'study-guide';
   artifactSource?: string;
   // Combo specifics
   childCount?: number;
