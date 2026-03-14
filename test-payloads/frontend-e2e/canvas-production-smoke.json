@@ -1,0 +1,72 @@
+{
+  "surface": "canvas",
+  "flow": "production-canvas-smoke",
+  "baseUrl": "{{CANVAS_BASE_URL}}",
+  "steps": [
+    {
+      "type": "goto",
+      "name": "open-canvas",
+      "url": "{{baseUrl}}/",
+      "waitUntil": "networkidle",
+      "timeoutMs": 45000
+    },
+    {
+      "type": "waitForAnyVisible",
+      "name": "main-canvas-visible",
+      "selectors": [
+        "[data-testid='main-canvas']",
+        ".react-flow",
+        ".react-flow__pane"
+      ],
+      "timeoutMs": 30000
+    },
+    {
+      "type": "waitForAnyVisible",
+      "name": "cockpit-button-visible",
+      "selectors": [
+        "button:has-text('Se Cockpit-version')"
+      ],
+      "timeoutMs": 20000
+    },
+    {
+      "type": "assertValueFirstVisible",
+      "name": "default-node-value",
+      "selectors": [
+        "input"
+      ],
+      "value": "Markedsstrategi 2026",
+      "timeoutMs": 20000
+    },
+    {
+      "type": "doubleClickFirstVisible",
+      "name": "create-node-via-pane-dblclick",
+      "selectors": [
+        ".react-flow__pane",
+        "[data-testid='main-canvas']"
+      ],
+      "waitAfterMs": 1000,
+      "timeoutMs": 15000
+    },
+    {
+      "type": "assertAttributeFirstVisible",
+      "name": "new-node-placeholder",
+      "selectors": [
+        "input:last-of-type"
+      ],
+      "attribute": "placeholder",
+      "value": "Hvad tænker du?",
+      "timeoutMs": 15000
+    },
+    {
+      "type": "assertNoVisible",
+      "name": "no-fatal-runtime-error",
+      "selectors": [
+        "text=Something went wrong",
+        "text=Unhandled error",
+        "text=Application error"
+      ],
+      "timeoutMs": 2000,
+      "required": false
+    }
+  ]
+}
