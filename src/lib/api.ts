@@ -65,16 +65,14 @@ export async function graphExpand(nodeLabel: string, options?: {
 // Fallback for graph.window/search (not production-ready per Codex)
 // Uses direct Cypher instead
 export async function graphNeighborSearch(name: string, relTypes?: string[], limit = 20): Promise<unknown[]> {
-  const relFilter = relTypes?.length
-    ? `AND type(r) IN [${relTypes.map(t => `'${t}'`).join(',')}]`
-    : '';
+  const relFilter = relTypes?.length ? 'AND type(r) IN $relTypes' : '';
   const query = `
     MATCH (n)-[r]-(m)
     WHERE toLower(n.name) = toLower($name) ${relFilter}
     RETURN DISTINCT m, type(r) AS relType, labels(m)[0] AS nodeLabel
     LIMIT $limit
   `;
-  return graphRead(query, { name, limit });
+  return graphRead(query, { name, limit, ...(relTypes?.length ? { relTypes } : {}) });
 }
 
 export async function graphTextSearch(text: string, limit = 20): Promise<unknown[]> {

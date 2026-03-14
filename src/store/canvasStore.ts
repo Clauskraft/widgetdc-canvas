@@ -545,56 +545,72 @@ export const useCanvasStore = create<CanvasState>()(
           await graphWrite('MATCH (n:CanvasNode {canvasId: $canvasId}) DETACH DELETE n', { canvasId });
           await graphWrite('MATCH (e:CanvasEdge {canvasId: $canvasId}) DETACH DELETE e', { canvasId });
 
-          for (const node of nodes) {
+          // Batch write nodes via UNWIND
+          const nodeData = nodes.map(node => {
             const d = node.data as CanvasNodeData;
             const prov = d.provenance;
+            return {
+              id: node.id,
+              label: d.label,
+              nodeType: d.nodeType,
+              subtitle: d.subtitle ?? '',
+              posX: node.position.x, posY: node.position.y,
+              provCreatedBy: prov?.createdBy ?? '',
+              provSource: prov?.source ?? '',
+              provTool: prov?.tool ?? '',
+              provCreatedAt: prov?.createdAt ?? '',
+              provReasoning: (prov as unknown as Record<string, unknown>)?.reasoning ?? '',
+              regulatoryLevel: d.regulatoryLevel ?? '',
+              complianceScore: d.complianceScore ?? null,
+              signalIntensity: d.signalIntensity ?? null,
+              isRejected: d.isRejected ?? false,
+              rejectionReason: d.rejectionReason ?? '',
+              thinkingSteps: d.thinkingSteps ? JSON.stringify(d.thinkingSteps) : '',
+              reasoningStatus: d.reasoningStatus ?? '',
+            };
+          });
+          if (nodeData.length > 0) {
             await graphWrite(
-              `MERGE (n:CanvasNode {id: $id, canvasId: $canvasId})
-               SET n.label = $label, n.nodeType = $nodeType, n.subtitle = $subtitle,
-                   n.posX = $posX, n.posY = $posY,
-                   n.provenance_createdBy = $provCreatedBy,
-                   n.provenance_source = $provSource,
-                   n.provenance_tool = $provTool,
-                   n.provenance_createdAt = $provCreatedAt,
-                   n.provenance_reasoning = $provReasoning,
-                   n.regulatoryLevel = $regulatoryLevel,
-                   n.complianceScore = $complianceScore,
-                   n.signalIntensity = $signalIntensity,
-                   n.isRejected = $isRejected,
-                   n.rejectionReason = $rejectionReason,
-                   n.thinkingSteps = $thinkingSteps,
-                   n.reasoningStatus = $reasoningStatus,
+              `UNWIND $nodes AS nd
+               MERGE (n:CanvasNode {id: nd.id, canvasId: $canvasId})
+               SET n.label = nd.label, n.nodeType = nd.nodeType, n.subtitle = nd.subtitle,
+                   n.posX = nd.posX, n.posY = nd.posY,
+                   n.provenance_createdBy = nd.provCreatedBy,
+                   n.provenance_source = nd.provSource,
+                   n.provenance_tool = nd.provTool,
+                   n.provenance_createdAt = nd.provCreatedAt,
+                   n.provenance_reasoning = nd.provReasoning,
+                   n.regulatoryLevel = nd.regulatoryLevel,
+                   n.complianceScore = nd.complianceScore,
+                   n.signalIntensity = nd.signalIntensity,
+                   n.isRejected = nd.isRejected,
+                   n.rejectionReason = nd.rejectionReason,
+                   n.thinkingSteps = nd.thinkingSteps,
+                   n.reasoningStatus = nd.reasoningStatus,
                    n.updatedAt = datetime()`,
-              {
-                id: node.id, canvasId,
-                label: d.label,
-                nodeType: d.nodeType,
-                subtitle: d.subtitle ?? '',
-                posX: node.position.x, posY: node.position.y,
-                provCreatedBy: prov?.createdBy ?? '',
-                provSource: prov?.source ?? '',
-                provTool: prov?.tool ?? '',
-                provCreatedAt: prov?.createdAt ?? '',
-                provReasoning: (prov as unknown as Record<string, unknown>)?.reasoning ?? '',
-                regulatoryLevel: d.regulatoryLevel ?? '',
-                complianceScore: d.complianceScore ?? null,
-                signalIntensity: d.signalIntensity ?? null,
-                isRejected: d.isRejected ?? false,
-                rejectionReason: d.rejectionReason ?? '',
-                thinkingSteps: d.thinkingSteps ? JSON.stringify(d.thinkingSteps) : '',
-                reasoningStatus: d.reasoningStatus ?? '',
-              },
+              { canvasId, nodes: nodeData },
             );
           }
 
-          for (const edge of edges) {
+          // Batch write edges via UNWIND
+          const edgeData = edges.map(edge => ({
+            id: edge.id,
+            source: edge.source,
+            target: edge.target,
+            label: (edge as Edge & { label?: string }).label ?? '',
+          }));
+          if (edgeData.length > 0) {
             await graphWrite(
-              `MERGE (e:CanvasEdge {id: $id, canvasId: $canvasId})
-               SET e.source = $source, e.target = $target, e.label = $label,
+              `UNWIND $edges AS ed
+               MERGE (e:CanvasEdge {id: ed.id, canvasId: $canvasId})
+               SET e.source = ed.source, e.target = ed.target, e.label = ed.label,
                    e.updatedAt = datetime()`,
-              { id: edge.id, canvasId, source: edge.source, target: edge.target, label: (edge as Edge & { label?: string }).label ?? '' },
+              { canvasId, edges: edgeData },
             );
           }
+        } catch (err) {
+          console.error(`[saveToGraph] Failed for canvas ${canvasId}:`, err);
+          throw err;
         } finally {
           set({ isLoading: false });
         }
