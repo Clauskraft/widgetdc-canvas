@@ -1696,7 +1696,8 @@ Svar i Markdown format.`;
             { name: label },
           );
           get().pushSnapshot();
-          let count = 0;
+          const newEdges: Array<{ id: string; source: string; target: string; label: string }> = [];
+          const ts = Date.now();
           for (const raw of records) {
             const rec = raw as Record<string, unknown>;
             const m = rec.m as Record<string, unknown> | undefined;
@@ -1708,18 +1709,18 @@ Svar i Markdown format.`;
               nodeType: nType,
               provenance: { createdBy: 'expand', createdAt: new Date().toISOString(), source: 'cross-reference' },
             });
-            set(state => ({
-              edges: [...state.edges, {
-                id: `xref-${Date.now()}-${count}`,
-                source: nodeId,
-                target: newId,
-                label: String(rec.relType ?? 'CROSS_REF'),
-              }],
-            }));
-            count++;
+            newEdges.push({
+              id: `xref-${ts}-${newEdges.length}`,
+              source: nodeId,
+              target: newId,
+              label: String(rec.relType ?? 'CROSS_REF'),
+            });
+          }
+          if (newEdges.length > 0) {
+            set(state => ({ edges: [...state.edges, ...newEdges] }));
           }
           get().recordStep('cross-reference', label);
-          t?.('success', `Cross-referenced ${count} related nodes`);
+          t?.('success', `Cross-referenced ${newEdges.length} related nodes`);
         } catch (err) {
           t?.('error', `Cross-reference failed: ${err instanceof Error ? err.message : String(err)}`);
         } finally {

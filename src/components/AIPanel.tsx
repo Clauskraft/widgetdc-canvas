@@ -228,7 +228,7 @@ export function AIPanel() {
           </div>
         ) : (
           <div className="flex items-center justify-between text-[10px] text-emerald-400/80 italic font-medium">
-            <span className="truncate">Tunnel: clauskraft@gmail.com</span>
+            <span className="truncate">Tunnel: Connected</span>
             <span className="bg-emerald-500/10 px-1.5 py-0.5 border border-emerald-500/20 rounded uppercase font-bold tracking-widest text-[8px]">Live</span>
           </div>
         )}
