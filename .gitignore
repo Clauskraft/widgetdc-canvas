@@ -6,3 +6,5 @@ dist
 notebooklm_config.json
 canvas_context.md
 PROJECT_FILE_MAP.txt
+.claude/scheduled_tasks.lock  
+.claude/settings.json  
