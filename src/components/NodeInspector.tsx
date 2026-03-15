@@ -72,6 +72,30 @@ export function NodeInspector() {
           </div>
         )}
 
+        {(d.artifactId || d.reviewState || d.renderPackageId || d.sourceGraphNodeId) && (
+          <div className="bg-neural-panel/20 p-2.5 rounded-xl border border-neural-border/30">
+            <div className="text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-2 opacity-70">Artifact Binding</div>
+            <div className="space-y-1.5 text-[11px] text-gray-300">
+              {d.artifactId && <div><span className="text-gray-500">Artifact</span>: <span className="font-mono text-gray-200">{d.artifactId}</span></div>}
+              {d.artifactFamily && <div><span className="text-gray-500">Type</span>: {d.artifactFamily}</div>}
+              {d.reviewState && <div><span className="text-gray-500">Review</span>: {d.reviewState}</div>}
+              {d.qualityGate && <div><span className="text-gray-500">Quality</span>: {d.qualityGate}</div>}
+              {d.renderPackageId && <div><span className="text-gray-500">Render</span>: <span className="font-mono text-gray-200">{d.renderPackageId}</span></div>}
+              {d.renderContract && <div><span className="text-gray-500">Contract</span>: <span className="font-mono text-gray-200">{d.renderContract}</span></div>}
+              {d.sourceGraphNodeId && <div><span className="text-gray-500">Graph</span>: <span className="font-mono text-gray-200">{d.sourceGraphNodeId}</span></div>}
+              {Array.isArray(d.sourceGraphLabels) && d.sourceGraphLabels.length > 0 && (
+                <div><span className="text-gray-500">Labels</span>: {d.sourceGraphLabels.join(', ')}</div>
+              )}
+              {Array.isArray(d.sourceAssetIds) && d.sourceAssetIds.length > 0 && (
+                <div><span className="text-gray-500">Assets</span>: {d.sourceAssetIds.join(', ')}</div>
+              )}
+              {Array.isArray(d.availableActions) && d.availableActions.length > 0 && (
+                <div><span className="text-gray-500">Actions</span>: {d.availableActions.join(', ')}</div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Recommendations - AI Proactive */}
         <div>
           <div className="text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-2 opacity-70 flex items-center justify-between">

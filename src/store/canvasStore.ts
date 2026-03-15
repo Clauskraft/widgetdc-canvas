@@ -13,6 +13,7 @@ import {
 import type { CanvasNodeData, CanvasNodeType, ProvenanceData } from '../types/canvas';
 import { applyDagreLayout, alignNodesToColumns } from '../lib/layout';
 import { graphRead, graphWrite, graphExpand, graphNeighborSearch, mcpCall, reasonCall, isComplianceQuery, getComplianceGaps, type ComplianceGapRecord, type ReasonResponse } from '../lib/api';
+import { artifactSurfaceToCanvasNode, type ArtifactSurfacePayload } from '../lib/artifactSurface';
 import { CANVAS_TEMPLATES, ENGAGEMENT_COLUMNS, type CanvasTemplate } from '../templates';
 import { fetchNotebookContext, injectNotebookContext, triggerAudioOverview } from '../lib/connectors';
 
@@ -70,6 +71,7 @@ interface CanvasState {
   // Node operations
   addNode: (type: CanvasNodeType, label: string, subtitle?: string, position?: { x: number; y: number }, provenance?: ProvenanceData) => void;
   addNodeWithData: (type: CanvasNodeType, data: Partial<CanvasNodeData>, position?: { x: number; y: number }) => string;
+  importArtifactSurface: (payload: ArtifactSurfacePayload, position?: { x: number; y: number }) => string;
   removeSelected: () => void;
   setLayoutMode: (mode: 'mindmap' | 'freeform') => void;
   toggleAiPanel: () => void;
@@ -377,6 +379,11 @@ export const useCanvasStore = create<CanvasState>()(
           set({ nodes: updatedNodes });
         }
         return id;
+      },
+
+      importArtifactSurface: (payload, position) => {
+        const mapped = artifactSurfaceToCanvasNode(payload);
+        return get().addNodeWithData(mapped.type, mapped.data, position);
       },
 
       removeSelected: () => {
