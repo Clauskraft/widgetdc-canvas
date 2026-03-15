@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useCanvasStore } from '../../store/canvasStore';
 import type { CanvasNodeData, CanvasNodeType, CanvasNode } from '../../types/canvas';
+import { CommandInput } from './CommandInput';
 
 // Strict comparison for memoization to fix O(N) re-render bottleneck (Audit Day 5)
 const areNodePropsEqual = (prev: NodeProps<CanvasNode>, next: NodeProps<CanvasNode>) => {
@@ -20,7 +21,9 @@ const areNodePropsEqual = (prev: NodeProps<CanvasNode>, next: NodeProps<CanvasNo
     prev.data.hasProactiveRecommendation === next.data.hasProactiveRecommendation &&
     prev.data.thinkingSteps?.length === next.data.thinkingSteps?.length &&
     prev.data.complianceScore === next.data.complianceScore &&
-    prev.data.signalIntensity === next.data.signalIntensity
+    prev.data.signalIntensity === next.data.signalIntensity &&
+    prev.data.isGhost === next.data.isGhost &&
+    prev.data.learningState === next.data.learningState
   );
 };
 
@@ -142,19 +145,19 @@ function BaseNode({ id, data, selected }: NodeProps<CanvasNode>) {
 
   const config = NODE_CONFIG[data.nodeType] ?? NODE_CONFIG.entity;
   const Icon = config.icon;
-  const isGhost = /ghost/i.test(data.subtitle ?? '');
+  const isGhost = data.isGhost || /ghost/i.test(data.subtitle ?? '');
   const isRejected = data.isRejected === true;
-  const status = (data.reasoningStatus as string) ?? 'complete';
+  const status = (data.reasoningStatus as string) ?? (data.taskStatus === 'running' ? 'thinking' : 'complete');
   const provenance = data.provenance;
   const confidenceStyle = getConfidenceStyle(provenance?.confidence);
   const badge = provenance ? PROVENANCE_BADGES[provenance.createdBy] : null;
   const intensity = (data.signalIntensity as number) ?? 0;
-  const hasAura = intensity > 0.8;
+  const hasAura = intensity > 0.8 || data.learningState === 'healing';
   const hasProactive = !!data.hasProactiveRecommendation;
   const regLevel = data.regulatoryLevel as keyof typeof REGULATORY_COLORS | undefined;
   const compScore = data.complianceScore as number | undefined;
 
-  const auraColor = intensity > 0.8 ? '#ef4444' : (hasProactive ? '#fbbf24' : config.color);
+  const auraColor = data.learningState === 'healing' ? '#22c55e' : (intensity > 0.8 ? '#ef4444' : (hasProactive ? '#fbbf24' : config.color));
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -175,28 +178,29 @@ function BaseNode({ id, data, selected }: NodeProps<CanvasNode>) {
       <Handle type="target" position={Position.Top} className="!bg-neural-border !w-2 !h-2" />
       
       {/* Aura optimized: Hide glow at low zoom unless selected */}
-      {(hasAura || hasProactive || status === 'thinking') && (!isLowDetail || selected) && (
+      {(hasAura || hasProactive || status === 'thinking' || data.learningState === 'warning') && (!isLowDetail || selected) && (
         <div
-          className="absolute -inset-3 rounded-2xl animate-pulse pointer-events-none z-0"
+          className={`absolute -inset-3 rounded-2xl animate-pulse pointer-events-none z-0 ${data.learningState === 'warning' ? 'ring-4 ring-rose-500 shadow-[0_0_20px_#f43f5e]' : ''}`}
           style={{
             background: `radial-gradient(ellipse, ${auraColor}25 0%, transparent 75%)`,
-            boxShadow: `0 0 35px ${auraColor}${intensity > 0.9 ? '90' : '40'}`,
+            boxShadow: data.learningState === 'warning' ? undefined : `0 0 35px ${auraColor}${intensity > 0.9 ? '90' : '40'}`,
           }}
         />
       )}
 
       <div
         className={[
-          'relative px-4 py-3 rounded-xl border bg-neural-surface shadow-lg min-w-[180px] max-w-[280px] cursor-grab active:cursor-grabbing transition-all duration-500',
+          'relative px-4 py-3 rounded-xl border bg-neural-surface shadow-lg min-w-[180px] max-w-[280px] cursor-grab active:cursor-grabbing transition-all duration-500 pb-12',
           isGhost ? 'border-dashed border-neural-border' : 'border-neural-border',
           isRejected ? 'border-dashed' : '',
           selected ? 'ring-2 shadow-2xl ring-opacity-60 scale-[1.02]' : '',
-          hasProactive ? 'border-amber-500/50' : ''
+          hasProactive ? 'border-amber-500/50' : '',
+          data.learningState === 'warning' ? 'border-rose-500 animate-bounce' : ''
         ].join(' ')}
         style={{
           borderLeftWidth: 4,
           borderLeftColor: config.color,
-          opacity: isRejected ? 0.3 : (isGhost ? 0.8 : undefined),
+          opacity: isRejected ? 0.3 : (isGhost ? 0.6 : undefined),
           ...(selected ? { ringColor: auraColor } : {}),
           ...confidenceStyle,
         }}
@@ -213,7 +217,7 @@ function BaseNode({ id, data, selected }: NodeProps<CanvasNode>) {
             defaultValue={data.label}
             onKeyDown={handleKeyDown}
           />
-          {!isLowDetail && status === 'thinking' && (
+          {!isLowDetail && (status === 'thinking' || data.taskStatus === 'running') && (
             <div className="flex gap-0.5">
               <div className="w-1 h-1 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
               <div className="w-1 h-1 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -271,6 +275,7 @@ function BaseNode({ id, data, selected }: NodeProps<CanvasNode>) {
             </span>
           )}
         </div>
+        <CommandInput nodeId={id} />
       </div>
       <Handle type="source" position={Position.Bottom} className="!bg-neural-border !w-2 !h-2" />
     </>
