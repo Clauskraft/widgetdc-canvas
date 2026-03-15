@@ -1,12 +1,7 @@
-:{$PORT}
+:8080
 
 route {
     respond /health 200 "{\"status\":\"healthy\"}"
-
-    handle /api/* {
-        reverse_proxy https://backend-production-d3da.up.railway.app
-    }
-
     root * /srv
     try_files {path} /index.html
     file_server
