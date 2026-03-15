@@ -1,8 +1,13 @@
-:{$PORT}  
-root * /srv  
-file_server  
-try_files {path} /index.html  
-  
-handle /health {  
-    respond 200 "{\"status\":\"healthy\"}"  
-}  
+:{$PORT}
+
+handle /health {
+    respond 200 "{\"status\":\"healthy\"}"
+}
+
+handle /api/* {
+    reverse_proxy https://backend-production-d3da.up.railway.app
+}
+
+root * /srv
+file_server
+try_files {path} /index.html
