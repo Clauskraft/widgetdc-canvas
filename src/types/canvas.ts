@@ -90,6 +90,18 @@ export interface CanvasNodeData extends Record<string, unknown> {
   // Foundry block specifics
   blockConfidence?: number; // 0.0 - 1.0 from graph source
   blockSource?: string; // originating engagement/session
+  // Canonical architecture artifact surface binding
+  artifactId?: string;
+  artifactFamily?: string;
+  qualityGate?: 'pass' | 'warning' | 'degraded';
+  reviewState?: 'draft' | 'verified' | 'review_requested' | 'in_review' | 'approved' | 'rejected' | 'export_ready' | 'exported' | 'degraded';
+  renderContract?: string;
+  renderPackageId?: string;
+  sourceGraphNodeId?: string;
+  sourceGraphLabels?: string[];
+  sourceAssetIds?: string[];
+  availableActions?: string[];
+  backendTargets?: string[];
 }
 
 export type CanvasNode = Node<CanvasNodeData>;

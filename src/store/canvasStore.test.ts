@@ -26,6 +26,7 @@ vi.mock('../lib/api', () => ({
 
 // Import mocks after vi.mock declarations
 import { graphRead, graphWrite, graphNeighborSearch, mcpCall, reasonCall } from '../lib/api';
+import { artifactSurfaceToCanvasNode } from '../lib/artifactSurface';
 
 function resetStore() {
   useCanvasStore.setState({
@@ -92,6 +93,75 @@ describe('Core Operations', () => {
     const store = useCanvasStore.getState();
     store.addNodeWithData('server', { label: 'Srv' }, { x: 10, y: 20 });
     expect(useCanvasStore.getState().nodes[0].position).toEqual({ x: 10, y: 20 });
+  });
+
+  it('importArtifactSurface maps canonical artifact payload to bound canvas node', () => {
+    const store = useCanvasStore.getState();
+    const id = store.importArtifactSurface({
+      contract_version: 'architecture.artifact.surface.v1',
+      surface: 'canvas',
+      artifact: {
+        artifact_id: 'artifact-123',
+        artifact_type: 'architecture_decision_pack',
+        title: 'Decision Pack',
+        summary: 'Bound to verified artifact',
+        confidence: 0.92,
+        quality_gate: 'pass',
+        updated_at: '2026-03-15T23:05:00Z',
+      },
+      lineage: {
+        artifact_id: 'artifact-123',
+        source_graph_node_id: 'Decision:wallet-target-state',
+        source_graph_labels: ['ArchitectureDecision'],
+        verification_status: 'verified',
+        render_package_id: 'renderpkg-1',
+        render_contract: 'foundry.render.sections.v1',
+        source_asset_ids: ['sg-executive-summary-v1'],
+      },
+      review: {
+        state: 'review_requested',
+        quality_gate: 'pass',
+        available_actions: ['approve', 'reject'],
+      },
+      render: {
+        render_package_id: 'renderpkg-1',
+        contract: 'foundry.render.sections.v1',
+        document_type: 'pptx',
+        section_count: 2,
+        used_assets: ['sg-executive-summary-v1'],
+      },
+    });
+
+    const node = useCanvasStore.getState().nodes.find(n => n.id === id);
+    expect(node).toBeDefined();
+    expect(node!.data.artifactId).toBe('artifact-123');
+    expect(node!.data.renderPackageId).toBe('renderpkg-1');
+    expect(node!.data.reviewState).toBe('review_requested');
+    expect(node!.data.sourceGraphNodeId).toBe('Decision:wallet-target-state');
+  });
+
+  it('artifactSurfaceToCanvasNode rejects payloads without durable artifact identity', () => {
+    expect(() =>
+      artifactSurfaceToCanvasNode({
+        contract_version: 'architecture.artifact.surface.v1',
+        surface: 'canvas',
+        artifact: {
+          artifact_id: '',
+          artifact_type: 'architecture_decision_pack',
+          title: 'Broken',
+        },
+        lineage: {
+          artifact_id: '',
+          render_package_id: 'renderpkg-1',
+          render_contract: 'foundry.render.sections.v1',
+        },
+        review: { state: 'draft' },
+        render: {
+          render_package_id: 'renderpkg-1',
+          contract: 'foundry.render.sections.v1',
+        },
+      } as any)
+    ).toThrow(/artifact_id/i);
   });
 
   it('removeSelected removes the selected node and its edges', () => {

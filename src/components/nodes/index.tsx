@@ -374,6 +374,12 @@ function ArtifactNode({ id, data, selected }: NodeProps<CanvasNode>) {
   const config = NODE_CONFIG.artifact;
   const artType = data.artifactType ?? 'markdown';
   const reasoningStatus = (data.reasoningStatus as string) ?? 'complete';
+  const reviewState = typeof data.reviewState === 'string' ? data.reviewState : undefined;
+  const qualityGate = typeof data.qualityGate === 'string' ? data.qualityGate : undefined;
+  const artifactId = typeof data.artifactId === 'string' ? data.artifactId : undefined;
+  const sourceGraphNodeId = typeof data.sourceGraphNodeId === 'string' ? data.sourceGraphNodeId : undefined;
+  const isDegraded = qualityGate === 'degraded' || reviewState === 'degraded';
+  const reviewColor = isDegraded ? '#ef4444' : reviewState === 'export_ready' || reviewState === 'exported' ? '#22c55e' : reviewState === 'approved' ? '#3b82f6' : '#f59e0b';
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -406,6 +412,28 @@ function ArtifactNode({ id, data, selected }: NodeProps<CanvasNode>) {
             <Sparkles size={12} className="text-purple-400 animate-pulse shrink-0" />
           )}
         </div>
+        {!isLowDetail && (reviewState || artifactId) && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {reviewState && (
+              <span
+                className="inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium"
+                style={{ backgroundColor: reviewColor + '22', color: reviewColor }}
+              >
+                {reviewState}
+              </span>
+            )}
+            {qualityGate && (
+              <span className="inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium bg-neural-panel text-gray-300">
+                {qualityGate}
+              </span>
+            )}
+            {artifactId && (
+              <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono bg-neural-panel text-gray-400">
+                {artifactId}
+              </span>
+            )}
+          </div>
+        )}
         {!isLowDetail && data.artifactSource && (
           <div className="mt-2 rounded bg-neural-panel p-2 max-h-[120px] overflow-auto">
             <pre className="text-[11px] text-gray-300 font-mono whitespace-pre-wrap">
@@ -428,6 +456,11 @@ function ArtifactNode({ id, data, selected }: NodeProps<CanvasNode>) {
             </span>
           )}
         </div>
+        {!isLowDetail && sourceGraphNodeId && (
+          <div className="mt-2 text-[10px] text-gray-500 font-mono truncate" title={sourceGraphNodeId}>
+            {sourceGraphNodeId}
+          </div>
+        )}
       </div>
       <Handle type="source" position={Position.Bottom} className="!bg-neural-border !w-2 !h-2" />
     </>
