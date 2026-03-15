@@ -1,7 +1,7 @@
-:8080
+:{$PORT}
 
 route {
-    respond /health 200 "{\"status\":\"healthy\"}"
+    respond /health 200
     root * /srv
     try_files {path} /index.html
     file_server
