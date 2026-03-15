@@ -84,6 +84,11 @@ export interface CanvasNodeData extends Record<string, unknown> {
   // Signal intensity for aura glow
   signalIntensity?: number;
   isNew?: boolean;
+  // War Room specifics
+  isGhost?: boolean;
+  parentId?: string;
+  learningState?: 'none' | 'warning' | 'healing';
+  taskStatus?: 'idle' | 'running' | 'completed' | 'failed';
   // Empirical Validity Layer
   validityScore?: number; // 0.0 - 1.0
   evidenceLinks?: Array<{ label: string; url?: string; snippet?: string; type: 'support' | 'conflict' }>;
