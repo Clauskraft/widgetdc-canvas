@@ -1816,6 +1816,13 @@ Svar i Markdown format.`;
             .map(e => e.source === nodeId ? e.target : e.source);
           const neighbors = get().nodes.filter(n => neighborIds.includes(n.id)).map(n => n.data.label);
 
+          if (neighbors.length === 0) {
+            return [
+              { action: 'expand', label: 'Udforsk Netværk', confidence: 0.95, reasoning: 'Noden har no connections – start her for at finde kontekst.', proactive: true },
+              { action: 'autoAnalyze', label: 'Kør Fuld Analyse', confidence: 0.8, reasoning: 'Oraklet ser uudnyttet potentiale i denne node.', proactive: false }
+            ];
+          }
+
           const prompt = `Som strategisk Orakel, analysér denne node og dens kontekst. Foreslå 3 konkrete, "insanely great" næste handlinger.\nNODE: "${label}" (${node.type})\nNABOER: ${neighbors.join(', ') || 'Ingen'}\n\nSvar i JSON format: { recommendations: [{ action: string, label: string, confidence: number, reasoning: string, proactive: boolean }] }\nActions: 'expand', 'autoAnalyze', 'matchTenders', 'crossReference', 'reason'.\nSæt 'proactive: true' hvis kritisk.`;
 
           const result = await reasonCall(prompt, { domain: 'proactive-recommendations' });
@@ -1847,15 +1854,30 @@ Svar i Markdown format.`;
 
         if (format === 'json') {
           return JSON.stringify({
-            generatedAt: new Date().toISOString(), canvasId: get().canvasId,
-            nodeCount: nodes.length, edgeCount: edges.length, entities: trail,
+            '@context': 'https://www.w3.org/ns/prov',
+            '@type': 'ProvenanceBundle',
+            generatedAt: new Date().toISOString(),
+            canvasId: get().canvasId,
+            nodeCount: nodes.length,
+            edgeCount: edges.length,
+            entities: trail,
           }, null, 2);
         }
 
-        const lines = [`# Provenance Audit Trail`, `**Canvas**: ${get().canvasId}`, `**Nodes**: ${nodes.length} | **Edges**: ${edges.length}`, '', '## Nodes', '', '| ID | Type | Label | Created By | Source | Connections |', '|---|---|---|---|---|---|'];
+        const lines = [
+          '# Provenance Audit Trail',
+          `**Canvas**: ${get().canvasId}`,
+          `**Nodes**: ${nodes.length} | **Edges**: ${edges.length}`,
+          '',
+          '## Nodes',
+          '',
+          '| ID | Type | Label | Created By | Source | Connections |',
+          '|---|---|---|---|---|---|'
+        ];
         for (const t of trail) {
           lines.push(`| ${t.id} | ${t.type} | ${t.label} | ${t.provenance.createdBy} | ${t.provenance.source} | ${t.connections} |`);
         }
+        lines.push('', '## Integrity Summary', 'Verified via WidgeTDC L7 Provenance Layer.');
         return lines.join('\n');
       },
 
