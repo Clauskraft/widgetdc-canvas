@@ -1,7 +1,26 @@
 :{$PORT}
 
 route {
-    respond /health 200
+    respond /health 200 {
+        body `{"status":"healthy"}`
+        close
+    }
+
+    reverse_proxy /api/* https://backend-production-d3da.up.railway.app {
+        header_up Host backend-production-d3da.up.railway.app
+        header_up X-Forwarded-Host {host}
+    }
+
+    reverse_proxy /reason https://rlm-engine-production.up.railway.app {
+        header_up Host rlm-engine-production.up.railway.app
+        header_up X-Forwarded-Host {host}
+    }
+
+    reverse_proxy /intelligence/* https://rlm-engine-production.up.railway.app {
+        header_up Host rlm-engine-production.up.railway.app
+        header_up X-Forwarded-Host {host}
+    }
+
     root * /srv
     try_files {path} /index.html
     file_server
