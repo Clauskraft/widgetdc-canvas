@@ -1,7 +1,7 @@
-// In dev mode, Vite proxy handles /api → backend.
-// In production, Caddy reverse-proxies /api to the backend to keep browser calls same-origin.
+// In dev mode, Vite proxy handles /api → backend (avoids CORS).
+// In production, call the backend URL directly; backend CORS explicitly allows Canvas production.
 const isDev = import.meta.env.DEV;
-const API_URL = '';
+const API_URL = isDev ? '' : 'https://backend-production-d3da.up.railway.app';
 const API_KEY = import.meta.env.VITE_API_KEY ?? '';
 
 export async function mcpCall<T = unknown>(tool: string, payload: Record<string, unknown> = {}): Promise<T> {
