@@ -40,6 +40,7 @@ export interface ArtifactSurfacePayload {
     section_count?: number;
     used_assets?: string[];
   };
+  backend_targets?: string[];
 }
 
 function inferCanvasNodeType(artifactType: string): CanvasNodeType {

@@ -14,6 +14,8 @@ vi.mock('../lib/api', () => ({
   graphExpand: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
   graphNeighborSearch: vi.fn().mockResolvedValue([]),
   mcpCall: vi.fn().mockResolvedValue({ success: true }),
+  fetchArtifactSurface: vi.fn(),
+  applyArtifactSurfaceAction: vi.fn(),
   reasonCall: vi.fn().mockResolvedValue({
     recommendation: 'Test recommendation',
     thinking_steps: ['Step 1', 'Step 2'],
@@ -25,7 +27,7 @@ vi.mock('../lib/api', () => ({
 }));
 
 // Import mocks after vi.mock declarations
-import { graphRead, graphWrite, graphNeighborSearch, mcpCall, reasonCall } from '../lib/api';
+import { graphRead, graphWrite, graphNeighborSearch, mcpCall, reasonCall, fetchArtifactSurface, applyArtifactSurfaceAction } from '../lib/api';
 import { artifactSurfaceToCanvasNode } from '../lib/artifactSurface';
 
 function resetStore() {
@@ -162,6 +164,143 @@ describe('Core Operations', () => {
         },
       } as any)
     ).toThrow(/artifact_id/i);
+  });
+
+  it('syncArtifactNode refreshes local node state from backend truth', async () => {
+    const store = useCanvasStore.getState();
+    const id = store.importArtifactSurface({
+      contract_version: 'architecture.artifact.surface.v1',
+      surface: 'canvas',
+      artifact: {
+        artifact_id: 'artifact-123',
+        artifact_type: 'architecture_decision_pack',
+        title: 'Decision Pack',
+        summary: 'Local draft',
+        confidence: 0.92,
+        quality_gate: 'pass',
+        updated_at: '2026-03-15T23:05:00Z',
+      },
+      lineage: {
+        artifact_id: 'artifact-123',
+        source_graph_node_id: 'Decision:wallet-target-state',
+        source_graph_labels: ['ArchitectureDecision'],
+        verification_status: 'verified',
+        render_package_id: 'renderpkg-1',
+        render_contract: 'foundry.render.sections.v1',
+        source_asset_ids: ['sg-executive-summary-v1'],
+      },
+      review: {
+        state: 'review_requested',
+        quality_gate: 'pass',
+        available_actions: ['start_review'],
+      },
+      render: {
+        render_package_id: 'renderpkg-1',
+        contract: 'foundry.render.sections.v1',
+        document_type: 'pptx',
+        section_count: 2,
+        used_assets: ['sg-executive-summary-v1'],
+      },
+    });
+
+    (fetchArtifactSurface as Mock).mockResolvedValueOnce({
+      contract_version: 'architecture.artifact.surface.v1',
+      surface: 'canvas',
+      artifact: {
+        artifact_id: 'artifact-123',
+        artifact_type: 'architecture_decision_pack',
+        title: 'Decision Pack',
+        summary: 'Backend truth',
+        confidence: 0.92,
+        quality_gate: 'pass',
+        updated_at: '2026-03-16T00:00:00Z',
+      },
+      lineage: {
+        artifact_id: 'artifact-123',
+        source_graph_node_id: 'Decision:wallet-target-state',
+        source_graph_labels: ['ArchitectureDecision'],
+        verification_status: 'verified',
+        render_package_id: 'renderpkg-1',
+        render_contract: 'foundry.render.sections.v1',
+        source_asset_ids: ['sg-executive-summary-v1'],
+      },
+      review: {
+        state: 'in_review',
+        quality_gate: 'pass',
+        available_actions: ['approve', 'reject'],
+      },
+      render: {
+        render_package_id: 'renderpkg-1',
+        contract: 'foundry.render.sections.v1',
+        document_type: 'pptx',
+        section_count: 2,
+        used_assets: ['sg-executive-summary-v1'],
+      },
+      backend_targets: ['canvas.import_artifact_surface'],
+    });
+
+    await useCanvasStore.getState().syncArtifactNode(id);
+    const node = useCanvasStore.getState().nodes.find(n => n.id === id);
+    expect(node!.data.reviewState).toBe('in_review');
+    expect(node!.data.subtitle).toBe('Backend truth');
+    expect(node!.data.availableActions).toEqual(['approve', 'reject']);
+  });
+
+  it('applyArtifactAction persists operator transition and updates node from backend response', async () => {
+    const store = useCanvasStore.getState();
+    const id = store.importArtifactSurface({
+      contract_version: 'architecture.artifact.surface.v1',
+      surface: 'canvas',
+      artifact: {
+        artifact_id: 'artifact-123',
+        artifact_type: 'architecture_decision_pack',
+        title: 'Decision Pack',
+      },
+      lineage: {
+        artifact_id: 'artifact-123',
+        render_package_id: 'renderpkg-1',
+        render_contract: 'foundry.render.sections.v1',
+      },
+      review: {
+        state: 'review_requested',
+        available_actions: ['start_review'],
+      },
+      render: {
+        render_package_id: 'renderpkg-1',
+        contract: 'foundry.render.sections.v1',
+      },
+    });
+
+    (applyArtifactSurfaceAction as Mock).mockResolvedValueOnce({
+      contract_version: 'architecture.artifact.surface.v1',
+      surface: 'canvas',
+      artifact: {
+        artifact_id: 'artifact-123',
+        artifact_type: 'architecture_decision_pack',
+        title: 'Decision Pack',
+        summary: 'Review started',
+      },
+      lineage: {
+        artifact_id: 'artifact-123',
+        render_package_id: 'renderpkg-1',
+        render_contract: 'foundry.render.sections.v1',
+      },
+      review: {
+        state: 'in_review',
+        available_actions: ['approve', 'reject'],
+      },
+      render: {
+        render_package_id: 'renderpkg-1',
+        contract: 'foundry.render.sections.v1',
+      },
+      backend_targets: ['canvas.import_artifact_surface'],
+    });
+
+    await useCanvasStore.getState().applyArtifactAction(id, 'start_review');
+    const node = useCanvasStore.getState().nodes.find(n => n.id === id);
+    expect(applyArtifactSurfaceAction).toHaveBeenCalledWith('artifact-123', 'start_review');
+    expect(node!.data.reviewState).toBe('in_review');
+    expect(node!.data.availableActions).toEqual(['approve', 'reject']);
   });
 
   it('removeSelected removes the selected node and its edges', () => {

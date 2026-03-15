@@ -12,7 +12,7 @@ import {
 } from '@xyflow/react';
 import type { CanvasNodeData, CanvasNodeType, ProvenanceData } from '../types/canvas';
 import { applyDagreLayout, alignNodesToColumns } from '../lib/layout';
-import { graphRead, graphWrite, graphExpand, graphNeighborSearch, mcpCall, reasonCall, isComplianceQuery, getComplianceGaps, type ComplianceGapRecord, type ReasonResponse } from '../lib/api';
+import { graphRead, graphWrite, graphExpand, graphNeighborSearch, mcpCall, reasonCall, isComplianceQuery, getComplianceGaps, fetchArtifactSurface, applyArtifactSurfaceAction, type ComplianceGapRecord, type ReasonResponse } from '../lib/api';
 import { artifactSurfaceToCanvasNode, type ArtifactSurfacePayload } from '../lib/artifactSurface';
 import { CANVAS_TEMPLATES, ENGAGEMENT_COLUMNS, type CanvasTemplate } from '../templates';
 import { fetchNotebookContext, injectNotebookContext, triggerAudioOverview } from '../lib/connectors';
@@ -72,6 +72,8 @@ interface CanvasState {
   addNode: (type: CanvasNodeType, label: string, subtitle?: string, position?: { x: number; y: number }, provenance?: ProvenanceData) => void;
   addNodeWithData: (type: CanvasNodeType, data: Partial<CanvasNodeData>, position?: { x: number; y: number }) => string;
   importArtifactSurface: (payload: ArtifactSurfacePayload, position?: { x: number; y: number }) => string;
+  syncArtifactNode: (nodeId: string) => Promise<void>;
+  applyArtifactAction: (nodeId: string, action: string) => Promise<void>;
   removeSelected: () => void;
   setLayoutMode: (mode: 'mindmap' | 'freeform') => void;
   toggleAiPanel: () => void;
@@ -270,6 +272,24 @@ function enrichVisualProperties(
   return result;
 }
 
+function patchNodeFromArtifactSurface(node: Node, payload: ArtifactSurfacePayload): Node {
+  const mapped = artifactSurfaceToCanvasNode(payload);
+  return {
+    ...node,
+    type: mapped.type,
+    data: {
+      ...node.data,
+      ...mapped.data,
+      metadata: {
+        ...((node.data.metadata as Record<string, unknown> | undefined) ?? {}),
+        ...((mapped.data.metadata as Record<string, unknown> | undefined) ?? {}),
+      },
+      provenance: mapped.data.provenance ?? node.data.provenance,
+      backendTargets: payload.backend_targets ?? (mapped.data.backendTargets as string[] | undefined) ?? node.data.backendTargets,
+    },
+  };
+}
+
 export const useCanvasStore = create<CanvasState>()(
   persist(
     (set, get) => ({
@@ -384,6 +404,40 @@ export const useCanvasStore = create<CanvasState>()(
       importArtifactSurface: (payload, position) => {
         const mapped = artifactSurfaceToCanvasNode(payload);
         return get().addNodeWithData(mapped.type, mapped.data, position);
+      },
+
+      syncArtifactNode: async (nodeId) => {
+        const t = get()._toast;
+        const node = get().nodes.find(n => n.id === nodeId);
+        const artifactId = typeof node?.data?.artifactId === 'string' ? node.data.artifactId : undefined;
+        if (!node || !artifactId) return;
+
+        const payload = await fetchArtifactSurface(artifactId);
+        set(state => ({
+          nodes: state.nodes.map(n => n.id === nodeId ? patchNodeFromArtifactSurface(n, payload) : n),
+        }));
+        t?.('success', `Artifact ${artifactId} synced from backend truth`);
+      },
+
+      applyArtifactAction: async (nodeId, action) => {
+        const t = get()._toast;
+        const node = get().nodes.find(n => n.id === nodeId);
+        const artifactId = typeof node?.data?.artifactId === 'string' ? node.data.artifactId : undefined;
+        if (!node || !artifactId) return;
+
+        set({ isLoading: true });
+        try {
+          const payload = await applyArtifactSurfaceAction(artifactId, action);
+          set(state => ({
+            nodes: state.nodes.map(n => n.id === nodeId ? patchNodeFromArtifactSurface(n, payload) : n),
+          }));
+          t?.('success', `Artifact action applied: ${action}`);
+        } catch (err) {
+          t?.('error', `Artifact action failed: ${err instanceof Error ? err.message : String(err)}`);
+          throw err;
+        } finally {
+          set({ isLoading: false });
+        }
       },
 
       removeSelected: () => {

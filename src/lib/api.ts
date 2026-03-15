@@ -89,6 +89,49 @@ export async function graphTextSearch(text: string, limit = 20): Promise<unknown
 
 const RLM_URL = '';
 
+export interface ArtifactSurfacePayload {
+  contract_version: string;
+  surface: 'consulting' | 'canvas' | 'librechat';
+  artifact: {
+    artifact_id: string;
+    artifact_type: string;
+    title: string;
+    summary?: string;
+    status?: string;
+    confidence?: number;
+    quality_gate?: 'pass' | 'warning' | 'degraded';
+    updated_at?: string;
+  };
+  lineage: {
+    artifact_id: string;
+    source_graph_node_id?: string | null;
+    source_graph_labels?: string[];
+    verification_status?: string;
+    bundle_id?: string | null;
+    render_package_id: string;
+    render_contract: string;
+    source_asset_ids?: string[];
+    surface_origin?: string;
+  };
+  review: {
+    state: 'draft' | 'verified' | 'review_requested' | 'in_review' | 'approved' | 'rejected' | 'export_ready' | 'exported' | 'degraded';
+    quality_gate?: 'pass' | 'warning' | 'degraded';
+    available_actions?: string[];
+  };
+  placement?: {
+    primary?: string;
+    native_surface?: string;
+  };
+  render: {
+    render_package_id: string;
+    contract: string;
+    document_type?: string;
+    section_count?: number;
+    used_assets?: string[];
+  };
+  backend_targets?: string[];
+}
+
 export interface ReasonResponse {
   recommendation: string;
   thinking_steps?: string[];
@@ -138,6 +181,48 @@ export async function getComplianceGaps(frameworkId?: string): Promise<Complianc
   if (!res.ok) throw new Error(`Compliance gap call failed: ${res.status}`);
   const data = await res.json();
   return Array.isArray(data?.gaps) ? data.gaps as ComplianceGapRecord[] : [];
+}
+
+export async function fetchArtifactSurface(artifactId: string): Promise<ArtifactSurfacePayload> {
+  const res = await fetch(`${API_URL}/api/artifacts/surfaces/${encodeURIComponent(artifactId)}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_KEY}`,
+    },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) {
+    throw new Error(`Artifact surface fetch failed: ${res.status}`);
+  }
+  const data = await res.json();
+  if (data?.success === false) {
+    throw new Error(data?.error ?? 'Artifact surface fetch failed');
+  }
+  return data as ArtifactSurfacePayload;
+}
+
+export async function applyArtifactSurfaceAction(
+  artifactId: string,
+  action: string,
+): Promise<ArtifactSurfacePayload> {
+  const res = await fetch(`${API_URL}/api/artifacts/surfaces/${encodeURIComponent(artifactId)}/actions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_KEY}`,
+    },
+    body: JSON.stringify({ action }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) {
+    const maybeError = await res.json().catch(() => null);
+    throw new Error(maybeError?.error ?? `Artifact surface action failed: ${res.status}`);
+  }
+  const data = await res.json();
+  if (data?.success === false) {
+    throw new Error(data?.error ?? 'Artifact surface action failed');
+  }
+  return data as ArtifactSurfacePayload;
 }
 
 // Compliance keyword auto-detection for Semantic Arbitrage routing
