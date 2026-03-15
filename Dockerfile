@@ -6,4 +6,4 @@ COPY . .
 RUN npm run build
 EXPOSE 3000
 CMD [\
-node\, \scripts/prod-server.js\]
+node\, \scripts/prod-server.mjs\]
