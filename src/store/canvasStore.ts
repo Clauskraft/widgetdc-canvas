@@ -151,6 +151,9 @@ interface CanvasState {
 
   // S27: Neural Tunnel / NotebookLM Audio Overviews
   generateBriefing: () => Promise<void>;
+
+  // War Room: Hierarchical Spawning
+  spawnChildren: (parentId: string, labels: string[]) => void;
 }
 
 export interface ActionRecommendation {
@@ -2042,6 +2045,51 @@ Notebook: ${notebookContext.slice(0, 500)}`, { domain: 'contextual-node-oracle' 
         } finally {
           set({ isLoading: false });
         }
+      },
+
+      spawnChildren: (parentId, labels) => {
+        set((state) => {
+          const parentNode = state.nodes.find(n => n.id === parentId);
+          if (!parentNode) return state;
+
+          const newNodes: Node[] = labels.map((label, i) => {
+            const id = `ghost-${parentId}-${i}-${Date.now()}`;
+            const type = nodeTypeFromLabel(label);
+            return {
+              id,
+              type,
+              position: { 
+                x: parentNode.position.x + (i * 220) - ((labels.length - 1) * 110), 
+                y: parentNode.position.y + 180 
+              },
+              data: {
+                label,
+                nodeType: type,
+                isGhost: true,
+                parentId,
+                taskStatus: 'running',
+                provenance: {
+                  createdBy: 'ai',
+                  createdAt: new Date().toISOString(),
+                  source: `Decomposition of "${parentNode.data.label}"`,
+                  parentNodeId: parentId,
+                },
+              },
+            };
+          });
+
+          const newEdges: Edge[] = newNodes.map(node => ({
+            id: `edge-ghost-${parentId}-${node.id}`,
+            source: parentId,
+            target: node.id,
+            animated: true,
+          }));
+
+          return {
+            nodes: [...state.nodes, ...newNodes],
+            edges: [...state.edges, ...newEdges],
+          };
+        });
       },
     }),
     {
