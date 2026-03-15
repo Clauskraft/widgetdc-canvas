@@ -154,6 +154,7 @@ interface CanvasState {
 
   // War Room: Hierarchical Spawning
   spawnChildren: (parentId: string, labels: string[]) => void;
+  solidifyNode: (nodeId: string, data: Partial<CanvasNodeData>) => void;
 }
 
 export interface ActionRecommendation {
@@ -2090,6 +2091,19 @@ Notebook: ${notebookContext.slice(0, 500)}`, { domain: 'contextual-node-oracle' 
             edges: [...state.edges, ...newEdges],
           };
         });
+      },
+
+      solidifyNode: (nodeId, data) => {
+        set((state) => ({
+          nodes: state.nodes.map(n =>
+            n.id === nodeId
+              ? { ...n, data: { ...n.data, ...data, isGhost: false, taskStatus: 'completed' } }
+              : n
+          ),
+          edges: state.edges.map(e =>
+            e.target === nodeId ? { ...e, animated: false } : e
+          ),
+        }));
       },
     }),
     {
