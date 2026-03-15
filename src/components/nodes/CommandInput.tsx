@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useCanvasStore } from '../../store/canvasStore';
+import { initImmuneResponseManager } from '../../lib/immuneResponseManager';
 
 interface CommandInputProps {
   nodeId: string;
@@ -16,11 +17,19 @@ export const CommandInput: React.FC<CommandInputProps> = ({ nodeId }) => {
   const [showMenu, setShowMenu] = useState(false);
   const spawnChildren = useCanvasStore(state => state.spawnChildren);
   const executeNodeCommand = useCanvasStore(state => state.executeNodeCommand);
+  const { triggerFailure } = initImmuneResponseManager();
 
   const handleAction = (action: string) => {
     if (action === 'decompose') {
-      // Mock decomposition for now, in reality this would call an LLM
-      spawnChildren(nodeId, ['Component A', 'Component B', 'Component C']);
+      spawnChildren(nodeId, ['Hypothesis: Price Gap', 'Hypothesis: Feature Deficit', 'Hypothesis: Brand Trust']);
+    } else if (action === 'research') {
+      // Simulate a research task that hits a failure and then heals
+      spawnChildren(nodeId, ['OSINT: Competitor X Analysis']);
+      setTimeout(() => {
+        const { nodes } = useCanvasStore.getState();
+        const ghost = nodes.find(n => n.data.parentId === nodeId && n.data.isGhost);
+        if (ghost) triggerFailure(ghost.id);
+      }, 1000);
     } else {
       executeNodeCommand(nodeId, `/${action}`);
     }
