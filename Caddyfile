@@ -1,9 +1,8 @@
 :{$PORT}  
-    root * /srv  
-    file_server  
-    try_files {path} /index.html  
+root * /srv  
+file_server  
+try_files {path} /index.html  
   
-    respond /health {  
-        body "{\"status\":\"healthy\"}"  
-        200  
-    }  
+handle /health {  
+    respond 200 "{\"status\":\"healthy\"}"  
+}  
