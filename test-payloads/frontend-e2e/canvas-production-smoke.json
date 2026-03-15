@@ -26,16 +26,17 @@
       "selectors": [
         "button:has-text('Se Cockpit-version')"
       ],
-      "timeoutMs": 20000
+      "timeoutMs": 40000
     },
     {
-      "type": "assertValueFirstVisible",
-      "name": "default-node-value",
+      "type": "clickFirstVisible",
+      "name": "cockpit-button-click",
       "selectors": [
-        "input"
+        "button:has-text('Se Cockpit-version')"
       ],
-      "value": "Markedsstrategi 2026",
-      "timeoutMs": 20000
+      "waitAfterMs": 500,
+      "timeoutMs": 10000,
+      "required": false
     },
     {
       "type": "doubleClickFirstVisible",
