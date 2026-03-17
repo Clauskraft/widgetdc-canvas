@@ -43,6 +43,46 @@ export interface ArtifactSurfacePayload {
   backend_targets?: string[];
 }
 
+export interface LibreChatRuntimeBlocker {
+  kind?: string;
+  id?: string;
+  title?: string;
+  next_action?: string;
+}
+
+export interface LibreChatRuntimeIntelligencePayload {
+  contract_version: 'librechat.runtime.intelligence.v1';
+  generated_at: string;
+  chat: {
+    headline: string;
+    response_markdown: string;
+    next_action?: string;
+    uncertainty_visible?: boolean;
+  };
+  recommendation: {
+    target_domain?: string;
+    decision?: {
+      decision?: string;
+      decision_reason?: string;
+      next_action?: string;
+      benchmark_support?: number;
+    };
+    recommended_assembly?: {
+      assembly_id?: string;
+      title?: string;
+    };
+  };
+  artifact_surface: ArtifactSurfacePayload;
+  blockers?: LibreChatRuntimeBlocker[];
+  backend_runtime?: {
+    has_successful_consumption?: boolean;
+    has_failed_consumption?: boolean;
+    latest_receipt?: Record<string, unknown> | null;
+  };
+  summary?: Record<string, unknown>;
+  lineage?: Record<string, unknown>;
+}
+
 function inferCanvasNodeType(artifactType: string): CanvasNodeType {
   const value = artifactType.toLowerCase();
   if (value.includes('answer')) return 'answer-block';
@@ -113,6 +153,82 @@ export function artifactSurfaceToCanvasNode(
         verificationStatus: lineage.verification_status,
         bundleId: lineage.bundle_id,
         surfaceOrigin: lineage.surface_origin,
+      },
+    },
+  };
+}
+
+export function librechatRuntimeToArtifactSurfacePayload(
+  payload: LibreChatRuntimeIntelligencePayload,
+): ArtifactSurfacePayload {
+  const embedded = payload?.artifact_surface;
+  if (!embedded?.artifact?.artifact_id) {
+    throw new Error('LibreChat runtime payload missing embedded artifact surface artifact_id');
+  }
+
+  const nextAction = payload.chat?.next_action ?? payload.recommendation?.decision?.next_action;
+  const availableActions = Array.from(
+    new Set([...(embedded.review?.available_actions ?? []), ...(nextAction ? [nextAction] : [])]),
+  );
+
+  return {
+    ...embedded,
+    artifact: {
+      ...embedded.artifact,
+      title: payload.chat?.headline || embedded.artifact.title,
+      summary: payload.chat?.response_markdown || embedded.artifact.summary,
+      updated_at: payload.generated_at || embedded.artifact.updated_at,
+    },
+    review: {
+      ...embedded.review,
+      available_actions: availableActions,
+    },
+  };
+}
+
+export function librechatRuntimeToCanvasNode(
+  payload: LibreChatRuntimeIntelligencePayload,
+): { type: CanvasNodeType; data: Partial<CanvasNodeData> } {
+  const normalizedSurface = librechatRuntimeToArtifactSurfacePayload(payload);
+  const mapped = artifactSurfaceToCanvasNode(normalizedSurface);
+  const decision = payload.recommendation?.decision?.decision;
+  const nextAction = payload.chat?.next_action ?? payload.recommendation?.decision?.next_action;
+  const blockerCount = Array.isArray(payload.blockers) ? payload.blockers.length : 0;
+
+  return {
+    type: mapped.type,
+    data: {
+      ...mapped.data,
+      subtitle: payload.chat?.headline || mapped.data.subtitle,
+      artifactSource: payload.chat?.response_markdown || mapped.data.artifactSource,
+      availableActions: Array.from(
+        new Set([...(Array.isArray(mapped.data.availableActions) ? mapped.data.availableActions : []), ...(nextAction ? [nextAction] : [])]),
+      ),
+      signalIntensity:
+        decision === 'blocked'
+          ? 0.95
+          : blockerCount > 0
+            ? 0.8
+            : mapped.data.signalIntensity,
+      regulatoryLevel:
+        decision === 'blocked'
+          ? 'strict'
+          : blockerCount > 0
+            ? 'guideline'
+            : mapped.data.regulatoryLevel,
+      metadata: {
+        ...((mapped.data.metadata as Record<string, unknown> | undefined) ?? {}),
+        librechatContractVersion: payload.contract_version,
+        librechatHeadline: payload.chat?.headline,
+        librechatNextAction: nextAction,
+        librechatDecision: decision,
+        librechatDecisionReason: payload.recommendation?.decision?.decision_reason,
+        targetDomain: payload.recommendation?.target_domain,
+        blockerCount,
+        uncertaintyVisible: Boolean(payload.chat?.uncertainty_visible),
+        hasSuccessfulConsumption: Boolean(payload.backend_runtime?.has_successful_consumption),
+        hasFailedConsumption: Boolean(payload.backend_runtime?.has_failed_consumption),
+        latestReceipt: payload.backend_runtime?.latest_receipt ?? null,
       },
     },
   };

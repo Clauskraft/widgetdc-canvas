@@ -16,6 +16,7 @@ vi.mock('../lib/api', () => ({
   mcpCall: vi.fn().mockResolvedValue({ success: true }),
   fetchArtifactSurface: vi.fn(),
   applyArtifactSurfaceAction: vi.fn(),
+  fetchLibreChatRuntimeIntelligence: vi.fn(),
   reasonCall: vi.fn().mockResolvedValue({
     recommendation: 'Test recommendation',
     thinking_steps: ['Step 1', 'Step 2'],
@@ -27,8 +28,17 @@ vi.mock('../lib/api', () => ({
 }));
 
 // Import mocks after vi.mock declarations
-import { graphRead, graphWrite, graphNeighborSearch, mcpCall, reasonCall, fetchArtifactSurface, applyArtifactSurfaceAction } from '../lib/api';
-import { artifactSurfaceToCanvasNode } from '../lib/artifactSurface';
+import {
+  graphRead,
+  graphWrite,
+  graphNeighborSearch,
+  mcpCall,
+  reasonCall,
+  fetchArtifactSurface,
+  applyArtifactSurfaceAction,
+  fetchLibreChatRuntimeIntelligence,
+} from '../lib/api';
+import { artifactSurfaceToCanvasNode, librechatRuntimeToCanvasNode } from '../lib/artifactSurface';
 
 function resetStore() {
   useCanvasStore.setState({
@@ -166,6 +176,109 @@ describe('Core Operations', () => {
     ).toThrow(/artifact_id/i);
   });
 
+  it('importLibreChatRuntime maps canonical librechat runtime payload into a canvas node', () => {
+    const store = useCanvasStore.getState();
+    const id = store.importLibreChatRuntime({
+      contract_version: 'librechat.runtime.intelligence.v1',
+      generated_at: '2026-03-17T10:00:00Z',
+      chat: {
+        headline: 'Strategic recommendation ready',
+        response_markdown: 'Decision: accepted\nNext action: queue_for_render',
+        next_action: 'queue_for_render',
+        uncertainty_visible: false,
+      },
+      recommendation: {
+        target_domain: 'nis2',
+        decision: {
+          decision: 'accepted',
+          decision_reason: 'benchmark-backed',
+          next_action: 'queue_for_render',
+          benchmark_support: 0.91,
+        },
+        recommended_assembly: {
+          assembly_id: 'assembly-nis2-pack',
+          title: 'NIS2 Service Pack',
+        },
+      },
+      artifact_surface: {
+        contract_version: 'architecture.artifact.surface.v1',
+        surface: 'librechat',
+        artifact: {
+          artifact_id: 'artifact-librechat-1',
+          artifact_type: 'consulting_recommendation_pack',
+          title: 'Embedded artifact',
+          summary: 'Embedded summary',
+          confidence: 0.91,
+          quality_gate: 'pass',
+        },
+        lineage: {
+          artifact_id: 'artifact-librechat-1',
+          render_package_id: 'renderpkg-1',
+          render_contract: 'foundry.render.sections.v1',
+          source_graph_node_id: 'assembly-nis2-pack',
+          source_graph_labels: ['ConsultingServiceAssembly'],
+        },
+        review: {
+          state: 'export_ready',
+          available_actions: ['queue_for_render'],
+        },
+        render: {
+          render_package_id: 'renderpkg-1',
+          contract: 'foundry.render.sections.v1',
+          document_type: 'pptx',
+        },
+      },
+      blockers: [],
+      backend_runtime: {
+        has_successful_consumption: true,
+        has_failed_consumption: false,
+      },
+      summary: {},
+      lineage: {},
+    });
+
+    const node = useCanvasStore.getState().nodes.find(n => n.id === id);
+    expect(node).toBeDefined();
+    expect(node!.data.artifactId).toBe('artifact-librechat-1');
+    expect(node!.data.subtitle).toBe('Strategic recommendation ready');
+    expect(node!.data.artifactSource).toContain('Decision: accepted');
+    expect((node!.data.metadata as Record<string, unknown>).librechatDecision).toBe('accepted');
+    expect((node!.data.metadata as Record<string, unknown>).hasSuccessfulConsumption).toBe(true);
+  });
+
+  it('librechatRuntimeToCanvasNode rejects payloads without embedded artifact identity', () => {
+    expect(() =>
+      librechatRuntimeToCanvasNode({
+        contract_version: 'librechat.runtime.intelligence.v1',
+        generated_at: '2026-03-17T10:00:00Z',
+        chat: {
+          headline: 'Broken',
+          response_markdown: 'Broken',
+        },
+        recommendation: {},
+        artifact_surface: {
+          contract_version: 'architecture.artifact.surface.v1',
+          surface: 'librechat',
+          artifact: {
+            artifact_id: '',
+            artifact_type: 'consulting_recommendation_pack',
+            title: 'Broken',
+          },
+          lineage: {
+            artifact_id: '',
+            render_package_id: 'renderpkg-1',
+            render_contract: 'foundry.render.sections.v1',
+          },
+          review: { state: 'draft' },
+          render: {
+            render_package_id: 'renderpkg-1',
+            contract: 'foundry.render.sections.v1',
+          },
+        },
+      } as any),
+    ).toThrow(/artifact_id/i);
+  });
+
   it('syncArtifactNode refreshes local node state from backend truth', async () => {
     const store = useCanvasStore.getState();
     const id = store.importArtifactSurface({
@@ -244,6 +357,80 @@ describe('Core Operations', () => {
     expect(node!.data.reviewState).toBe('in_review');
     expect(node!.data.subtitle).toBe('Backend truth');
     expect(node!.data.availableActions).toEqual(['approve', 'reject']);
+  });
+
+  it('loadLibreChatRuntime fetches runtime intelligence and imports the mapped node', async () => {
+    (fetchLibreChatRuntimeIntelligence as Mock).mockResolvedValueOnce({
+      contract_version: 'librechat.runtime.intelligence.v1',
+      generated_at: '2026-03-17T10:00:00Z',
+      chat: {
+        headline: 'Strategic recommendation blocked',
+        response_markdown: 'Decision: blocked\nNext action: resolve_loose_end',
+        next_action: 'resolve_loose_end',
+        uncertainty_visible: true,
+      },
+      recommendation: {
+        target_domain: 'vendor-replacement',
+        decision: {
+          decision: 'blocked',
+          decision_reason: 'missing enterprise grounding',
+          next_action: 'resolve_loose_end',
+        },
+        recommended_assembly: {
+          assembly_id: 'assembly-vendor-replacement',
+          title: 'Vendor Replacement Track',
+        },
+      },
+      artifact_surface: {
+        contract_version: 'architecture.artifact.surface.v1',
+        surface: 'librechat',
+        artifact: {
+          artifact_id: 'artifact-librechat-2',
+          artifact_type: 'consulting_recommendation_pack',
+          title: 'Embedded blocked artifact',
+          summary: 'Blocked summary',
+          quality_gate: 'warning',
+        },
+        lineage: {
+          artifact_id: 'artifact-librechat-2',
+          render_package_id: 'renderpkg-2',
+          render_contract: 'foundry.render.sections.v1',
+          source_graph_node_id: 'assembly-vendor-replacement',
+          source_graph_labels: ['ConsultingServiceAssembly'],
+        },
+        review: {
+          state: 'review_requested',
+          available_actions: ['resolve_loose_end'],
+        },
+        render: {
+          render_package_id: 'renderpkg-2',
+          contract: 'foundry.render.sections.v1',
+        },
+      },
+      blockers: [{ kind: 'loose_end', id: 'le-1', title: 'Missing enterprise grounding' }],
+      backend_runtime: {
+        has_successful_consumption: false,
+        has_failed_consumption: true,
+      },
+      summary: {},
+      lineage: {},
+    });
+
+    const nodeId = await useCanvasStore.getState().loadLibreChatRuntime({
+      target_domain: 'vendor-replacement',
+      enterprise_grounding: false,
+    });
+
+    const node = useCanvasStore.getState().nodes.find(n => n.id === nodeId);
+    expect(fetchLibreChatRuntimeIntelligence).toHaveBeenCalledWith({
+      target_domain: 'vendor-replacement',
+      enterprise_grounding: false,
+    });
+    expect(node).toBeDefined();
+    expect(node!.data.artifactId).toBe('artifact-librechat-2');
+    expect(node!.data.reviewState).toBe('review_requested');
+    expect((node!.data.metadata as Record<string, unknown>).blockerCount).toBe(1);
+    expect((node!.data.metadata as Record<string, unknown>).hasFailedConsumption).toBe(true);
   });
 
   it('applyArtifactAction persists operator transition and updates node from backend response', async () => {

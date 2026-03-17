@@ -1,3 +1,5 @@
+import type { ArtifactSurfacePayload, LibreChatRuntimeIntelligencePayload } from './artifactSurface';
+
 // Both dev (Vite proxy) and prod (Caddy reverse_proxy) handle /api → backend.
 // Always use relative URLs — no CORS issues, same-origin requests.
 const API_URL = '';
@@ -88,49 +90,6 @@ export async function graphTextSearch(text: string, limit = 20): Promise<unknown
 // --- Canvas 5X Phase 2: RLM Reasoning ---
 
 const RLM_URL = '';
-
-export interface ArtifactSurfacePayload {
-  contract_version: string;
-  surface: 'consulting' | 'canvas' | 'librechat';
-  artifact: {
-    artifact_id: string;
-    artifact_type: string;
-    title: string;
-    summary?: string;
-    status?: string;
-    confidence?: number;
-    quality_gate?: 'pass' | 'warning' | 'degraded';
-    updated_at?: string;
-  };
-  lineage: {
-    artifact_id: string;
-    source_graph_node_id?: string | null;
-    source_graph_labels?: string[];
-    verification_status?: string;
-    bundle_id?: string | null;
-    render_package_id: string;
-    render_contract: string;
-    source_asset_ids?: string[];
-    surface_origin?: string;
-  };
-  review: {
-    state: 'draft' | 'verified' | 'review_requested' | 'in_review' | 'approved' | 'rejected' | 'export_ready' | 'exported' | 'degraded';
-    quality_gate?: 'pass' | 'warning' | 'degraded';
-    available_actions?: string[];
-  };
-  placement?: {
-    primary?: string;
-    native_surface?: string;
-  };
-  render: {
-    render_package_id: string;
-    contract: string;
-    document_type?: string;
-    section_count?: number;
-    used_assets?: string[];
-  };
-  backend_targets?: string[];
-}
 
 export interface ReasonResponse {
   recommendation: string;
@@ -223,6 +182,40 @@ export async function applyArtifactSurfaceAction(
     throw new Error(data?.error ?? 'Artifact surface action failed');
   }
   return data as ArtifactSurfacePayload;
+}
+
+export interface LibreChatRuntimeIntelligenceRequest {
+  target_domain: string;
+  framework?: string;
+  enterprise_grounding?: boolean;
+  benchmark_outcomes?: Record<string, unknown>[];
+  loose_ends?: Record<string, unknown>[];
+  backend_consumption_receipts?: Record<string, unknown>[];
+}
+
+export async function fetchLibreChatRuntimeIntelligence(
+  payload: LibreChatRuntimeIntelligenceRequest,
+): Promise<LibreChatRuntimeIntelligencePayload> {
+  const res = await fetch(`${RLM_URL}/intelligence/librechat/runtime-intelligence`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      target_domain: payload.target_domain,
+      framework: payload.framework,
+      enterprise_grounding: payload.enterprise_grounding ?? false,
+      benchmark_outcomes: payload.benchmark_outcomes ?? [],
+      loose_ends: payload.loose_ends ?? [],
+      backend_consumption_receipts: payload.backend_consumption_receipts ?? [],
+    }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) {
+    throw new Error(`LibreChat runtime intelligence call failed: ${res.status}`);
+  }
+  const data = await res.json();
+  return data as LibreChatRuntimeIntelligencePayload;
 }
 
 // Compliance keyword auto-detection for Semantic Arbitrage routing

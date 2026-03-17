@@ -12,8 +12,28 @@ import {
 } from '@xyflow/react';
 import type { CanvasNodeData, CanvasNodeType, ProvenanceData } from '../types/canvas';
 import { applyDagreLayout, alignNodesToColumns } from '../lib/layout';
-import { graphRead, graphWrite, graphExpand, graphNeighborSearch, mcpCall, reasonCall, isComplianceQuery, getComplianceGaps, fetchArtifactSurface, applyArtifactSurfaceAction, type ComplianceGapRecord, type ReasonResponse } from '../lib/api';
-import { artifactSurfaceToCanvasNode, type ArtifactSurfacePayload } from '../lib/artifactSurface';
+import {
+  graphRead,
+  graphWrite,
+  graphExpand,
+  graphNeighborSearch,
+  mcpCall,
+  reasonCall,
+  isComplianceQuery,
+  getComplianceGaps,
+  fetchArtifactSurface,
+  applyArtifactSurfaceAction,
+  fetchLibreChatRuntimeIntelligence,
+  type ComplianceGapRecord,
+  type ReasonResponse,
+  type LibreChatRuntimeIntelligenceRequest,
+} from '../lib/api';
+import {
+  artifactSurfaceToCanvasNode,
+  librechatRuntimeToCanvasNode,
+  type ArtifactSurfacePayload,
+  type LibreChatRuntimeIntelligencePayload,
+} from '../lib/artifactSurface';
 import { CANVAS_TEMPLATES, ENGAGEMENT_COLUMNS, type CanvasTemplate } from '../templates';
 import { fetchNotebookContext, injectNotebookContext, triggerAudioOverview } from '../lib/connectors';
 
@@ -72,6 +92,11 @@ interface CanvasState {
   addNode: (type: CanvasNodeType, label: string, subtitle?: string, position?: { x: number; y: number }, provenance?: ProvenanceData) => void;
   addNodeWithData: (type: CanvasNodeType, data: Partial<CanvasNodeData>, position?: { x: number; y: number }) => string;
   importArtifactSurface: (payload: ArtifactSurfacePayload, position?: { x: number; y: number }) => string;
+  importLibreChatRuntime: (payload: LibreChatRuntimeIntelligencePayload, position?: { x: number; y: number }) => string;
+  loadLibreChatRuntime: (
+    payload: LibreChatRuntimeIntelligenceRequest,
+    position?: { x: number; y: number },
+  ) => Promise<string>;
   syncArtifactNode: (nodeId: string) => Promise<void>;
   applyArtifactAction: (nodeId: string, action: string) => Promise<void>;
   removeSelected: () => void;
@@ -404,6 +429,16 @@ export const useCanvasStore = create<CanvasState>()(
       importArtifactSurface: (payload, position) => {
         const mapped = artifactSurfaceToCanvasNode(payload);
         return get().addNodeWithData(mapped.type, mapped.data, position);
+      },
+
+      importLibreChatRuntime: (payload, position) => {
+        const mapped = librechatRuntimeToCanvasNode(payload);
+        return get().addNodeWithData(mapped.type, mapped.data, position);
+      },
+
+      loadLibreChatRuntime: async (payload, position) => {
+        const runtimePayload = await fetchLibreChatRuntimeIntelligence(payload);
+        return get().importLibreChatRuntime(runtimePayload, position);
       },
 
       syncArtifactNode: async (nodeId) => {
