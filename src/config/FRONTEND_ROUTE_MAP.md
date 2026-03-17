@@ -29,6 +29,7 @@
 ## 3. Integration Bridge (The Link)
 - **From LibreChat to Canvas:** "Visualize this thread" -> Spawns a new Canvas populated with the thread's key entities and insights.
 - **From Canvas to LibreChat:** "Discuss this node" -> Opens a LibreChat thread with the node's full provenance and context as the starting prompt.
+- **Canonical Runtime Bridge:** Canvas may ingest `librechat.runtime.intelligence.v1` only through the frontend adapter that projects the payload onto the existing artifact-bound node model. This avoids parallel truth contracts in Canvas.
 
 ## 4. Immediate Cleanup Actions
 1. **Disable AIPanel general chat in Canvas.** Redirect users to LibreChat for general queries.

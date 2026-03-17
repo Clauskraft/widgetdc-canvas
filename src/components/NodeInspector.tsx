@@ -16,10 +16,11 @@ const PROVENANCE_LABELS: Record<string, string> = {
 };
 
 export function NodeInspector() {
-  const { nodes, edges, selectedNodeId, selectNode, expandNode, matchTenders, removeSelected, crossReference, exportAuditTrail, recommendNextActions } = useCanvasStore();
+  const { nodes, edges, selectedNodeId, selectNode, expandNode, matchTenders, removeSelected, crossReference, exportAuditTrail, recommendNextActions, syncArtifactNode, applyArtifactAction } = useCanvasStore();
   const node = nodes.find(n => n.id === selectedNodeId);
   const [recommendations, setRecommendations] = useState<ActionRecommendation[]>([]);
   const [loadingRecs, setLoadingRecs] = useState(false);
+  const [runningArtifactAction, setRunningArtifactAction] = useState<string | null>(null);
 
   const loadRecommendations = useCallback(async () => {
     if (!selectedNodeId) { setRecommendations([]); return; }
@@ -40,6 +41,26 @@ export function NodeInspector() {
   const prov = d.provenance as ProvenanceData | undefined;
   const connectedEdges = edges.filter(e => e.source === node.id || e.target === node.id);
   const thinkingSteps = d.thinkingSteps as string[] | undefined;
+
+  const handleSyncArtifact = useCallback(async () => {
+    if (!selectedNodeId) return;
+    setRunningArtifactAction('sync');
+    try {
+      await syncArtifactNode(selectedNodeId);
+    } finally {
+      setRunningArtifactAction(null);
+    }
+  }, [selectedNodeId, syncArtifactNode]);
+
+  const handleArtifactAction = useCallback(async (action: string) => {
+    if (!selectedNodeId) return;
+    setRunningArtifactAction(action);
+    try {
+      await applyArtifactAction(selectedNodeId, action);
+    } finally {
+      setRunningArtifactAction(null);
+    }
+  }, [applyArtifactAction, selectedNodeId]);
 
   return (
     <div className="w-[280px] h-full border-l border-neural-border bg-neural-surface flex flex-col overflow-hidden shadow-2xl">
@@ -93,6 +114,27 @@ export function NodeInspector() {
                 <div><span className="text-gray-500">Actions</span>: {d.availableActions.join(', ')}</div>
               )}
             </div>
+            {d.artifactId && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  onClick={handleSyncArtifact}
+                  disabled={runningArtifactAction !== null}
+                  className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-neural-panel border border-neural-border text-blue-300 hover:border-blue-500/30 disabled:opacity-50"
+                >
+                  {runningArtifactAction === 'sync' ? 'Syncing' : 'Sync'}
+                </button>
+                {Array.isArray(d.availableActions) && d.availableActions.map((action) => (
+                  <button
+                    key={action}
+                    onClick={() => handleArtifactAction(action)}
+                    disabled={runningArtifactAction !== null}
+                    className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-neural-panel border border-neural-border text-emerald-300 hover:border-emerald-500/30 disabled:opacity-50"
+                  >
+                    {runningArtifactAction === action ? 'Running' : action.replaceAll('_', ' ')}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

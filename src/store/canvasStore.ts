@@ -12,8 +12,28 @@ import {
 } from '@xyflow/react';
 import type { CanvasNodeData, CanvasNodeType, ProvenanceData } from '../types/canvas';
 import { applyDagreLayout, alignNodesToColumns } from '../lib/layout';
-import { graphRead, graphWrite, graphExpand, graphNeighborSearch, mcpCall, reasonCall, isComplianceQuery, getComplianceGaps, type ComplianceGapRecord, type ReasonResponse } from '../lib/api';
-import { artifactSurfaceToCanvasNode, type ArtifactSurfacePayload } from '../lib/artifactSurface';
+import {
+  graphRead,
+  graphWrite,
+  graphExpand,
+  graphNeighborSearch,
+  mcpCall,
+  reasonCall,
+  isComplianceQuery,
+  getComplianceGaps,
+  fetchArtifactSurface,
+  applyArtifactSurfaceAction,
+  fetchLibreChatRuntimeIntelligence,
+  type ComplianceGapRecord,
+  type ReasonResponse,
+  type LibreChatRuntimeIntelligenceRequest,
+} from '../lib/api';
+import {
+  artifactSurfaceToCanvasNode,
+  librechatRuntimeToCanvasNode,
+  type ArtifactSurfacePayload,
+  type LibreChatRuntimeIntelligencePayload,
+} from '../lib/artifactSurface';
 import { CANVAS_TEMPLATES, ENGAGEMENT_COLUMNS, type CanvasTemplate } from '../templates';
 import { fetchNotebookContext, injectNotebookContext, triggerAudioOverview } from '../lib/connectors';
 
@@ -72,6 +92,13 @@ interface CanvasState {
   addNode: (type: CanvasNodeType, label: string, subtitle?: string, position?: { x: number; y: number }, provenance?: ProvenanceData) => void;
   addNodeWithData: (type: CanvasNodeType, data: Partial<CanvasNodeData>, position?: { x: number; y: number }) => string;
   importArtifactSurface: (payload: ArtifactSurfacePayload, position?: { x: number; y: number }) => string;
+  importLibreChatRuntime: (payload: LibreChatRuntimeIntelligencePayload, position?: { x: number; y: number }) => string;
+  loadLibreChatRuntime: (
+    payload: LibreChatRuntimeIntelligenceRequest,
+    position?: { x: number; y: number },
+  ) => Promise<string>;
+  syncArtifactNode: (nodeId: string) => Promise<void>;
+  applyArtifactAction: (nodeId: string, action: string) => Promise<void>;
   removeSelected: () => void;
   setLayoutMode: (mode: 'mindmap' | 'freeform') => void;
   toggleAiPanel: () => void;
@@ -270,6 +297,24 @@ function enrichVisualProperties(
   return result;
 }
 
+function patchNodeFromArtifactSurface(node: Node, payload: ArtifactSurfacePayload): Node {
+  const mapped = artifactSurfaceToCanvasNode(payload);
+  return {
+    ...node,
+    type: mapped.type,
+    data: {
+      ...node.data,
+      ...mapped.data,
+      metadata: {
+        ...((node.data.metadata as Record<string, unknown> | undefined) ?? {}),
+        ...((mapped.data.metadata as Record<string, unknown> | undefined) ?? {}),
+      },
+      provenance: mapped.data.provenance ?? node.data.provenance,
+      backendTargets: payload.backend_targets ?? (mapped.data.backendTargets as string[] | undefined) ?? node.data.backendTargets,
+    },
+  };
+}
+
 export const useCanvasStore = create<CanvasState>()(
   persist(
     (set, get) => ({
@@ -384,6 +429,50 @@ export const useCanvasStore = create<CanvasState>()(
       importArtifactSurface: (payload, position) => {
         const mapped = artifactSurfaceToCanvasNode(payload);
         return get().addNodeWithData(mapped.type, mapped.data, position);
+      },
+
+      importLibreChatRuntime: (payload, position) => {
+        const mapped = librechatRuntimeToCanvasNode(payload);
+        return get().addNodeWithData(mapped.type, mapped.data, position);
+      },
+
+      loadLibreChatRuntime: async (payload, position) => {
+        const runtimePayload = await fetchLibreChatRuntimeIntelligence(payload);
+        return get().importLibreChatRuntime(runtimePayload, position);
+      },
+
+      syncArtifactNode: async (nodeId) => {
+        const t = get()._toast;
+        const node = get().nodes.find(n => n.id === nodeId);
+        const artifactId = typeof node?.data?.artifactId === 'string' ? node.data.artifactId : undefined;
+        if (!node || !artifactId) return;
+
+        const payload = await fetchArtifactSurface(artifactId);
+        set(state => ({
+          nodes: state.nodes.map(n => n.id === nodeId ? patchNodeFromArtifactSurface(n, payload) : n),
+        }));
+        t?.('success', `Artifact ${artifactId} synced from backend truth`);
+      },
+
+      applyArtifactAction: async (nodeId, action) => {
+        const t = get()._toast;
+        const node = get().nodes.find(n => n.id === nodeId);
+        const artifactId = typeof node?.data?.artifactId === 'string' ? node.data.artifactId : undefined;
+        if (!node || !artifactId) return;
+
+        set({ isLoading: true });
+        try {
+          const payload = await applyArtifactSurfaceAction(artifactId, action);
+          set(state => ({
+            nodes: state.nodes.map(n => n.id === nodeId ? patchNodeFromArtifactSurface(n, payload) : n),
+          }));
+          t?.('success', `Artifact action applied: ${action}`);
+        } catch (err) {
+          t?.('error', `Artifact action failed: ${err instanceof Error ? err.message : String(err)}`);
+          throw err;
+        } finally {
+          set({ isLoading: false });
+        }
       },
 
       removeSelected: () => {
@@ -1823,6 +1912,24 @@ Svar i Markdown format.`;
             .map(e => e.source === nodeId ? e.target : e.source);
           const neighbors = get().nodes.filter(n => neighborIds.includes(n.id)).map(n => n.data.label);
 
+          if (neighbors.length === 0) {
+            return [
+              {
+                action: 'expand',
+                label: 'Udforsk Netværk',
+                confidence: 0.95,
+                reasoning: 'This node has no connections yet; expand to discover evidence and adjacent entities.',
+                proactive: true,
+              },
+              {
+                action: 'autoAnalyze',
+                label: 'Kør Fuld Analyse',
+                confidence: 0.85,
+                reasoning: 'Run analysis to generate initial context before deeper synthesis.',
+              },
+            ];
+          }
+
           const prompt = `Som strategisk Orakel, analysér denne node og dens kontekst. Foreslå 3 konkrete, "insanely great" næste handlinger.\nNODE: "${label}" (${node.type})\nNABOER: ${neighbors.join(', ') || 'Ingen'}\n\nSvar i JSON format: { recommendations: [{ action: string, label: string, confidence: number, reasoning: string, proactive: boolean }] }\nActions: 'expand', 'autoAnalyze', 'matchTenders', 'crossReference', 'reason'.\nSæt 'proactive: true' hvis kritisk.`;
 
           const result = await reasonCall(prompt, { domain: 'proactive-recommendations' });
@@ -1852,10 +1959,19 @@ Svar i Markdown format.`;
           };
         });
 
+        const integritySummary = {
+          totalEntities: trail.length,
+          aiGenerated: trail.filter(item => item.provenance.createdBy === 'ai').length,
+          manual: trail.filter(item => item.provenance.createdBy === 'manual').length,
+          pipelineGenerated: trail.filter(item => item.provenance.createdBy === 'pipeline').length,
+        };
+
         if (format === 'json') {
           return JSON.stringify({
+            '@context': 'https://www.w3.org/ns/prov',
+            '@type': 'ProvenanceBundle',
             generatedAt: new Date().toISOString(), canvasId: get().canvasId,
-            nodeCount: nodes.length, edgeCount: edges.length, entities: trail,
+            nodeCount: nodes.length, edgeCount: edges.length, entities: trail, integritySummary,
           }, null, 2);
         }
 
@@ -1863,6 +1979,13 @@ Svar i Markdown format.`;
         for (const t of trail) {
           lines.push(`| ${t.id} | ${t.type} | ${t.label} | ${t.provenance.createdBy} | ${t.provenance.source} | ${t.connections} |`);
         }
+        lines.push('');
+        lines.push('## Integrity Summary');
+        lines.push('');
+        lines.push(`- Total entities: ${integritySummary.totalEntities}`);
+        lines.push(`- AI generated: ${integritySummary.aiGenerated}`);
+        lines.push(`- Manual: ${integritySummary.manual}`);
+        lines.push(`- Pipeline generated: ${integritySummary.pipelineGenerated}`);
         return lines.join('\n');
       },
 

@@ -1,3 +1,5 @@
+import type { ArtifactSurfacePayload, LibreChatRuntimeIntelligencePayload } from './artifactSurface';
+
 // Both dev (Vite proxy) and prod (Caddy reverse_proxy) handle /api → backend.
 // Always use relative URLs — no CORS issues, same-origin requests.
 const API_URL = '';
@@ -138,6 +140,82 @@ export async function getComplianceGaps(frameworkId?: string): Promise<Complianc
   if (!res.ok) throw new Error(`Compliance gap call failed: ${res.status}`);
   const data = await res.json();
   return Array.isArray(data?.gaps) ? data.gaps as ComplianceGapRecord[] : [];
+}
+
+export async function fetchArtifactSurface(artifactId: string): Promise<ArtifactSurfacePayload> {
+  const res = await fetch(`${API_URL}/api/artifacts/surfaces/${encodeURIComponent(artifactId)}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_KEY}`,
+    },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) {
+    throw new Error(`Artifact surface fetch failed: ${res.status}`);
+  }
+  const data = await res.json();
+  if (data?.success === false) {
+    throw new Error(data?.error ?? 'Artifact surface fetch failed');
+  }
+  return data as ArtifactSurfacePayload;
+}
+
+export async function applyArtifactSurfaceAction(
+  artifactId: string,
+  action: string,
+): Promise<ArtifactSurfacePayload> {
+  const res = await fetch(`${API_URL}/api/artifacts/surfaces/${encodeURIComponent(artifactId)}/actions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_KEY}`,
+    },
+    body: JSON.stringify({ action }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) {
+    const maybeError = await res.json().catch(() => null);
+    throw new Error(maybeError?.error ?? `Artifact surface action failed: ${res.status}`);
+  }
+  const data = await res.json();
+  if (data?.success === false) {
+    throw new Error(data?.error ?? 'Artifact surface action failed');
+  }
+  return data as ArtifactSurfacePayload;
+}
+
+export interface LibreChatRuntimeIntelligenceRequest {
+  target_domain: string;
+  framework?: string;
+  enterprise_grounding?: boolean;
+  benchmark_outcomes?: Record<string, unknown>[];
+  loose_ends?: Record<string, unknown>[];
+  backend_consumption_receipts?: Record<string, unknown>[];
+}
+
+export async function fetchLibreChatRuntimeIntelligence(
+  payload: LibreChatRuntimeIntelligenceRequest,
+): Promise<LibreChatRuntimeIntelligencePayload> {
+  const res = await fetch(`${RLM_URL}/intelligence/librechat/runtime-intelligence`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      target_domain: payload.target_domain,
+      framework: payload.framework,
+      enterprise_grounding: payload.enterprise_grounding ?? false,
+      benchmark_outcomes: payload.benchmark_outcomes ?? [],
+      loose_ends: payload.loose_ends ?? [],
+      backend_consumption_receipts: payload.backend_consumption_receipts ?? [],
+    }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) {
+    throw new Error(`LibreChat runtime intelligence call failed: ${res.status}`);
+  }
+  const data = await res.json();
+  return data as LibreChatRuntimeIntelligencePayload;
 }
 
 // Compliance keyword auto-detection for Semantic Arbitrage routing
