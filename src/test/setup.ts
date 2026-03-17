@@ -5,8 +5,7 @@ import '@testing-library/jest-dom';
 // @ts-expect-error -- vitest provides this
 globalThis.import = globalThis.import ?? {};
 
-// Mock fetch globally
-globalThis.fetch = vi.fn().mockResolvedValue({
-  ok: true,
-  json: () => Promise.resolve({ success: true, result: { results: [] } }),
-});
+// Fail fast on unstubbed network access in unit tests.
+vi.stubGlobal('fetch', vi.fn(async () => {
+  throw new Error('Unexpected fetch in unit test. Stub fetch explicitly in the test that needs it.');
+}));
