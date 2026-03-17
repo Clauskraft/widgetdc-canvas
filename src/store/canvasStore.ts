@@ -546,7 +546,7 @@ export const useCanvasStore = create<CanvasState>()(
                 subtitle,
                 nodeType: 'insight',
                 regulatoryLevel: severity === 'critical' ? 'strict' : severity === 'high' ? 'guideline' : 'info',
-                complianceScore: severity === 'critical' ? 15 : severity === 'high' ? 45 : 70,
+                complianceScore: severity === 'critical' ? 0.15 : severity === 'high' ? 0.45 : 0.7,
                 signalIntensity: severity === 'critical' ? 0.95 : severity === 'high' ? 0.75 : 0.55,
                 metadata: {
                   gapOverlay: true,
@@ -779,6 +779,7 @@ export const useCanvasStore = create<CanvasState>()(
               id: String(p.id ?? `edge-${Date.now()}`),
               source: String(p.source ?? ''),
               target: String(p.target ?? ''),
+              label: p.label ? String(p.label) : undefined,
             };
           });
 

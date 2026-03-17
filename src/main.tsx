@@ -15,6 +15,19 @@ import { ToastProvider, useToast } from './components/Toast';
 import { useCanvasStore } from './store/canvasStore';
 import './index.css';
 
+function hasPersistedCanvasState(): boolean {
+  try {
+    const raw = localStorage.getItem('widgetdc-canvas-storage');
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as { state?: { nodes?: unknown[]; edges?: unknown[] } };
+    const nodes = parsed?.state?.nodes;
+    const edges = parsed?.state?.edges;
+    return (Array.isArray(nodes) && nodes.length > 0) || (Array.isArray(edges) && edges.length > 0);
+  } catch {
+    return false;
+  }
+}
+
 function AutoLoader() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
 
@@ -22,6 +35,10 @@ function AutoLoader() {
     let cancelled = false;
     (async () => {
       try {
+        if (hasPersistedCanvasState()) {
+          if (!cancelled) setStatus('ready');
+          return;
+        }
         // Run the H10 Strategic North Star flow as the default experience
         await useCanvasStore.getState().loadTemplate('h10-strategic-north-star');
         if (cancelled) return;

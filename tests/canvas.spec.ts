@@ -32,6 +32,53 @@ test.describe('Steve Jobs Vision - Den Ultimative Test', () => {
     await expect(newNodeInput).toHaveAttribute('placeholder', 'Hvad tænker du?');
   });
 
+  test('skal bevare persisted canvas state over reload i stedet for at blive overskrevet af default template', async ({ page }) => {
+    await page.waitForLoadState('networkidle');
+
+    await page.waitForFunction(() => {
+      const store = (window as unknown as { useCanvasStore?: { setState: (next: unknown) => void } }).useCanvasStore;
+      return Boolean(store);
+    }, { timeout: 10000 });
+
+    await page.evaluate(() => {
+      const store = (window as unknown as {
+        useCanvasStore: {
+          setState: (next: unknown) => void;
+          persist?: { rehydrate?: () => void };
+        };
+      }).useCanvasStore;
+
+      store.setState({
+        nodes: [
+          {
+            id: 'persisted-node-1',
+            type: 'thought',
+            position: { x: 320, y: 240 },
+            data: {
+              label: 'Persisted Node',
+              nodeType: 'thought',
+            },
+          },
+        ],
+        edges: [],
+      });
+    });
+
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.locator('input').filter({ hasValue: 'Persisted Node' })).toBeVisible({ timeout: 10000 });
+    await expect.poll(async () => {
+      return await page.evaluate(() => {
+        const store = (window as unknown as {
+          useCanvasStore?: { getState: () => { nodes: Array<{ id: string; data?: { label?: string } }> } };
+        }).useCanvasStore;
+        if (!store) return false;
+        return store.getState().nodes.some(node => node.id === 'persisted-node-1' && node.data?.label === 'Persisted Node');
+      });
+    }).toBe(true);
+  });
+
   test('skal aktivere Oraklet ved træk-og-slip', async ({ page }) => {
     await page.waitForLoadState('networkidle');
 
