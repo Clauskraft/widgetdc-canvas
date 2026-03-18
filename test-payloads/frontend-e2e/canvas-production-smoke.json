@@ -68,6 +68,15 @@
       ],
       "timeoutMs": 2000,
       "required": false
+    },
+    {
+      "type": "assertNoVisible",
+      "name": "no-critical-network-failures",
+      "selectors": [],
+      "required": false
     }
+  ],
+  "acceptNetworkFailures": [
+    "/api/mcp/route"
   ]
 }

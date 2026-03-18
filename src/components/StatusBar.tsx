@@ -1,7 +1,7 @@
 import { useCanvasStore } from '../store/canvasStore';
 
 export function StatusBar() {
-  const { nodes, edges, canvasId, layoutMode, knowledgeExplorerMode, gapOverlayMode } = useCanvasStore();
+  const { nodes, edges, canvasId, layoutMode, knowledgeExplorerMode, gapOverlayMode, routingSnapshot } = useCanvasStore();
 
   const typeCounts = nodes.reduce<Record<string, number>>((acc, n) => {
     const t = n.type ?? 'entity';
@@ -24,6 +24,11 @@ export function StatusBar() {
       {knowledgeExplorerMode && <span className="text-purple-400">EXPLORER</span>}
       {gapOverlayMode && <span className="text-amber-400">GAP OVERLAY</span>}
       <span className="uppercase">{layoutMode}</span>
+      {routingSnapshot?.recentDecisions?.[0] && (
+        <span className="text-cyan-400">
+          route: {routingSnapshot.recentDecisions[0].selected_agent_id}/{routingSnapshot.recentDecisions[0].selected_capability}
+        </span>
+      )}
       <span>canvas: {canvasId}</span>
       <div className="w-2 h-2 rounded-full bg-green-500" title="Backend connected" />
     </div>
