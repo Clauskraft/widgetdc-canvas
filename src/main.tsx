@@ -69,21 +69,19 @@ function App() {
       <ReactFlowProvider>
         <ToastBridge />
         <CommandPalette />
-        
-        {/* 3D Perspective Container */}
-        <div className="flex flex-col h-screen w-screen bg-[#050b14] overflow-hidden" style={{ perspective: '2000px' }}>
-          
-          {/* Flip Container */}
-          <motion.div 
-            className="flex-1 w-full h-full relative"
-            style={{ transformStyle: 'preserve-3d' }}
-            animate={{ rotateY: isJournalOpen ? 180 : 0 }}
-            transition={{ duration: 0.8, type: 'spring', bounce: 0.15 }}
-          >
-            {/* FRONT SIDE (Canvas) */}
-            <div 
+
+        <div className="flex flex-col h-screen w-screen bg-[#050b14] overflow-hidden">
+          <motion.div className="flex-1 w-full h-full relative">
+            <motion.div
               className="absolute inset-0 flex flex-col bg-neural-bg"
-              style={{ backfaceVisibility: 'hidden' }}
+              animate={{
+                opacity: isJournalOpen ? 0 : 1,
+                scale: isJournalOpen ? 0.985 : 1,
+              }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+              style={{
+                pointerEvents: isJournalOpen ? 'none' : 'auto',
+              }}
             >
               {/* Header - Minimalist */}
               <div className="absolute top-0 left-0 right-0 p-4 pointer-events-none z-50 flex items-center justify-between">
@@ -94,13 +92,13 @@ function App() {
                 </div>
                 
                 <div className="flex items-center gap-4">
-                  <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest bg-neural-surface/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-neural-border pointer-events-auto">
+                  <span className="text-[10px] text-gray-500 font-medium uppercase tracking-widest bg-neural-surface/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-neural-border">
                     Dobbeltklik for ny tanke
                   </span>
-                  <span className="text-[10px] text-purple-400 font-medium uppercase tracking-widest bg-purple-500/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-purple-500/20 pointer-events-auto">
+                  <span className="text-[10px] text-purple-400 font-medium uppercase tracking-widest bg-purple-500/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-purple-500/20">
                     Træk fra prik = Orakel
                   </span>
-                  <span className="text-[10px] text-gray-600 bg-neural-surface/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-neural-border pointer-events-auto">
+                  <span className="text-[10px] text-gray-600 bg-neural-surface/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-neural-border">
                     Ctrl+K Commands
                   </span>
                 </div>
@@ -116,11 +114,9 @@ function App() {
               </div>
 
               <StatusBar />
-            </div>
+            </motion.div>
 
-            {/* BACK SIDE (Journal) */}
             <Journal isVisible={isJournalOpen} onFlip={() => setIsJournalOpen(false)} />
-
           </motion.div>
 
           {/* Master Flip Toggle */}

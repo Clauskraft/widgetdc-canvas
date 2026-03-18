@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useCanvasStore } from '../../store/canvasStore';
 import type { CanvasNodeData, CanvasNodeType, CanvasNode } from '../../types/canvas';
+import { normalizeRegulatoryLevel } from '../../types/canvas';
 
 // Strict comparison for memoization to fix O(N) re-render bottleneck (Audit Day 5)
 const areNodePropsEqual = (prev: NodeProps<CanvasNode>, next: NodeProps<CanvasNode>) => {
@@ -151,7 +152,8 @@ function BaseNode({ id, data, selected }: NodeProps<CanvasNode>) {
   const intensity = (data.signalIntensity as number) ?? 0;
   const hasAura = intensity > 0.8;
   const hasProactive = !!data.hasProactiveRecommendation;
-  const regLevel = data.regulatoryLevel as keyof typeof REGULATORY_COLORS | undefined;
+  const regLevel = normalizeRegulatoryLevel(data.regulatoryLevel);
+  const regulatoryBadge = regLevel ? REGULATORY_COLORS[regLevel] : undefined;
   const compScore = data.complianceScore as number | undefined;
 
   const auraColor = intensity > 0.8 ? '#ef4444' : (hasProactive ? '#fbbf24' : config.color);
@@ -220,17 +222,17 @@ function BaseNode({ id, data, selected }: NodeProps<CanvasNode>) {
             </div>
           )}
           {/* Regulatory badge: Hide at low zoom */}
-          {!isLowDetail && regLevel && (
+          {!isLowDetail && regulatoryBadge && (
             <span
               className="ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide"
               style={{
-                backgroundColor: REGULATORY_COLORS[regLevel].bg,
-                color: REGULATORY_COLORS[regLevel].border,
-                border: `1px solid ${REGULATORY_COLORS[regLevel].border}`,
+                backgroundColor: regulatoryBadge.bg,
+                color: regulatoryBadge.border,
+                border: `1px solid ${regulatoryBadge.border}`,
               }}
             >
               <Shield size={9} />
-              {REGULATORY_COLORS[regLevel].label}
+              {regulatoryBadge.label}
             </span>
           )}
         </div>

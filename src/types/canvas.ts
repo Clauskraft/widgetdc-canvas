@@ -55,6 +55,22 @@ export interface ProvenanceData {
   query?: string;
 }
 
+export const CANONICAL_REGULATORY_LEVELS = ['strict', 'guideline', 'info'] as const;
+export type RegulatoryLevel = (typeof CANONICAL_REGULATORY_LEVELS)[number];
+
+export function normalizeRegulatoryLevel(value: unknown): RegulatoryLevel | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if ((CANONICAL_REGULATORY_LEVELS as readonly string[]).includes(normalized)) {
+    return normalized as RegulatoryLevel;
+  }
+  if (normalized === 'critical') return 'strict';
+  if (normalized === 'warning' || normalized === 'high') return 'guideline';
+  if (normalized === 'medium' || normalized === 'low' || normalized === 'default') return 'info';
+  return undefined;
+}
+
 export interface CanvasNodeData extends Record<string, unknown> {
   label: string;
   subtitle?: string;
@@ -76,7 +92,7 @@ export interface CanvasNodeData extends Record<string, unknown> {
   thinkingSteps?: string[];
   reasoningStatus?: 'thinking' | 'complete' | 'error';
   // Regulatory badge
-  regulatoryLevel?: 'strict' | 'guideline' | 'info';
+  regulatoryLevel?: RegulatoryLevel;
   complianceScore?: number;
   // Ghost/rejected rendering
   isRejected?: boolean;
@@ -102,6 +118,12 @@ export interface CanvasNodeData extends Record<string, unknown> {
   sourceAssetIds?: string[];
   availableActions?: string[];
   backendTargets?: string[];
+  routingDecision?: Record<string, unknown>;
+  workflowEnvelope?: Record<string, unknown>;
+  trustProfiles?: Array<Record<string, unknown>>;
+  routeFlowRef?: string;
+  routeSelectedAgent?: string;
+  routeCapability?: string;
 }
 
 export type CanvasNode = Node<CanvasNodeData>;

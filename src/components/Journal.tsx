@@ -68,17 +68,15 @@ export function Journal({ isVisible, onFlip }: JournalProps) {
   return (
     <motion.div
       initial={false}
-      animate={{ 
+      animate={{
         opacity: isVisible ? 1 : 0,
+        scale: isVisible ? 1 : 0.985,
         pointerEvents: isVisible ? 'auto' : 'none',
       }}
-      transition={{ duration: 0.4 }}
+      transition={{ duration: 0.22, ease: 'easeOut' }}
       className="absolute inset-0 bg-[#f8f9fa] overflow-y-auto"
-      style={{ 
-        backfaceVisibility: 'hidden', 
-        transform: 'rotateY(180deg)',
-        transformStyle: 'preserve-3d',
-        zIndex: isVisible ? 50 : -1
+      style={{
+        zIndex: isVisible ? 50 : 0,
       }}
     >
       <div className="max-w-4xl mx-auto px-16 py-20 min-h-screen bg-white shadow-2xl border-x border-slate-200/50">

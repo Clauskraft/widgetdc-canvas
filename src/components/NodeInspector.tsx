@@ -35,13 +35,6 @@ export function NodeInspector() {
     }
   }, [selectedNodeId, recommendNextActions]);
 
-  if (!node) return null;
-
-  const d = node.data as CanvasNodeData;
-  const prov = d.provenance as ProvenanceData | undefined;
-  const connectedEdges = edges.filter(e => e.source === node.id || e.target === node.id);
-  const thinkingSteps = d.thinkingSteps as string[] | undefined;
-
   const handleSyncArtifact = useCallback(async () => {
     if (!selectedNodeId) return;
     setRunningArtifactAction('sync');
@@ -61,6 +54,16 @@ export function NodeInspector() {
       setRunningArtifactAction(null);
     }
   }, [applyArtifactAction, selectedNodeId]);
+
+  if (!node) return null;
+
+  const d = node.data as CanvasNodeData;
+  const prov = d.provenance as ProvenanceData | undefined;
+  const connectedEdges = edges.filter(e => e.source === node.id || e.target === node.id);
+  const thinkingSteps = d.thinkingSteps as string[] | undefined;
+  const routingDecision = d.routingDecision as Record<string, unknown> | undefined;
+  const workflowEnvelope = d.workflowEnvelope as Record<string, unknown> | undefined;
+  const trustProfiles = d.trustProfiles as Array<Record<string, unknown>> | undefined;
 
   return (
     <div className="w-[280px] h-full border-l border-neural-border bg-neural-surface flex flex-col overflow-hidden shadow-2xl">
@@ -135,6 +138,44 @@ export function NodeInspector() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {(routingDecision || workflowEnvelope || (trustProfiles && trustProfiles.length > 0)) && (
+          <div className="bg-neural-panel/20 p-2.5 rounded-xl border border-neural-border/30">
+            <div className="text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-2 opacity-70">Routing Lineage</div>
+            <div className="space-y-1.5 text-[11px] text-gray-300">
+              {routingDecision && (
+                <>
+                  <div><span className="text-gray-500">Capability</span>: {String(routingDecision.selected_capability ?? d.routeCapability ?? 'n/a')}</div>
+                  <div><span className="text-gray-500">Selected</span>: {String(routingDecision.selected_agent_id ?? d.routeSelectedAgent ?? 'n/a')}</div>
+                  <div><span className="text-gray-500">Reason</span>: {String(routingDecision.reason_code ?? 'n/a')}</div>
+                  {typeof routingDecision.trust_score === 'number' && (
+                    <div><span className="text-gray-500">Trust</span>: {(Number(routingDecision.trust_score) * 100).toFixed(0)}%</div>
+                  )}
+                </>
+              )}
+              {workflowEnvelope && (
+                <>
+                  <div><span className="text-gray-500">Flow</span>: {String(workflowEnvelope.flow_ref ?? d.routeFlowRef ?? 'n/a')}</div>
+                  <div><span className="text-gray-500">Phase</span>: {String(workflowEnvelope.current_phase ?? 'n/a')}</div>
+                  <div><span className="text-gray-500">Surface</span>: {String(workflowEnvelope.primary_surface ?? 'n/a')}</div>
+                </>
+              )}
+              {trustProfiles && trustProfiles.length > 0 && (
+                <div className="pt-1">
+                  <div className="text-gray-500 mb-1">Top trust</div>
+                  <div className="space-y-1">
+                    {trustProfiles.slice(0, 3).map((profile, index) => (
+                      <div key={`${profile.agent_id ?? 'agent'}-${index}`} className="flex items-center justify-between gap-2 text-[10px]">
+                        <span className="text-gray-200">{String(profile.agent_id ?? 'unknown')}</span>
+                        <span className="text-gray-500">{typeof profile.bayesian_score === 'number' ? `${(Number(profile.bayesian_score) * 100).toFixed(0)}%` : 'n/a'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
