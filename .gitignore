@@ -10,3 +10,4 @@ PROJECT_FILE_MAP.txt
 .claude/settings.json  
 
 .worktrees/
+artifacts/
