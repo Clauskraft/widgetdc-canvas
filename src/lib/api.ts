@@ -436,8 +436,57 @@ export interface GovernanceScorecardSummary {
   oodaFallbackRate: number | null;
   oodaFailureRate: number | null;
   oodaAverageDurationMs: number | null;
+  freshVerifiedFailureCount?: number;
+  freshVerifiedLineageFailureCount?: number;
+  freshVerifiedFailureRate?: number | null;
+  verifiedWithOperatorFeedback?: number;
+  verifiedAcceptedOnlyCount?: number;
+  verifiedRejectedOnlyCount?: number;
+  verifiedReversalCount?: number;
+  verifiedUnreviewedCount?: number;
+  verifiedAcceptanceRate?: number | null;
+  verifiedRejectionRate?: number | null;
+  verifiedReversalRate?: number | null;
+  verifiedStabilityRate?: number | null;
+  rejectionWithOodaDegradationCount?: number;
+  rejectionWithOodaDegradationRate?: number | null;
+  operatorQualityStatus?: 'green' | 'yellow' | 'red';
+  verifiedUnreviewedCriticalCount?: number;
+  oldestVerifiedUnreviewedAgeMinutes?: number | null;
+  operatorReviewBacklogStatus?: 'green' | 'yellow' | 'red';
+  reviewBacklogTop?: GovernanceReviewBacklogItem[];
+  medianTimeToFirstOperatorFeedbackMinutes?: number | null;
+  medianTimeToFirstReversalMinutes?: number | null;
+  groundedEvidenceDepthAvg?: number | null;
+  groundedEvidenceCoverage?: number | null;
+  verificationPacketCoverage?: number | null;
+  rolloutEvidencePacketCoverage?: number | null;
   coverageGaps: GovernanceCoverageGap[];
   recentEvents: GovernanceScorecardEvent[];
+}
+
+export interface GovernanceReviewBacklogItem {
+  decisionId: string;
+  engagementId: string;
+  verifiedAt?: string | null;
+  ageMinutes: number;
+  hasRoute: boolean;
+}
+
+export interface GovernanceReviewBacklogSummary {
+  queueName: string;
+  status: 'green' | 'yellow' | 'red';
+  unreviewedCount: number;
+  criticalCount: number;
+  oldestAgeMinutes: number | null;
+  outputCount: number;
+}
+
+export interface GovernanceReviewBacklogPayload {
+  windowDays: number;
+  limit: number;
+  queueSummary: GovernanceReviewBacklogSummary;
+  items: GovernanceReviewBacklogItem[];
 }
 
 export interface LegoFactoryQueueSummaryPayload {
@@ -487,6 +536,7 @@ export interface GovernanceEvalSnapshotPayload {
   scorecard: GovernanceScorecardSummary;
   legoFactory: LegoFactoryGovernancePayload;
   memory: MemoryGovernanceSummary;
+  reviewBacklog: GovernanceReviewBacklogPayload;
   coverageGaps: GovernanceCoverageGap[];
 }
 
@@ -551,7 +601,7 @@ export async function fetchOrchestratorRoutingSnapshot(): Promise<OrchestratorRo
 }
 
 export async function fetchGovernanceEvalSnapshot(days = 30, limit = 5): Promise<GovernanceEvalSnapshotPayload> {
-  const [scorecardRes, legoFactoryRes, memoryRes] = await Promise.all([
+  const [scorecardRes, legoFactoryRes, memoryRes, reviewBacklogRes] = await Promise.all([
     fetch(`${API_URL}/api/governance/scorecard?days=${encodeURIComponent(String(days))}`, {
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(20_000),
@@ -561,6 +611,10 @@ export async function fetchGovernanceEvalSnapshot(days = 30, limit = 5): Promise
       signal: AbortSignal.timeout(20_000),
     }),
     fetch(`${API_URL}/api/governance/memory?days=${encodeURIComponent(String(days))}`, {
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(20_000),
+    }),
+    fetch(`${API_URL}/api/governance/review-backlog?days=${encodeURIComponent(String(days))}&limit=${encodeURIComponent(String(limit))}`, {
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(20_000),
     }),
@@ -575,6 +629,9 @@ export async function fetchGovernanceEvalSnapshot(days = 30, limit = 5): Promise
   if (!memoryRes.ok) {
     throw new Error(`Governance memory fetch failed: ${memoryRes.status}`);
   }
+  if (!reviewBacklogRes.ok) {
+    throw new Error(`Governance review backlog fetch failed: ${reviewBacklogRes.status}`);
+  }
 
   const scorecardData = await scorecardRes.json() as {
     summary?: GovernanceScorecardSummary;
@@ -585,6 +642,12 @@ export async function fetchGovernanceEvalSnapshot(days = 30, limit = 5): Promise
   };
   const memoryData = await memoryRes.json() as {
     summary?: MemoryGovernanceSummary;
+  };
+  const reviewBacklogData = await reviewBacklogRes.json() as {
+    windowDays?: number;
+    limit?: number;
+    queueSummary?: GovernanceReviewBacklogSummary;
+    items?: GovernanceReviewBacklogItem[];
   };
 
   const scorecard = scorecardData.summary;
@@ -607,6 +670,19 @@ export async function fetchGovernanceEvalSnapshot(days = 30, limit = 5): Promise
     },
     recentGovernedOutputs: legoFactoryData.recentGovernedOutputs ?? [],
   };
+  const reviewBacklog: GovernanceReviewBacklogPayload = {
+    windowDays: reviewBacklogData.windowDays ?? days,
+    limit: reviewBacklogData.limit ?? limit,
+    queueSummary: reviewBacklogData.queueSummary ?? {
+      queueName: 'operator-review-backlog',
+      status: 'red',
+      unreviewedCount: 0,
+      criticalCount: 0,
+      oldestAgeMinutes: null,
+      outputCount: 0,
+    },
+    items: reviewBacklogData.items ?? [],
+  };
 
   return {
     contractVersion: 'canvas.downstream.eval.v1',
@@ -615,6 +691,7 @@ export async function fetchGovernanceEvalSnapshot(days = 30, limit = 5): Promise
     scorecard,
     legoFactory,
     memory,
+    reviewBacklog,
     coverageGaps: [...(scorecard.coverageGaps ?? []), ...(memory.coverageGaps ?? [])],
   };
 }
