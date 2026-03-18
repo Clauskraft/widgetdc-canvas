@@ -88,6 +88,8 @@ describe('artifactSurface bridge', () => {
         artifact_id: 'artifact-1',
         render_package_id: 'renderpkg-1',
         render_contract: 'foundry.render.sections.v1',
+        verification_status: 'verified',
+        surface_origin: 'graph.search',
       },
       review: { state: 'review_requested' },
       render: {
@@ -98,6 +100,9 @@ describe('artifactSurface bridge', () => {
 
     expect(result.data.artifactId).toBe('artifact-1');
     expect(result.data.reviewState).toBe('review_requested');
+    expect(result.data.provenance?.tool).toBe('graph.search');
+    expect((result.data.metadata as Record<string, unknown>).verificationStatus).toBe('verified');
+    expect((result.data.metadata as Record<string, unknown>).routeToContract).toBe('canvas -> foundry.render.sections.v1');
   });
 
   it('projects librechat runtime payload onto artifact surface contract', () => {

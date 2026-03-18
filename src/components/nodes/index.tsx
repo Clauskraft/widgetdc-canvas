@@ -380,6 +380,13 @@ function ArtifactNode({ id, data, selected }: NodeProps<CanvasNode>) {
   const qualityGate = typeof data.qualityGate === 'string' ? data.qualityGate : undefined;
   const artifactId = typeof data.artifactId === 'string' ? data.artifactId : undefined;
   const sourceGraphNodeId = typeof data.sourceGraphNodeId === 'string' ? data.sourceGraphNodeId : undefined;
+  const renderContract = typeof data.renderContract === 'string' ? data.renderContract : undefined;
+  const verificationStatus =
+    typeof (data.metadata as Record<string, unknown> | undefined)?.verificationStatus === 'string'
+      ? String((data.metadata as Record<string, unknown>).verificationStatus)
+      : undefined;
+  const provenanceSource = typeof data.provenance?.source === 'string' ? data.provenance.source : undefined;
+  const provenanceConfidence = typeof data.provenance?.confidence === 'number' ? data.provenance.confidence : undefined;
   const isDegraded = qualityGate === 'degraded' || reviewState === 'degraded';
   const reviewColor = isDegraded ? '#ef4444' : reviewState === 'export_ready' || reviewState === 'exported' ? '#22c55e' : reviewState === 'approved' ? '#3b82f6' : '#f59e0b';
 
@@ -434,6 +441,16 @@ function ArtifactNode({ id, data, selected }: NodeProps<CanvasNode>) {
                 {artifactId}
               </span>
             )}
+            {provenanceSource && (
+              <span className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-neural-panel text-blue-300">
+                {provenanceSource}
+              </span>
+            )}
+            {verificationStatus && (
+              <span className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-neural-panel text-emerald-300">
+                {verificationStatus}
+              </span>
+            )}
           </div>
         )}
         {!isLowDetail && data.artifactSource && (
@@ -458,6 +475,20 @@ function ArtifactNode({ id, data, selected }: NodeProps<CanvasNode>) {
             </span>
           )}
         </div>
+        {!isLowDetail && (renderContract || provenanceConfidence !== undefined) && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {renderContract && (
+              <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono bg-neural-panel text-purple-300">
+                {renderContract}
+              </span>
+            )}
+            {provenanceConfidence !== undefined && (
+              <span className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-neural-panel text-gray-300">
+                {(provenanceConfidence * 100).toFixed(0)}% confidence
+              </span>
+            )}
+          </div>
+        )}
         {!isLowDetail && sourceGraphNodeId && (
           <div className="mt-2 text-[10px] text-gray-500 font-mono truncate" title={sourceGraphNodeId}>
             {sourceGraphNodeId}

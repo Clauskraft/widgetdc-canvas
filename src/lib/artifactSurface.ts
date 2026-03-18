@@ -145,6 +145,7 @@ export function artifactSurfaceToCanvasNode(
         createdBy: 'ai',
         createdAt: artifact.updated_at ?? new Date().toISOString(),
         source: payload.surface,
+        tool: lineage.surface_origin ?? undefined,
         confidence: typeof artifact.confidence === 'number' ? artifact.confidence : undefined,
       },
       metadata: {
@@ -153,6 +154,7 @@ export function artifactSurfaceToCanvasNode(
         verificationStatus: lineage.verification_status,
         bundleId: lineage.bundle_id,
         surfaceOrigin: lineage.surface_origin,
+        routeToContract: `${payload.surface} -> ${lineage.render_contract}`,
       },
     },
   };

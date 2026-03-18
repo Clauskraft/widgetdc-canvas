@@ -60,6 +60,7 @@ export function NodeInspector() {
   const d = node.data as CanvasNodeData;
   const prov = d.provenance as ProvenanceData | undefined;
   const connectedEdges = edges.filter(e => e.source === node.id || e.target === node.id);
+  const metadata = (d.metadata as Record<string, unknown> | undefined) ?? {};
   const thinkingSteps = d.thinkingSteps as string[] | undefined;
   const routingDecision = d.routingDecision as Record<string, unknown> | undefined;
   const workflowEnvelope = d.workflowEnvelope as Record<string, unknown> | undefined;
@@ -69,6 +70,11 @@ export function NodeInspector() {
   const memoryGovernance = d.memoryGovernance as Record<string, unknown> | undefined;
   const coverageGaps = d.coverageGaps as Array<Record<string, unknown>> | undefined;
   const governedOutputs = d.governedOutputs as Array<Record<string, unknown>> | undefined;
+  const verificationStatus = typeof metadata.verificationStatus === 'string' ? metadata.verificationStatus : undefined;
+  const surfaceOrigin = typeof metadata.surfaceOrigin === 'string' ? metadata.surfaceOrigin : undefined;
+  const routeToContract = typeof metadata.routeToContract === 'string' ? metadata.routeToContract : undefined;
+  const confidence = typeof prov?.confidence === 'number' ? prov.confidence : undefined;
+  const provenanceTool = typeof prov?.tool === 'string' ? prov.tool : undefined;
 
   return (
     <div className="w-[280px] h-full border-l border-neural-border bg-neural-surface flex flex-col overflow-hidden shadow-2xl">
@@ -111,6 +117,8 @@ export function NodeInspector() {
               {d.qualityGate && <div><span className="text-gray-500">Quality</span>: {d.qualityGate}</div>}
               {d.renderPackageId && <div><span className="text-gray-500">Render</span>: <span className="font-mono text-gray-200">{d.renderPackageId}</span></div>}
               {d.renderContract && <div><span className="text-gray-500">Contract</span>: <span className="font-mono text-gray-200">{d.renderContract}</span></div>}
+              {verificationStatus && <div><span className="text-gray-500">Verification</span>: {verificationStatus}</div>}
+              {routeToContract && <div><span className="text-gray-500">Route</span>: <span className="font-mono text-gray-200">{routeToContract}</span></div>}
               {d.sourceGraphNodeId && <div><span className="text-gray-500">Graph</span>: <span className="font-mono text-gray-200">{d.sourceGraphNodeId}</span></div>}
               {Array.isArray(d.sourceGraphLabels) && d.sourceGraphLabels.length > 0 && (
                 <div><span className="text-gray-500">Labels</span>: {d.sourceGraphLabels.join(', ')}</div>
@@ -352,10 +360,33 @@ export function NodeInspector() {
         {/* Provenance */}
         {prov && (
           <div className="text-[10px] bg-neural-bg/30 p-2 rounded-lg border border-neural-border/20">
-            <div className="text-[8px] text-gray-600 uppercase font-bold mb-1 tracking-widest">Origin</div>
-            <div className="text-gray-400 font-medium">{PROVENANCE_LABELS[prov.createdBy] ?? prov.createdBy}</div>
-            <div className="text-gray-500 mt-0.5 truncate italic">Source: {prov.source}</div>
-            <div className="text-[8px] text-gray-600 mt-1 uppercase tracking-tighter">{new Date(prov.createdAt).toLocaleString()}</div>
+            <div className="text-[8px] text-gray-600 uppercase font-bold mb-1 tracking-widest">Provenance</div>
+            <div className="grid grid-cols-[auto,1fr] gap-x-2 gap-y-1 items-start">
+              <span className="text-gray-600 uppercase tracking-tighter">Created</span>
+              <span className="text-gray-400 font-medium">{PROVENANCE_LABELS[prov.createdBy] ?? prov.createdBy}</span>
+              <span className="text-gray-600 uppercase tracking-tighter">Source</span>
+              <span className="text-gray-500 truncate italic">{prov.source}</span>
+              {provenanceTool && (
+                <>
+                  <span className="text-gray-600 uppercase tracking-tighter">Tool</span>
+                  <span className="text-gray-300 font-mono break-all">{provenanceTool}</span>
+                </>
+              )}
+              {surfaceOrigin && (
+                <>
+                  <span className="text-gray-600 uppercase tracking-tighter">Origin</span>
+                  <span className="text-gray-300 break-all">{surfaceOrigin}</span>
+                </>
+              )}
+              {confidence !== undefined && (
+                <>
+                  <span className="text-gray-600 uppercase tracking-tighter">Confidence</span>
+                  <span className="text-gray-300">{(confidence * 100).toFixed(0)}%</span>
+                </>
+              )}
+              <span className="text-gray-600 uppercase tracking-tighter">Timestamp</span>
+              <span className="text-gray-500">{new Date(prov.createdAt).toLocaleString()}</span>
+            </div>
           </div>
         )}
       </div>

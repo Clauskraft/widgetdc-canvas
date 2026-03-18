@@ -48,6 +48,33 @@ function resetStore() {
           },
         },
       },
+      {
+        id: 'artifact-1',
+        type: 'artifact',
+        position: { x: 80, y: 40 },
+        data: {
+          label: 'Decision Pack',
+          nodeType: 'artifact',
+          artifactId: 'artifact-1',
+          reviewState: 'export_ready',
+          renderPackageId: 'renderpkg-1',
+          renderContract: 'foundry.render.sections.v1',
+          sourceGraphNodeId: 'assembly-1',
+          sourceGraphLabels: ['AssemblyCandidate'],
+          provenance: {
+            createdBy: 'ai',
+            createdAt: '2026-03-17T10:00:00.000Z',
+            source: 'canvas',
+            tool: 'graph.search',
+            confidence: 0.91,
+          },
+          metadata: {
+            verificationStatus: 'verified',
+            surfaceOrigin: 'graph.search',
+            routeToContract: 'canvas -> foundry.render.sections.v1',
+          },
+        },
+      },
     ],
     edges: [],
     selectedNodeId: null,
@@ -91,5 +118,19 @@ describe('NodeInspector', () => {
 
     expect(view.getByText('Selected Node')).toBeTruthy();
     expect(view.getByText('Hook-stable details')).toBeTruthy();
+  });
+
+  it('renders provenance and route-to-contract lineage for artifact nodes', async () => {
+    const view = render(<NodeInspector />);
+
+    await act(async () => {
+      useCanvasStore.setState({ selectedNodeId: 'artifact-1' });
+    });
+
+    expect(view.getByText('Artifact Binding')).toBeTruthy();
+    expect(view.getByText((_, element) => element?.textContent === 'Verification: verified')).toBeTruthy();
+    expect(view.getByText((_, element) => element?.textContent === 'Route: canvas -> foundry.render.sections.v1')).toBeTruthy();
+    expect(view.getAllByText('graph.search')).toHaveLength(2);
+    expect(view.getByText('91%')).toBeTruthy();
   });
 });
