@@ -4,6 +4,8 @@ import {
   fetchGovernanceEvalSnapshot,
   fetchLibreChatRuntimeIntelligence,
   fetchOrchestratorRoutingSnapshot,
+  graphSearch,
+  graphWindow,
 } from './api';
 
 describe('Canvas API: LibreChat runtime intelligence', () => {
@@ -261,6 +263,82 @@ describe('Canvas API: governance eval snapshot', () => {
         metric: 'memory_connection_readback',
         reason: '396 engagements are missing canonical MemoryConnection verification',
       },
+    ]);
+  });
+});
+
+describe('Canvas API: canonical graph routes', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('posts graph.window with canonical payload shape', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        nodes: [{ id: 'domain-1', label: 'Strategy', type: 'ConsultingDomain' }],
+        edges: [{ source: 'domain-1', target: 'flow-1', type: 'HAS_SUBPROCESS' }],
+        total_count: 1,
+        lod_level: 'overview',
+      }),
+    } as Response);
+
+    const result = await graphWindow('overview', { centerNodeId: 'Strategy', limit: 25 });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/mcp/route',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+        }),
+      }),
+    );
+
+    const body = JSON.parse(String((fetchMock.mock.calls.at(-1)?.[1] as RequestInit).body));
+    expect(body).toEqual({
+      tool: 'graph.window',
+      payload: {
+        lod: 'overview',
+        center_node_id: 'Strategy',
+        limit: 25,
+      },
+    });
+
+    expect(result).toEqual({
+      nodes: [{ id: 'domain-1', label: 'Strategy', type: 'ConsultingDomain' }],
+      edges: [{ source: 'domain-1', target: 'flow-1', type: 'HAS_SUBPROCESS' }],
+      totalCount: 1,
+      lodLevel: 'overview',
+    });
+  });
+
+  it('posts graph.search with canonical payload shape', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        results: [
+          { id: 'flow-1', label: 'Approval Management', type: 'L1ProcessFlow', score: 1 },
+        ],
+      }),
+    } as Response);
+
+    const result = await graphSearch('approval', { nodeTypes: ['L1ProcessFlow'], limit: 10 });
+
+    const body = JSON.parse(String((fetchMock.mock.calls.at(-1)?.[1] as RequestInit).body));
+    expect(body).toEqual({
+      tool: 'graph.search',
+      payload: {
+        query: 'approval',
+        node_types: ['L1ProcessFlow'],
+        limit: 10,
+      },
+    });
+
+    expect(result).toEqual([
+      { id: 'flow-1', label: 'Approval Management', type: 'L1ProcessFlow', score: 1 },
     ]);
   });
 });

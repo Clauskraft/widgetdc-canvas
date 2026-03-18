@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { X, Send, Loader2, ChevronDown, ChevronRight, ArrowDownToLine, BrainCircuit, Sparkles, Lock, CheckCircle2, Globe, Activity } from 'lucide-react';
 import { useCanvasStore } from '../store/canvasStore';
-import { graphRead, graphTextSearch, mcpCall, isComplianceQuery } from '../lib/api';
+import { graphRead, graphSearch, graphTextSearch, graphWindow, mcpCall, isComplianceQuery } from '../lib/api';
 import { ragQuery, type SuggestedAction } from '../lib/rag';
 import type { CanvasNodeType } from '../types/canvas';
 import { syncNotebookLM, saveNotebookLMCookie } from '../lib/connectors';
@@ -68,6 +68,27 @@ const COMMAND_MAP: {
       const query = match[1]?.trim() ?? '';
       const records = await graphRead(query);
       return { records, nodeType: 'entity', labelField: 'name', message: `Query returned ${(records as unknown[]).length} records` };
+    },
+  },
+  {
+    pattern: /^(search|søg|find)\s+graph\s+(.+)$/i,
+    handler: async (match) => {
+      const query = match[2]?.trim() ?? '';
+      const records = await graphSearch(query, { limit: 20 });
+      return { records, nodeType: 'entity', labelField: 'label', message: `Found ${(records as unknown[]).length} graph matches for "${query}"` };
+    },
+  },
+  {
+    pattern: /^(show|vis|load|hent)\s+graph\s+(overview|region|detail)$/i,
+    handler: async (match) => {
+      const lod = (match[2]?.trim() ?? 'overview') as 'overview' | 'region' | 'detail';
+      const result = await graphWindow(lod, { limit: lod === 'detail' ? 300 : undefined });
+      return {
+        records: result.nodes,
+        nodeType: 'entity',
+        labelField: 'label',
+        message: `Loaded graph ${lod} window with ${result.nodes.length} nodes and ${result.edges.length} edges`,
+      };
     },
   },
 ];

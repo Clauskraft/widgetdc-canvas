@@ -67,9 +67,116 @@ export async function graphExpand(nodeLabel: string, options?: {
   };
 }
 
-// Fallback for graph.window/search (not production-ready per Codex)
-// Uses direct Cypher instead
+export interface GraphWindowResponse {
+  nodes: unknown[];
+  edges: unknown[];
+  totalCount: number;
+  lodLevel: string;
+}
+
+export async function graphWindow(
+  lod: 'overview' | 'region' | 'detail' | 'full',
+  options?: {
+    centerNodeId?: string;
+    limit?: number;
+  },
+): Promise<GraphWindowResponse> {
+  const result = await mcpCall<{
+    success?: boolean;
+    nodes?: unknown[];
+    edges?: unknown[];
+    total_count?: number;
+    lod_level?: string;
+  }>('graph.window', {
+    lod,
+    center_node_id: options?.centerNodeId,
+    limit: options?.limit,
+  });
+
+  return {
+    nodes: (result?.nodes as unknown[]) ?? [],
+    edges: (result?.edges as unknown[]) ?? [],
+    totalCount: Number(result?.total_count ?? 0),
+    lodLevel: String(result?.lod_level ?? lod),
+  };
+}
+
+export interface GraphSearchResult {
+  id: string;
+  label: string;
+  type: string;
+  score: number;
+}
+
+export async function graphSearch(
+  query: string,
+  options?: { nodeTypes?: string[]; limit?: number },
+): Promise<GraphSearchResult[]> {
+  const result = await mcpCall<{
+    success?: boolean;
+    results?: GraphSearchResult[];
+  }>('graph.search', {
+    query,
+    node_types: options?.nodeTypes,
+    limit: options?.limit,
+  });
+
+  return Array.isArray(result?.results) ? result.results : [];
+}
+
+function graphWindowToNeighborRecords(
+  sourceLabel: string,
+  windowNodes: unknown[],
+  windowEdges: unknown[],
+  relTypes?: string[],
+): unknown[] {
+  const edgeRows = (Array.isArray(windowEdges) ? windowEdges : []) as Array<Record<string, unknown>>;
+  const nodeRows = (Array.isArray(windowNodes) ? windowNodes : []) as Array<Record<string, unknown>>;
+  const sourceNode = nodeRows.find((node) => {
+    const candidateLabel = String(node?.label ?? node?.id ?? '');
+    return candidateLabel.toLowerCase() === sourceLabel.toLowerCase();
+  });
+
+  const sourceId = String(sourceNode?.id ?? sourceLabel);
+  const allowedRelTypes = relTypes?.length ? new Set(relTypes) : null;
+  const nodeById = new Map(nodeRows.map((node) => [String(node?.id ?? ''), node]));
+
+  return edgeRows
+    .filter((edge) => {
+      const edgeType = String(edge?.type ?? 'RELATED');
+      return (!allowedRelTypes || allowedRelTypes.has(edgeType))
+        && (String(edge?.source ?? '') === sourceId || String(edge?.target ?? '') === sourceId);
+    })
+    .map((edge) => {
+      const source = String(edge?.source ?? '');
+      const target = String(edge?.target ?? '');
+      const otherId = source === sourceId ? target : source;
+      const otherNode = nodeById.get(otherId);
+      return {
+        m: {
+          properties: {
+            id: otherNode?.id ?? otherId,
+            name: otherNode?.label ?? otherId,
+            ...(otherNode?.properties as Record<string, unknown> | undefined),
+          },
+        },
+        relType: String(edge?.type ?? 'RELATED'),
+        nodeLabel: String(otherNode?.type ?? 'unknown'),
+      };
+    });
+}
+
 export async function graphNeighborSearch(name: string, relTypes?: string[], limit = 20): Promise<unknown[]> {
+  try {
+    const result = await graphWindow('full', { centerNodeId: name, limit });
+    const records = graphWindowToNeighborRecords(name, result.nodes, result.edges, relTypes);
+    if (records.length > 0) {
+      return records.slice(0, limit);
+    }
+  } catch {
+    // Fall through to direct graph.read_cypher for environments where graph.window is unavailable.
+  }
+
   const relFilter = relTypes?.length ? 'AND type(r) IN $relTypes' : '';
   const query = `
     MATCH (n)-[r]-(m)
@@ -81,6 +188,15 @@ export async function graphNeighborSearch(name: string, relTypes?: string[], lim
 }
 
 export async function graphTextSearch(text: string, limit = 20): Promise<unknown[]> {
+  try {
+    const results = await graphSearch(text, { limit });
+    if (results.length > 0) {
+      return results;
+    }
+  } catch {
+    // Fall through to direct graph.read_cypher for environments where graph.search is unavailable.
+  }
+
   const query = `
     MATCH (n)
     WHERE n.name IS NOT NULL AND toLower(n.name) CONTAINS toLower($text)
