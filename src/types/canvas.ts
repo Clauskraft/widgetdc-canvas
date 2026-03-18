@@ -121,6 +121,12 @@ export interface CanvasNodeData extends Record<string, unknown> {
   routingDecision?: Record<string, unknown>;
   workflowEnvelope?: Record<string, unknown>;
   trustProfiles?: Array<Record<string, unknown>>;
+  governanceScorecard?: Record<string, unknown>;
+  legoFactorySummary?: Record<string, unknown>;
+  memoryGovernance?: Record<string, unknown>;
+  coverageGaps?: Array<Record<string, unknown>>;
+  governedOutputs?: Array<Record<string, unknown>>;
+  readOnly?: boolean;
   routeFlowRef?: string;
   routeSelectedAgent?: string;
   routeCapability?: string;

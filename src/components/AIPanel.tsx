@@ -77,6 +77,22 @@ const PIPELINE_COMMANDS: {
   run: (match: RegExpMatchArray, addMsg: (msg: string) => void, addNodes: typeof useCanvasStore.getState extends () => infer S ? S extends { addNode: infer F } ? F : never : never) => Promise<string>;
 }[] = [
   {
+    pattern: /^(show|vis|load|hent)\s+(routing|orchestrator routing|routing lineage)$/i,
+    run: async (_match, addMsg) => {
+      addMsg('Henter orchestrator routing-lineage...');
+      const nodeId = await useCanvasStore.getState().loadOrchestratorRouting({ x: 220, y: 180 });
+      return `Routing-lineage indlæst på lærredet som node ${nodeId}.`;
+    },
+  },
+  {
+    pattern: /^(show|vis|load|hent)\s+(governance|evaluation|eval|scorecard|governance eval)$/i,
+    run: async (_match, addMsg) => {
+      addMsg('Henter downstream governance-evaluering fra backend...');
+      const nodeId = await useCanvasStore.getState().loadGovernanceEval({ x: 260, y: 240 });
+      return `Governance-evaluering indlæst på lærredet som node ${nodeId}.`;
+    },
+  },
+  {
     pattern: /^(run|kør)\s+ci\s+pipeline\s+(.+)$/i,
     run: async (match, addMsg, addNode) => {
       const targetName = match[2]?.trim() ?? '';
