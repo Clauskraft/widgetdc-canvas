@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { useCanvasStore, type ActionRecommendation } from './canvasStore';
+import { normalizeRegulatoryLevel } from '../types/canvas';
 
 // ---- Mocks ----
 // Mock the layout module so dagre is not required in tests
@@ -672,6 +673,19 @@ describe('Graph Operations', () => {
     expect(calls.length).toBeGreaterThanOrEqual(3);
   });
 
+  it('saveToGraph normalizes invalid regulatory levels before persistence', async () => {
+    useCanvasStore.getState().addNodeWithData('entity', {
+      label: 'Risky',
+      regulatoryLevel: 'WARNING' as any,
+    });
+
+    await useCanvasStore.getState().saveToGraph();
+
+    const persistCall = (graphWrite as Mock).mock.calls.find((call) => String(call[0]).includes('UNWIND $nodes AS nd'));
+    expect(persistCall).toBeDefined();
+    expect(persistCall?.[1]?.nodes?.[0]?.regulatoryLevel).toBe('guideline');
+  });
+
   it('loadFromGraph populates canvas from graph records', async () => {
     (graphRead as Mock)
       .mockResolvedValueOnce([
@@ -692,6 +706,31 @@ describe('Graph Operations', () => {
     expect(state.nodes[0].data.label).toBe('Loaded');
     expect(state.edges).toHaveLength(1);
     expect(state.canvasId).toBe('test-canvas');
+  });
+
+  it('loadFromGraph normalizes legacy regulatory levels from graph data', async () => {
+    (graphRead as Mock)
+      .mockResolvedValueOnce([
+        {
+          n: { properties: { id: 'n-risk', label: 'Legacy risk', nodeType: 'entity', posX: 0, posY: 0, regulatoryLevel: 'WARNING' } },
+          nodeLabels: ['CanvasNode'],
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    await useCanvasStore.getState().loadFromGraph('test-canvas');
+
+    expect(useCanvasStore.getState().nodes[0]?.data.regulatoryLevel).toBe('guideline');
+  });
+});
+
+describe('Regulatory level normalization', () => {
+  it('maps legacy severity strings into canonical regulatory levels', () => {
+    expect(normalizeRegulatoryLevel('critical')).toBe('strict');
+    expect(normalizeRegulatoryLevel('WARNING')).toBe('guideline');
+    expect(normalizeRegulatoryLevel('low')).toBe('info');
+    expect(normalizeRegulatoryLevel('')).toBeUndefined();
+    expect(normalizeRegulatoryLevel('mystery')).toBeUndefined();
   });
 });
 

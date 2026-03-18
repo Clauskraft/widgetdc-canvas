@@ -10,7 +10,12 @@ import {
   applyEdgeChanges,
   addEdge as rfAddEdge,
 } from '@xyflow/react';
-import type { CanvasNodeData, CanvasNodeType, ProvenanceData } from '../types/canvas';
+import {
+  type CanvasNodeData,
+  type CanvasNodeType,
+  type ProvenanceData,
+  normalizeRegulatoryLevel,
+} from '../types/canvas';
 import { applyDagreLayout, alignNodesToColumns } from '../lib/layout';
 import {
   graphRead,
@@ -24,7 +29,9 @@ import {
   fetchArtifactSurface,
   applyArtifactSurfaceAction,
   fetchLibreChatRuntimeIntelligence,
+  fetchOrchestratorRoutingSnapshot,
   type ComplianceGapRecord,
+  type OrchestratorRoutingSnapshotPayload,
   type ReasonResponse,
   type LibreChatRuntimeIntelligenceRequest,
 } from '../lib/api';
@@ -72,6 +79,7 @@ interface CanvasState {
   selectedNodeId: string | null;
   knowledgeExplorerMode: boolean;
   gapOverlayMode: boolean;
+  routingSnapshot: OrchestratorRoutingSnapshotPayload | null;
 
   // Undo/Redo
   undoStack: CanvasSnapshot[];
@@ -93,10 +101,12 @@ interface CanvasState {
   addNodeWithData: (type: CanvasNodeType, data: Partial<CanvasNodeData>, position?: { x: number; y: number }) => string;
   importArtifactSurface: (payload: ArtifactSurfacePayload, position?: { x: number; y: number }) => string;
   importLibreChatRuntime: (payload: LibreChatRuntimeIntelligencePayload, position?: { x: number; y: number }) => string;
+  importOrchestratorRouting: (payload: OrchestratorRoutingSnapshotPayload, position?: { x: number; y: number }) => string;
   loadLibreChatRuntime: (
     payload: LibreChatRuntimeIntelligenceRequest,
     position?: { x: number; y: number },
   ) => Promise<string>;
+  loadOrchestratorRouting: (position?: { x: number; y: number }) => Promise<string>;
   syncArtifactNode: (nodeId: string) => Promise<void>;
   applyArtifactAction: (nodeId: string, action: string) => Promise<void>;
   removeSelected: () => void;
@@ -329,6 +339,7 @@ export const useCanvasStore = create<CanvasState>()(
       selectedNodeId: null,
       knowledgeExplorerMode: false,
       gapOverlayMode: false,
+      routingSnapshot: null,
       undoStack: [],
       redoStack: [],
       filterState: { relTypes: [], searchText: '' },
@@ -436,9 +447,86 @@ export const useCanvasStore = create<CanvasState>()(
         return get().addNodeWithData(mapped.type, mapped.data, position);
       },
 
+      importOrchestratorRouting: (payload, position) => {
+        const latestDecision = payload.recentDecisions[0];
+        const workflow = payload.latestWorkflow ?? undefined;
+        const topProfiles = payload.topTrustProfiles.slice(0, 3);
+        const anchorPosition = position ?? { x: 240, y: 180 };
+
+        const pipelineId = get().addNodeWithData('pipeline', {
+          label: latestDecision
+            ? `Routing: ${latestDecision.selected_capability}`
+            : 'Routing Snapshot',
+          subtitle: latestDecision
+            ? `${latestDecision.selected_agent_id} • ${latestDecision.reason_code} • ${(latestDecision.trust_score * 100).toFixed(0)}% trust`
+            : 'No routing decisions available',
+          nodeType: 'pipeline',
+          routeFlowRef: latestDecision?.intent?.flow_ref,
+          routeSelectedAgent: latestDecision?.selected_agent_id,
+          routeCapability: latestDecision?.selected_capability,
+          routingDecision: latestDecision as unknown as Record<string, unknown> | undefined,
+          workflowEnvelope: workflow as unknown as Record<string, unknown> | undefined,
+          trustProfiles: topProfiles as unknown as Array<Record<string, unknown>>,
+          provenance: {
+            createdBy: 'pipeline',
+            createdAt: new Date().toISOString(),
+            source: 'orchestrator-routing-snapshot',
+            confidence: latestDecision?.trust_score,
+          },
+          metadata: {
+            latestChainExecutionId: payload.latestChainExecutionId,
+            decisionCount: payload.recentDecisions.length,
+          },
+        }, anchorPosition);
+
+        topProfiles.forEach((profile, index) => {
+          const agentId = get().addNodeWithData('agent', {
+            label: profile.agent_id,
+            subtitle: `${profile.task_domain} • ${(profile.bayesian_score * 100).toFixed(0)}% • ${profile.scorecard_dimension}`,
+            nodeType: 'agent',
+            complianceScore: profile.bayesian_score,
+            routingDecision: latestDecision as unknown as Record<string, unknown> | undefined,
+            workflowEnvelope: workflow as unknown as Record<string, unknown> | undefined,
+            trustProfiles: [profile as unknown as Record<string, unknown>],
+            routeFlowRef: latestDecision?.intent?.flow_ref,
+            routeSelectedAgent: latestDecision?.selected_agent_id,
+            routeCapability: latestDecision?.selected_capability,
+            provenance: {
+              createdBy: 'pipeline',
+              createdAt: profile.last_verified_at,
+              source: `orchestrator-trust:${profile.evidence_source}`,
+              confidence: profile.bayesian_score,
+            },
+          }, {
+            x: anchorPosition.x + 320,
+            y: anchorPosition.y + (index * 120) - 40,
+          });
+
+          set((state) => ({
+            edges: [
+              ...state.edges,
+              {
+                id: `routing-${pipelineId}-${agentId}`,
+                source: pipelineId,
+                target: agentId,
+                label: profile.agent_id === latestDecision?.selected_agent_id ? 'SELECTED' : 'TRUST',
+              },
+            ],
+          }));
+        });
+
+        set({ routingSnapshot: payload });
+        return pipelineId;
+      },
+
       loadLibreChatRuntime: async (payload, position) => {
         const runtimePayload = await fetchLibreChatRuntimeIntelligence(payload);
         return get().importLibreChatRuntime(runtimePayload, position);
+      },
+
+      loadOrchestratorRouting: async (position) => {
+        const payload = await fetchOrchestratorRoutingSnapshot();
+        return get().importOrchestratorRouting(payload, position);
       },
 
       syncArtifactNode: async (nodeId) => {
@@ -657,7 +745,7 @@ export const useCanvasStore = create<CanvasState>()(
               provTool: prov?.tool ?? '',
               provCreatedAt: prov?.createdAt ?? '',
               provReasoning: (prov as unknown as Record<string, unknown>)?.reasoning ?? '',
-              regulatoryLevel: d.regulatoryLevel ?? '',
+              regulatoryLevel: normalizeRegulatoryLevel(d.regulatoryLevel) ?? '',
               complianceScore: d.complianceScore ?? null,
               signalIntensity: d.signalIntensity ?? null,
               isRejected: d.isRejected ?? false,
@@ -746,6 +834,8 @@ export const useCanvasStore = create<CanvasState>()(
             }
 
             const enrichment = enrichVisualProperties(nodeLabels, p);
+            const normalizedRegulatoryLevel = normalizeRegulatoryLevel(p.regulatoryLevel)
+              ?? normalizeRegulatoryLevel(enrichment.regulatoryLevel);
 
             return {
               id: String(p.id ?? nextNodeId()),
@@ -758,8 +848,7 @@ export const useCanvasStore = create<CanvasState>()(
                 provenance,
                 thinkingSteps,
                 reasoningStatus: p.reasoningStatus ? String(p.reasoningStatus) as CanvasNodeData['reasoningStatus'] : undefined,
-                regulatoryLevel: (p.regulatoryLevel && String(p.regulatoryLevel) !== ''
-                  ? String(p.regulatoryLevel) : enrichment.regulatoryLevel) as CanvasNodeData['regulatoryLevel'],
+                regulatoryLevel: normalizedRegulatoryLevel,
                 complianceScore: p.complianceScore != null
                   ? Number(p.complianceScore) : enrichment.complianceScore,
                 signalIntensity: p.signalIntensity != null
@@ -2175,6 +2264,7 @@ Notebook: ${notebookContext.slice(0, 500)}`, { domain: 'contextual-node-oracle' 
         layoutMode: state.layoutMode,
         canvasId: state.canvasId,
         knowledgeExplorerMode: state.knowledgeExplorerMode,
+        routingSnapshot: state.routingSnapshot,
       }),
     }
   )
