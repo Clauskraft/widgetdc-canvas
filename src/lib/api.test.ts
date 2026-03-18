@@ -181,6 +181,20 @@ describe('Canvas API: governance eval snapshot', () => {
             oodaFallbackRate: 0,
             oodaFailureRate: 0,
             oodaAverageDurationMs: 1765,
+            verifiedUnreviewedCount: 12,
+            operatorQualityStatus: 'red',
+            verifiedUnreviewedCriticalCount: 0,
+            oldestVerifiedUnreviewedAgeMinutes: 71.07,
+            operatorReviewBacklogStatus: 'yellow',
+            reviewBacklogTop: [
+              {
+                decisionId: 'ra-evidence-packet-poll-7-1773884999',
+                engagementId: 'ENG-LF-C1A-1773766946059',
+                verifiedAt: '2026-03-19T01:50:00.37Z',
+                ageMinutes: 71.07,
+                hasRoute: true,
+              },
+            ],
             coverageGaps: [],
             recentEvents: [],
           },
@@ -227,11 +241,33 @@ describe('Canvas API: governance eval snapshot', () => {
             }],
           },
         }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          windowDays: 30,
+          limit: 5,
+          queueSummary: {
+            queueName: 'operator-review-backlog',
+            status: 'yellow',
+            unreviewedCount: 12,
+            criticalCount: 0,
+            oldestAgeMinutes: 71.07,
+            outputCount: 5,
+          },
+          items: [{
+            decisionId: 'ra-evidence-packet-poll-7-1773884999',
+            engagementId: 'ENG-LF-C1A-1773766946059',
+            verifiedAt: '2026-03-19T01:50:00.37Z',
+            ageMinutes: 71.07,
+            hasRoute: true,
+          }],
+        }),
       } as Response);
 
     const result = await fetchGovernanceEvalSnapshot();
 
-    const governanceCalls = fetchMock.mock.calls.slice(-3);
+    const governanceCalls = fetchMock.mock.calls.slice(-4);
     expect(governanceCalls).toEqual([
       [
         '/api/governance/scorecard?days=30',
@@ -251,11 +287,19 @@ describe('Canvas API: governance eval snapshot', () => {
           headers: { 'Content-Type': 'application/json' },
         }),
       ],
+      [
+        '/api/governance/review-backlog?days=30&limit=5',
+        expect.objectContaining({
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ],
     ]);
     expect(result.contractVersion).toBe('canvas.downstream.eval.v1');
     expect(result.readOnly).toBe(true);
     expect(result.legoFactory.queueSummary.blocked).toBe(2);
     expect(result.memory.memoryConnectionCoverage).toBe(0.022);
+    expect(result.reviewBacklog.queueSummary.status).toBe('yellow');
+    expect(result.reviewBacklog.items[0]?.decisionId).toBe('ra-evidence-packet-poll-7-1773884999');
     expect(result.coverageGaps).toEqual([
       {
         metric: 'memory_connection_readback',

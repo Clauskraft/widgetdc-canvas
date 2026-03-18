@@ -67,6 +67,9 @@ export function NodeInspector() {
   const governanceScorecard = d.governanceScorecard as Record<string, unknown> | undefined;
   const legoFactorySummary = d.legoFactorySummary as Record<string, unknown> | undefined;
   const memoryGovernance = d.memoryGovernance as Record<string, unknown> | undefined;
+  const reviewBacklog = d.reviewBacklog as Record<string, unknown> | undefined;
+  const reviewBacklogSummary = reviewBacklog?.queueSummary as Record<string, unknown> | undefined;
+  const reviewBacklogItems = Array.isArray(reviewBacklog?.items) ? reviewBacklog.items as Array<Record<string, unknown>> : [];
   const coverageGaps = d.coverageGaps as Array<Record<string, unknown>> | undefined;
   const governedOutputs = d.governedOutputs as Array<Record<string, unknown>> | undefined;
 
@@ -184,7 +187,7 @@ export function NodeInspector() {
           </div>
         )}
 
-        {(governanceScorecard || legoFactorySummary || memoryGovernance) && (
+        {(governanceScorecard || legoFactorySummary || memoryGovernance || reviewBacklog) && (
           <div className="bg-neural-panel/20 p-2.5 rounded-xl border border-neural-border/30">
             <div className="text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-2 opacity-70">Governance Eval</div>
             <div className="space-y-1.5 text-[11px] text-gray-300">
@@ -215,6 +218,15 @@ export function NodeInspector() {
                   <div><span className="text-gray-500">Learning obs</span>: {String(memoryGovernance.learningObservations ?? '0')}</div>
                 </>
               )}
+              {reviewBacklog && (
+                <>
+                  <div className="pt-1 text-gray-500">Review backlog</div>
+                  <div><span className="text-gray-500">Status</span>: {String(reviewBacklogSummary?.status ?? 'n/a')}</div>
+                  <div><span className="text-gray-500">Unreviewed</span>: {String(reviewBacklogSummary?.unreviewedCount ?? '0')}</div>
+                  <div><span className="text-gray-500">Critical</span>: {String(reviewBacklogSummary?.criticalCount ?? '0')}</div>
+                  <div><span className="text-gray-500">Oldest age</span>: {typeof reviewBacklogSummary?.oldestAgeMinutes === 'number' ? `${Number(reviewBacklogSummary.oldestAgeMinutes).toFixed(1)} min` : 'n/a'}</div>
+                </>
+              )}
               {coverageGaps && coverageGaps.length > 0 && (
                 <div className="pt-1">
                   <div className="text-gray-500 mb-1">Coverage gaps</div>
@@ -222,6 +234,19 @@ export function NodeInspector() {
                     {coverageGaps.slice(0, 3).map((gap, index) => (
                       <div key={`${gap.metric ?? 'gap'}-${index}`} className="text-[10px] text-amber-200">
                         {String(gap.metric ?? 'gap')}: {String(gap.reason ?? 'missing reason')}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {reviewBacklog && reviewBacklogItems.length > 0 && (
+                <div className="pt-1">
+                  <div className="text-gray-500 mb-1">Review queue</div>
+                  <div className="space-y-1">
+                    {reviewBacklogItems.slice(0, 3).map((item, index) => (
+                      <div key={`${String(item.decisionId ?? 'review')}-${index}`} className="flex items-center justify-between gap-2 text-[10px]">
+                        <span className="text-gray-200 truncate">{String(item.decisionId ?? 'unknown')}</span>
+                        <span className="text-gray-500">{typeof item.ageMinutes === 'number' ? `${Number(item.ageMinutes).toFixed(1)}m` : 'n/a'}</span>
                       </div>
                     ))}
                   </div>

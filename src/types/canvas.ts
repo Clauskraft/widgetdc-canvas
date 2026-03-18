@@ -124,6 +124,7 @@ export interface CanvasNodeData extends Record<string, unknown> {
   governanceScorecard?: Record<string, unknown>;
   legoFactorySummary?: Record<string, unknown>;
   memoryGovernance?: Record<string, unknown>;
+  reviewBacklog?: Record<string, unknown>;
   coverageGaps?: Array<Record<string, unknown>>;
   governedOutputs?: Array<Record<string, unknown>>;
   readOnly?: boolean;
