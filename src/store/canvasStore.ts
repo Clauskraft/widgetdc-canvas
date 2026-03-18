@@ -28,9 +28,11 @@ import {
   getComplianceGaps,
   fetchArtifactSurface,
   applyArtifactSurfaceAction,
+  fetchGovernanceEvalSnapshot,
   fetchLibreChatRuntimeIntelligence,
   fetchOrchestratorRoutingSnapshot,
   type ComplianceGapRecord,
+  type GovernanceEvalSnapshotPayload,
   type OrchestratorRoutingSnapshotPayload,
   type ReasonResponse,
   type LibreChatRuntimeIntelligenceRequest,
@@ -80,6 +82,7 @@ interface CanvasState {
   knowledgeExplorerMode: boolean;
   gapOverlayMode: boolean;
   routingSnapshot: OrchestratorRoutingSnapshotPayload | null;
+  governanceSnapshot: GovernanceEvalSnapshotPayload | null;
 
   // Undo/Redo
   undoStack: CanvasSnapshot[];
@@ -102,11 +105,13 @@ interface CanvasState {
   importArtifactSurface: (payload: ArtifactSurfacePayload, position?: { x: number; y: number }) => string;
   importLibreChatRuntime: (payload: LibreChatRuntimeIntelligencePayload, position?: { x: number; y: number }) => string;
   importOrchestratorRouting: (payload: OrchestratorRoutingSnapshotPayload, position?: { x: number; y: number }) => string;
+  importGovernanceEval: (payload: GovernanceEvalSnapshotPayload, position?: { x: number; y: number }) => string;
   loadLibreChatRuntime: (
     payload: LibreChatRuntimeIntelligenceRequest,
     position?: { x: number; y: number },
   ) => Promise<string>;
   loadOrchestratorRouting: (position?: { x: number; y: number }) => Promise<string>;
+  loadGovernanceEval: (position?: { x: number; y: number }) => Promise<string>;
   syncArtifactNode: (nodeId: string) => Promise<void>;
   applyArtifactAction: (nodeId: string, action: string) => Promise<void>;
   removeSelected: () => void;
@@ -340,6 +345,7 @@ export const useCanvasStore = create<CanvasState>()(
       knowledgeExplorerMode: false,
       gapOverlayMode: false,
       routingSnapshot: null,
+      governanceSnapshot: null,
       undoStack: [],
       redoStack: [],
       filterState: { relTypes: [], searchText: '' },
@@ -519,6 +525,51 @@ export const useCanvasStore = create<CanvasState>()(
         return pipelineId;
       },
 
+      importGovernanceEval: (payload, position) => {
+        const anchorPosition = position ?? { x: 280, y: 220 };
+        const memoryCoverage = payload.memory.memoryConnectionCoverage;
+        const memoryCoverageText = typeof memoryCoverage === 'number'
+          ? `${(memoryCoverage * 100).toFixed(1)}% memory coverage`
+          : 'memory coverage n/a';
+
+        const nodeId = get().addNodeWithData('pipeline', {
+          label: 'Downstream Evaluation',
+          subtitle: `${payload.scorecard.verifiedDecisions} verified • ${payload.legoFactory.queueSummary.blocked} blocked • ${memoryCoverageText}`,
+          nodeType: 'pipeline',
+          governanceScorecard: payload.scorecard as unknown as Record<string, unknown>,
+          legoFactorySummary: payload.legoFactory.queueSummary as unknown as Record<string, unknown>,
+          memoryGovernance: payload.memory as unknown as Record<string, unknown>,
+          coverageGaps: payload.coverageGaps as unknown as Array<Record<string, unknown>>,
+          governedOutputs: payload.legoFactory.recentGovernedOutputs as unknown as Array<Record<string, unknown>>,
+          readOnly: payload.readOnly,
+          complianceScore:
+            typeof payload.scorecard.acceptanceRate === 'number'
+              ? payload.scorecard.acceptanceRate
+              : undefined,
+          signalIntensity:
+            typeof payload.scorecard.routedDecisionCoverage === 'number'
+              ? payload.scorecard.routedDecisionCoverage
+              : undefined,
+          regulatoryLevel:
+            payload.coverageGaps.length > 0
+              ? 'guideline'
+              : payload.legoFactory.queueSummary.blocked > 0
+                ? 'guideline'
+                : 'info',
+          provenance: {
+            createdBy: 'pipeline',
+            createdAt: payload.generatedAt,
+            source: payload.contractVersion,
+            confidence: typeof payload.scorecard.acceptanceRate === 'number'
+              ? payload.scorecard.acceptanceRate
+              : undefined,
+          },
+        }, anchorPosition);
+
+        set({ governanceSnapshot: payload });
+        return nodeId;
+      },
+
       loadLibreChatRuntime: async (payload, position) => {
         const runtimePayload = await fetchLibreChatRuntimeIntelligence(payload);
         return get().importLibreChatRuntime(runtimePayload, position);
@@ -527,6 +578,11 @@ export const useCanvasStore = create<CanvasState>()(
       loadOrchestratorRouting: async (position) => {
         const payload = await fetchOrchestratorRoutingSnapshot();
         return get().importOrchestratorRouting(payload, position);
+      },
+
+      loadGovernanceEval: async (position) => {
+        const payload = await fetchGovernanceEvalSnapshot();
+        return get().importGovernanceEval(payload, position);
       },
 
       syncArtifactNode: async (nodeId) => {
@@ -2265,6 +2321,7 @@ Notebook: ${notebookContext.slice(0, 500)}`, { domain: 'contextual-node-oracle' 
         canvasId: state.canvasId,
         knowledgeExplorerMode: state.knowledgeExplorerMode,
         routingSnapshot: state.routingSnapshot,
+        governanceSnapshot: state.governanceSnapshot,
       }),
     }
   )

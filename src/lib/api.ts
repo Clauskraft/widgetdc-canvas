@@ -5,6 +5,10 @@ import type { ArtifactSurfacePayload, LibreChatRuntimeIntelligencePayload } from
 const API_URL = '';
 const API_KEY = import.meta.env.VITE_API_KEY ?? '';
 
+function getOrchestratorUrl(): string {
+  return import.meta.env.VITE_ORCHESTRATOR_URL ?? '';
+}
+
 export async function mcpCall<T = unknown>(tool: string, payload: Record<string, unknown> = {}): Promise<T> {
   const res = await fetch(`${API_URL}/api/mcp/route`, {
     method: 'POST',
@@ -193,6 +197,141 @@ export interface LibreChatRuntimeIntelligenceRequest {
   backend_consumption_receipts?: Record<string, unknown>[];
 }
 
+export interface OrchestratorRoutingDecisionPayload {
+  decision_id: string;
+  selected_agent_id: string;
+  selected_capability: string;
+  trust_score: number;
+  reason_code: string;
+  decided_at: string;
+  evidence_refs?: string[];
+  intent?: {
+    flow_ref?: string;
+    task_domain?: string;
+    operator_visible?: boolean;
+  };
+}
+
+export interface OrchestratorTrustProfilePayload {
+  agent_id: string;
+  task_domain: string;
+  success_count: number;
+  fail_count: number;
+  bayesian_score: number;
+  evidence_source: string;
+  scorecard_dimension: string;
+  last_verified_at: string;
+}
+
+export interface OrchestratorWorkflowEnvelopePayload {
+  workflow_id: string;
+  workflow_type: string;
+  current_phase: string;
+  participants: string[];
+  primary_surface: string;
+  flow_ref: string;
+  scorecard_ref: string;
+  reasoning_lineage_visible: boolean;
+  started_at: string;
+  updated_at: string;
+}
+
+export interface OrchestratorRoutingSnapshotPayload {
+  recentDecisions: OrchestratorRoutingDecisionPayload[];
+  topTrustProfiles: OrchestratorTrustProfilePayload[];
+  latestWorkflow?: OrchestratorWorkflowEnvelopePayload | null;
+  latestChainExecutionId?: string | null;
+}
+
+export interface GovernanceCoverageGap {
+  metric: string;
+  reason: string;
+}
+
+export interface GovernanceScorecardEvent {
+  id: string;
+  type: string;
+  decisionId?: string | null;
+  engagementId?: string | null;
+  recordedAt?: string | null;
+  route?: string | null;
+}
+
+export interface GovernanceScorecardSummary {
+  windowDays: number;
+  verifiedDecisions: number;
+  operatorAccepted: number;
+  operatorRejected: number;
+  acceptanceRate: number | null;
+  rejectionRate: number | null;
+  reversalCount: number;
+  stabilityRate: number | null;
+  routedDecisionEvents: number;
+  routedDecisionCoverage: number | null;
+  triSourceArbitrationDivergenceCount: number;
+  triSourceArbitrationDivergenceRate: number | null;
+  avgTimeToVerifiedMinutes: number | null;
+  medianTimeToVerifiedMinutes: number | null;
+  oodaRunEvents: number;
+  oodaFallbackEvents: number;
+  oodaFailedEvents: number;
+  oodaFallbackRate: number | null;
+  oodaFailureRate: number | null;
+  oodaAverageDurationMs: number | null;
+  coverageGaps: GovernanceCoverageGap[];
+  recentEvents: GovernanceScorecardEvent[];
+}
+
+export interface LegoFactoryQueueSummaryPayload {
+  queueName: string;
+  waiting: number;
+  active: number;
+  blocked: number;
+  promotable: number;
+  outputCount: number;
+}
+
+export interface LegoFactoryGovernedOutputPayload {
+  id: string;
+  kind: string;
+  status: string;
+  readBackVerified: boolean;
+  gate: {
+    blocked: boolean;
+    reason: string;
+  };
+  updatedAt: string;
+}
+
+export interface LegoFactoryGovernancePayload {
+  queueSummary: LegoFactoryQueueSummaryPayload;
+  recentGovernedOutputs: LegoFactoryGovernedOutputPayload[];
+}
+
+export interface MemoryGovernanceSummary {
+  windowDays: number;
+  activeEngagements: number;
+  engagementsWithConnection: number;
+  memoryConnections: number;
+  memoryConnectionCoverage: number | null;
+  learningObservations: number;
+  acceptedObservations: number;
+  rejectedObservations: number;
+  acceptanceRate: number | null;
+  rejectionRate: number | null;
+  coverageGaps: GovernanceCoverageGap[];
+}
+
+export interface GovernanceEvalSnapshotPayload {
+  contractVersion: 'canvas.downstream.eval.v1';
+  generatedAt: string;
+  readOnly: true;
+  scorecard: GovernanceScorecardSummary;
+  legoFactory: LegoFactoryGovernancePayload;
+  memory: MemoryGovernanceSummary;
+  coverageGaps: GovernanceCoverageGap[];
+}
+
 export async function fetchLibreChatRuntimeIntelligence(
   payload: LibreChatRuntimeIntelligenceRequest,
 ): Promise<LibreChatRuntimeIntelligencePayload> {
@@ -216,6 +355,110 @@ export async function fetchLibreChatRuntimeIntelligence(
   }
   const data = await res.json();
   return data as LibreChatRuntimeIntelligencePayload;
+}
+
+export async function fetchOrchestratorRoutingSnapshot(): Promise<OrchestratorRoutingSnapshotPayload> {
+  const baseUrl = getOrchestratorUrl().replace(/\/$/, '');
+  if (!baseUrl) {
+    throw new Error('VITE_ORCHESTRATOR_URL is not configured');
+  }
+
+  const res = await fetch(`${baseUrl}/dashboard/data`, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) {
+    throw new Error(`Orchestrator routing fetch failed: ${res.status}`);
+  }
+
+  const data = await res.json() as {
+    routing?: {
+      recentDecisions?: OrchestratorRoutingDecisionPayload[];
+      topTrustProfiles?: OrchestratorTrustProfilePayload[];
+    };
+    chains?: Array<{
+      execution_id?: string;
+      workflow_envelope?: OrchestratorWorkflowEnvelopePayload;
+    }>;
+  };
+
+  return {
+    recentDecisions: data.routing?.recentDecisions ?? [],
+    topTrustProfiles: data.routing?.topTrustProfiles ?? [],
+    latestWorkflow: data.chains?.find((chain) => chain.workflow_envelope)?.workflow_envelope ?? null,
+    latestChainExecutionId: data.chains?.find((chain) => chain.workflow_envelope)?.execution_id ?? null,
+  };
+}
+
+export async function fetchGovernanceEvalSnapshot(days = 30, limit = 5): Promise<GovernanceEvalSnapshotPayload> {
+  const [scorecardRes, legoFactoryRes, memoryRes] = await Promise.all([
+    fetch(`${API_URL}/api/governance/scorecard?days=${encodeURIComponent(String(days))}`, {
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(20_000),
+    }),
+    fetch(`${API_URL}/api/governance/legofactory?limit=${encodeURIComponent(String(limit))}`, {
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(20_000),
+    }),
+    fetch(`${API_URL}/api/governance/memory?days=${encodeURIComponent(String(days))}`, {
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(20_000),
+    }),
+  ]);
+
+  if (!scorecardRes.ok) {
+    throw new Error(`Governance scorecard fetch failed: ${scorecardRes.status}`);
+  }
+  if (!legoFactoryRes.ok) {
+    throw new Error(`Governance LegoFactory fetch failed: ${legoFactoryRes.status}`);
+  }
+  if (!memoryRes.ok) {
+    throw new Error(`Governance memory fetch failed: ${memoryRes.status}`);
+  }
+
+  const scorecardData = await scorecardRes.json() as {
+    summary?: GovernanceScorecardSummary;
+  };
+  const legoFactoryData = await legoFactoryRes.json() as {
+    queueSummary?: LegoFactoryQueueSummaryPayload;
+    recentGovernedOutputs?: LegoFactoryGovernedOutputPayload[];
+  };
+  const memoryData = await memoryRes.json() as {
+    summary?: MemoryGovernanceSummary;
+  };
+
+  const scorecard = scorecardData.summary;
+  const memory = memoryData.summary;
+  if (!scorecard) {
+    throw new Error('Governance scorecard summary missing from response');
+  }
+  if (!memory) {
+    throw new Error('Governance memory summary missing from response');
+  }
+
+  const legoFactory: LegoFactoryGovernancePayload = {
+    queueSummary: legoFactoryData.queueSummary ?? {
+      queueName: 'lego-factory-governance',
+      waiting: 0,
+      active: 0,
+      blocked: 0,
+      promotable: 0,
+      outputCount: 0,
+    },
+    recentGovernedOutputs: legoFactoryData.recentGovernedOutputs ?? [],
+  };
+
+  return {
+    contractVersion: 'canvas.downstream.eval.v1',
+    generatedAt: new Date().toISOString(),
+    readOnly: true,
+    scorecard,
+    legoFactory,
+    memory,
+    coverageGaps: [...(scorecard.coverageGaps ?? []), ...(memory.coverageGaps ?? [])],
+  };
 }
 
 // Compliance keyword auto-detection for Semantic Arbitrage routing

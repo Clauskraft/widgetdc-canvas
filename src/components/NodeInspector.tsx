@@ -64,6 +64,11 @@ export function NodeInspector() {
   const routingDecision = d.routingDecision as Record<string, unknown> | undefined;
   const workflowEnvelope = d.workflowEnvelope as Record<string, unknown> | undefined;
   const trustProfiles = d.trustProfiles as Array<Record<string, unknown>> | undefined;
+  const governanceScorecard = d.governanceScorecard as Record<string, unknown> | undefined;
+  const legoFactorySummary = d.legoFactorySummary as Record<string, unknown> | undefined;
+  const memoryGovernance = d.memoryGovernance as Record<string, unknown> | undefined;
+  const coverageGaps = d.coverageGaps as Array<Record<string, unknown>> | undefined;
+  const governedOutputs = d.governedOutputs as Array<Record<string, unknown>> | undefined;
 
   return (
     <div className="w-[280px] h-full border-l border-neural-border bg-neural-surface flex flex-col overflow-hidden shadow-2xl">
@@ -170,6 +175,68 @@ export function NodeInspector() {
                       <div key={`${profile.agent_id ?? 'agent'}-${index}`} className="flex items-center justify-between gap-2 text-[10px]">
                         <span className="text-gray-200">{String(profile.agent_id ?? 'unknown')}</span>
                         <span className="text-gray-500">{typeof profile.bayesian_score === 'number' ? `${(Number(profile.bayesian_score) * 100).toFixed(0)}%` : 'n/a'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {(governanceScorecard || legoFactorySummary || memoryGovernance) && (
+          <div className="bg-neural-panel/20 p-2.5 rounded-xl border border-neural-border/30">
+            <div className="text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-2 opacity-70">Governance Eval</div>
+            <div className="space-y-1.5 text-[11px] text-gray-300">
+              {governanceScorecard && (
+                <>
+                  <div><span className="text-gray-500">Verified</span>: {String(governanceScorecard.verifiedDecisions ?? '0')}</div>
+                  <div><span className="text-gray-500">Acceptance</span>: {typeof governanceScorecard.acceptanceRate === 'number' ? `${(Number(governanceScorecard.acceptanceRate) * 100).toFixed(0)}%` : 'n/a'}</div>
+                  <div><span className="text-gray-500">Routed coverage</span>: {typeof governanceScorecard.routedDecisionCoverage === 'number' ? `${(Number(governanceScorecard.routedDecisionCoverage) * 100).toFixed(0)}%` : 'n/a'}</div>
+                  <div><span className="text-gray-500">OODA runs</span>: {String(governanceScorecard.oodaRunEvents ?? '0')}</div>
+                  <div><span className="text-gray-500">OODA fallback</span>: {typeof governanceScorecard.oodaFallbackRate === 'number' ? `${(Number(governanceScorecard.oodaFallbackRate) * 100).toFixed(0)}%` : 'n/a'}</div>
+                  <div><span className="text-gray-500">OODA avg ms</span>: {String(governanceScorecard.oodaAverageDurationMs ?? 'n/a')}</div>
+                </>
+              )}
+              {legoFactorySummary && (
+                <>
+                  <div className="pt-1 text-gray-500">LegoFactory</div>
+                  <div><span className="text-gray-500">Blocked</span>: {String(legoFactorySummary.blocked ?? '0')}</div>
+                  <div><span className="text-gray-500">Promotable</span>: {String(legoFactorySummary.promotable ?? '0')}</div>
+                  <div><span className="text-gray-500">Waiting</span>: {String(legoFactorySummary.waiting ?? '0')}</div>
+                  <div><span className="text-gray-500">Outputs</span>: {String(legoFactorySummary.outputCount ?? '0')}</div>
+                </>
+              )}
+              {memoryGovernance && (
+                <>
+                  <div className="pt-1 text-gray-500">Memory</div>
+                  <div><span className="text-gray-500">Coverage</span>: {typeof memoryGovernance.memoryConnectionCoverage === 'number' ? `${(Number(memoryGovernance.memoryConnectionCoverage) * 100).toFixed(1)}%` : 'n/a'}</div>
+                  <div><span className="text-gray-500">Connections</span>: {String(memoryGovernance.memoryConnections ?? '0')}</div>
+                  <div><span className="text-gray-500">Learning obs</span>: {String(memoryGovernance.learningObservations ?? '0')}</div>
+                </>
+              )}
+              {coverageGaps && coverageGaps.length > 0 && (
+                <div className="pt-1">
+                  <div className="text-gray-500 mb-1">Coverage gaps</div>
+                  <div className="space-y-1">
+                    {coverageGaps.slice(0, 3).map((gap, index) => (
+                      <div key={`${gap.metric ?? 'gap'}-${index}`} className="text-[10px] text-amber-200">
+                        {String(gap.metric ?? 'gap')}: {String(gap.reason ?? 'missing reason')}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {governedOutputs && governedOutputs.length > 0 && (
+                <div className="pt-1">
+                  <div className="text-gray-500 mb-1">Recent outputs</div>
+                  <div className="space-y-1">
+                    {governedOutputs.slice(0, 3).map((output, index) => (
+                      <div key={`${output.id ?? 'output'}-${index}`} className="flex items-center justify-between gap-2 text-[10px]">
+                        <span className="text-gray-200">{String(output.kind ?? 'unknown')}</span>
+                        <span className={Boolean(output.gate && typeof output.gate === 'object' && 'blocked' in output.gate && output.gate.blocked) ? 'text-amber-300' : 'text-emerald-300'}>
+                          {String(output.status ?? 'n/a')}
+                        </span>
                       </div>
                     ))}
                   </div>
