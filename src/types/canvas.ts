@@ -1,5 +1,5 @@
 import { type Node } from '@xyflow/react';
-import type { NodeLabel, RelationshipType } from '@widgetdc/contracts/graph';
+import type { NodeLabel, RelationshipType } from './graph';
 
 export type CanvasNodeType = Extract<
   NodeLabel,

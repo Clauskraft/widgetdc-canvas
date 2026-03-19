@@ -9,10 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@dagrejs/dagre": "^2.0.4",
     "@tiptap/extension-placeholder": "^3.20.1",
     "@tiptap/react": "^3.20.1",
     "@tiptap/starter-kit": "^3.20.1",
-    "@widgetdc/contracts": "file:../widgetdc-contracts",
     "@xyflow/react": "^12.6.0",
     "clsx": "^2.1.1",
     "express": "^4.18.2",

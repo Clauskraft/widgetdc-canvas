@@ -1,5 +1,5 @@
 import type { CanvasNodeData, CanvasNodeType } from '../types/canvas';
-import type { NodeLabel } from '@widgetdc/contracts/graph';
+import type { NodeLabel } from '../types/graph';
 
 export interface ArtifactSurfacePayload {
   contract_version: string;
