@@ -418,6 +418,50 @@ describe('Canvas API: canonical graph routes', () => {
   });
 });
 
+describe('Canvas API: reason route', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('posts the canonical reason payload shape', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        recommendation: 'Use the baseline /reason path.',
+        thinking_steps: ['Inspect graph context', 'Route through RLM'],
+        confidence: 0.92,
+        sources: ['policy-graph'],
+      }),
+    } as Response);
+
+    const longPrompt = 'widgetdc '.repeat(40);
+    const result = await reasonCall(longPrompt, { domain: 'consulting' });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/reason',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const body = JSON.parse(String((fetchMock.mock.calls.at(-1)?.[1] as RequestInit).body));
+    expect(body).toEqual({
+      task: longPrompt,
+      context: {
+        domain: 'consulting',
+        enriched_prompt: longPrompt,
+      },
+    });
+    expect(result).toEqual({
+      recommendation: 'Use the baseline /reason path.',
+      thinking_steps: ['Inspect graph context', 'Route through RLM'],
+      confidence: 0.92,
+      sources: ['policy-graph'],
+    });
+  });
+});
+
 describe('Canvas API: RLM reasoning route', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -427,13 +471,15 @@ describe('Canvas API: RLM reasoning route', () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
-        recommendation: 'Clarify scope',
-        confidence: 0.95,
-        sources: [],
+        recommendation: 'Use the baseline /reason path.',
+        thinking_steps: ['Inspect graph context', 'Route through RLM'],
+        confidence: 0.92,
+        sources: ['policy-graph'],
       }),
     } as Response);
 
-    const result = await reasonCall('widgetdc', { notebook_hits: 0 });
+    const longPrompt = 'widgetdc '.repeat(40);
+    const result = await reasonCall(longPrompt, { domain: 'consulting' });
 
     const [url, init] = fetchMock.mock.calls.at(-1) as [string, RequestInit];
     expect(url).toBe('/reason');
@@ -444,16 +490,13 @@ describe('Canvas API: RLM reasoning route', () => {
 
     const body = JSON.parse(String(init.body));
     expect(body).toEqual({
-      task: 'widgetdc',
-      context: { notebook_hits: 0 },
-      enriched_prompt: undefined,
+      task: longPrompt,
+      context: {
+        domain: 'consulting',
+        enriched_prompt: longPrompt,
+      },
     });
 
-    expect(result).toEqual({
-      recommendation: 'Clarify scope',
-      thinking_steps: [],
-      confidence: 0.95,
-      sources: [],
-    });
+    expect(result.recommendation).toBe('Use the baseline /reason path.');
   });
 });
