@@ -4,6 +4,7 @@ import {
   fetchGovernanceEvalSnapshot,
   fetchLibreChatRuntimeIntelligence,
   fetchOrchestratorRoutingSnapshot,
+  reasonCall,
 } from './api';
 
 describe('Canvas API: LibreChat runtime intelligence', () => {
@@ -306,5 +307,45 @@ describe('Canvas API: governance eval snapshot', () => {
         reason: '396 engagements are missing canonical MemoryConnection verification',
       },
     ]);
+  });
+});
+
+describe('Canvas API: reason route', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('posts the canonical reason payload shape', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        recommendation: 'Use the baseline /reason path.',
+        thinking_steps: ['Inspect graph context', 'Route through RLM'],
+        confidence: 0.92,
+        sources: ['policy-graph'],
+      }),
+    } as Response);
+
+    const longPrompt = 'widgetdc '.repeat(40);
+    const result = await reasonCall(longPrompt, { domain: 'consulting' });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/reason',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const body = JSON.parse(String((fetchMock.mock.calls.at(-1)?.[1] as RequestInit).body));
+    expect(body).toEqual({
+      task: longPrompt,
+      context: {
+        domain: 'consulting',
+        enriched_prompt: longPrompt,
+      },
+    });
+
+    expect(result.recommendation).toBe('Use the baseline /reason path.');
   });
 });
