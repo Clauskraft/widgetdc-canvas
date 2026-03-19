@@ -266,11 +266,28 @@ describe('Canvas API: governance eval snapshot', () => {
             hasRoute: true,
           }],
         }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          windowDays: 30,
+          limit: 5,
+          queueSummary: {
+            queueName: 'tri-source-arbitration-backlog',
+            status: 'green',
+            divergentCount: 0,
+            unreviewedCount: 0,
+            reversedCount: 0,
+            oldestAgeMinutes: null,
+            outputCount: 0,
+          },
+          items: [],
+        }),
       } as Response);
 
     const result = await fetchGovernanceEvalSnapshot();
 
-    const governanceCalls = fetchMock.mock.calls.slice(-4);
+    const governanceCalls = fetchMock.mock.calls.slice(-5);
     expect(governanceCalls).toEqual([
       [
         '/api/governance/scorecard?days=30',
@@ -296,6 +313,12 @@ describe('Canvas API: governance eval snapshot', () => {
           headers: { 'Content-Type': 'application/json' },
         }),
       ],
+      [
+        '/api/governance/arbitration-backlog?days=30&limit=5',
+        expect.objectContaining({
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ],
     ]);
     expect(result.contractVersion).toBe('canvas.downstream.eval.v1');
     expect(result.readOnly).toBe(true);
@@ -303,6 +326,7 @@ describe('Canvas API: governance eval snapshot', () => {
     expect(result.memory.memoryConnectionCoverage).toBe(0.022);
     expect(result.reviewBacklog.queueSummary.status).toBe('yellow');
     expect(result.reviewBacklog.items[0]?.decisionId).toBe('ra-evidence-packet-poll-7-1773884999');
+    expect(result.arbitrationBacklog.queueSummary.status).toBe('green');
     expect(result.coverageGaps).toEqual([
       {
         metric: 'memory_connection_readback',

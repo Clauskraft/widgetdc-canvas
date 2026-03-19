@@ -69,8 +69,11 @@ export function NodeInspector() {
   const legoFactorySummary = d.legoFactorySummary as Record<string, unknown> | undefined;
   const memoryGovernance = d.memoryGovernance as Record<string, unknown> | undefined;
   const reviewBacklog = d.reviewBacklog as Record<string, unknown> | undefined;
+  const arbitrationBacklog = d.arbitrationBacklog as Record<string, unknown> | undefined;
   const reviewBacklogSummary = reviewBacklog?.queueSummary as Record<string, unknown> | undefined;
   const reviewBacklogItems = Array.isArray(reviewBacklog?.items) ? reviewBacklog.items as Array<Record<string, unknown>> : [];
+  const arbitrationBacklogSummary = arbitrationBacklog?.queueSummary as Record<string, unknown> | undefined;
+  const arbitrationBacklogItems = Array.isArray(arbitrationBacklog?.items) ? arbitrationBacklog.items as Array<Record<string, unknown>> : [];
   const coverageGaps = d.coverageGaps as Array<Record<string, unknown>> | undefined;
   const governedOutputs = d.governedOutputs as Array<Record<string, unknown>> | undefined;
   const verificationStatus = typeof metadata.verificationStatus === 'string' ? metadata.verificationStatus : undefined;
@@ -195,7 +198,7 @@ export function NodeInspector() {
           </div>
         )}
 
-        {(governanceScorecard || legoFactorySummary || memoryGovernance || reviewBacklog) && (
+        {(governanceScorecard || legoFactorySummary || memoryGovernance || reviewBacklog || arbitrationBacklog) && (
           <div className="bg-neural-panel/20 p-2.5 rounded-xl border border-neural-border/30">
             <div className="text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-2 opacity-70">Governance Eval</div>
             <div className="space-y-1.5 text-[11px] text-gray-300">
@@ -236,6 +239,15 @@ export function NodeInspector() {
                   <div><span className="text-gray-500">Oldest age</span>: {typeof reviewBacklogSummary?.oldestAgeMinutes === 'number' ? `${Number(reviewBacklogSummary.oldestAgeMinutes).toFixed(1)} min` : 'n/a'}</div>
                 </>
               )}
+              {arbitrationBacklog && (
+                <>
+                  <div className="pt-1 text-gray-500">Arbitration backlog</div>
+                  <div><span className="text-gray-500">Status</span>: {String(arbitrationBacklogSummary?.status ?? 'n/a')}</div>
+                  <div><span className="text-gray-500">Divergent</span>: {String(arbitrationBacklogSummary?.divergentCount ?? '0')}</div>
+                  <div><span className="text-gray-500">Unreviewed</span>: {String(arbitrationBacklogSummary?.unreviewedCount ?? '0')}</div>
+                  <div><span className="text-gray-500">Reversed</span>: {String(arbitrationBacklogSummary?.reversedCount ?? '0')}</div>
+                </>
+              )}
               {coverageGaps && coverageGaps.length > 0 && (
                 <div className="pt-1">
                   <div className="text-gray-500 mb-1">Coverage gaps</div>
@@ -256,6 +268,19 @@ export function NodeInspector() {
                       <div key={`${String(item.decisionId ?? 'review')}-${index}`} className="flex items-center justify-between gap-2 text-[10px]">
                         <span className="text-gray-200 truncate">{String(item.decisionId ?? 'unknown')}</span>
                         <span className="text-gray-500">{typeof item.ageMinutes === 'number' ? `${Number(item.ageMinutes).toFixed(1)}m` : 'n/a'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {arbitrationBacklog && arbitrationBacklogItems.length > 0 && (
+                <div className="pt-1">
+                  <div className="text-gray-500 mb-1">Arbitration queue</div>
+                  <div className="space-y-1">
+                    {arbitrationBacklogItems.slice(0, 3).map((item, index) => (
+                      <div key={`${String(item.decisionId ?? 'arbitration')}-${index}`} className="flex items-center justify-between gap-2 text-[10px]">
+                        <span className="text-gray-200 truncate">{String(item.decisionId ?? 'unknown')}</span>
+                        <span className="text-gray-500">{String(item.reviewState ?? 'n/a')}</span>
                       </div>
                     ))}
                   </div>

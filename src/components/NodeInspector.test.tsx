@@ -75,6 +75,57 @@ function resetStore() {
           },
         },
       },
+      {
+        id: 'governance-1',
+        type: 'Track',
+        position: { x: 120, y: 80 },
+        data: {
+          label: 'Downstream Evaluation',
+          nodeType: 'Track',
+          governanceScorecard: {
+            verifiedDecisions: 12,
+            acceptanceRate: 0.8,
+            routedDecisionCoverage: 0.95,
+            oodaRunEvents: 5,
+            oodaFallbackRate: 0,
+            oodaAverageDurationMs: 1765,
+          },
+          legoFactorySummary: {
+            blocked: 1,
+            promotable: 3,
+            waiting: 2,
+            outputCount: 4,
+          },
+          memoryGovernance: {
+            memoryConnectionCoverage: 0.87,
+            memoryConnections: 42,
+            learningObservations: 7,
+          },
+          reviewBacklog: {
+            queueSummary: {
+              status: 'yellow',
+              unreviewedCount: 2,
+              criticalCount: 0,
+              oldestAgeMinutes: 12.4,
+            },
+            items: [
+              {
+                decisionId: 'ra-review-1',
+                ageMinutes: 12.4,
+              },
+            ],
+          },
+          arbitrationBacklog: {
+            queueSummary: {
+              status: 'green',
+              divergentCount: 0,
+              unreviewedCount: 0,
+              reversedCount: 0,
+            },
+            items: [],
+          },
+        },
+      },
     ],
     edges: [],
     selectedNodeId: null,
@@ -136,5 +187,19 @@ describe('NodeInspector', () => {
     ).toBeTruthy();
     expect(view.getAllByText('graph.search')).toHaveLength(2);
     expect(view.getByText('91%')).toBeTruthy();
+  });
+
+  it('renders review and arbitration backlog summaries for governance nodes', async () => {
+    const view = render(<NodeInspector />);
+
+    await act(async () => {
+      useCanvasStore.setState({ selectedNodeId: 'governance-1' });
+    });
+
+    expect(view.getByText('Governance Eval')).toBeTruthy();
+    expect(view.getByText('Review backlog')).toBeTruthy();
+    expect(view.getByText('Arbitration backlog')).toBeTruthy();
+    expect(view.getByText((_content: string, element: Element | null) => element?.textContent === 'Divergent: 0')).toBeTruthy();
+    expect(view.getByText((_content: string, element: Element | null) => element?.textContent === 'Unreviewed: 2')).toBeTruthy();
   });
 });

@@ -489,6 +489,32 @@ export interface GovernanceReviewBacklogPayload {
   items: GovernanceReviewBacklogItem[];
 }
 
+export interface GovernanceArbitrationBacklogItem {
+  decisionId: string;
+  engagementId: string;
+  latestRouteAt?: string | null;
+  ageMinutes: number;
+  routeCount: number;
+  reviewState: 'unreviewed' | 'reversed' | 'accepted';
+}
+
+export interface GovernanceArbitrationBacklogSummary {
+  queueName: string;
+  status: 'green' | 'yellow' | 'red';
+  divergentCount: number;
+  unreviewedCount: number;
+  reversedCount: number;
+  oldestAgeMinutes: number | null;
+  outputCount: number;
+}
+
+export interface GovernanceArbitrationBacklogPayload {
+  windowDays: number;
+  limit: number;
+  queueSummary: GovernanceArbitrationBacklogSummary;
+  items: GovernanceArbitrationBacklogItem[];
+}
+
 export interface LegoFactoryQueueSummaryPayload {
   queueName: string;
   waiting: number;
@@ -537,6 +563,7 @@ export interface GovernanceEvalSnapshotPayload {
   legoFactory: LegoFactoryGovernancePayload;
   memory: MemoryGovernanceSummary;
   reviewBacklog: GovernanceReviewBacklogPayload;
+  arbitrationBacklog: GovernanceArbitrationBacklogPayload;
   coverageGaps: GovernanceCoverageGap[];
 }
 
@@ -601,7 +628,7 @@ export async function fetchOrchestratorRoutingSnapshot(): Promise<OrchestratorRo
 }
 
 export async function fetchGovernanceEvalSnapshot(days = 30, limit = 5): Promise<GovernanceEvalSnapshotPayload> {
-  const [scorecardRes, legoFactoryRes, memoryRes, reviewBacklogRes] = await Promise.all([
+  const [scorecardRes, legoFactoryRes, memoryRes, reviewBacklogRes, arbitrationBacklogRes] = await Promise.all([
     fetch(`${API_URL}/api/governance/scorecard?days=${encodeURIComponent(String(days))}`, {
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(20_000),
@@ -615,6 +642,10 @@ export async function fetchGovernanceEvalSnapshot(days = 30, limit = 5): Promise
       signal: AbortSignal.timeout(20_000),
     }),
     fetch(`${API_URL}/api/governance/review-backlog?days=${encodeURIComponent(String(days))}&limit=${encodeURIComponent(String(limit))}`, {
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(20_000),
+    }),
+    fetch(`${API_URL}/api/governance/arbitration-backlog?days=${encodeURIComponent(String(days))}&limit=${encodeURIComponent(String(limit))}`, {
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(20_000),
     }),
@@ -632,6 +663,9 @@ export async function fetchGovernanceEvalSnapshot(days = 30, limit = 5): Promise
   if (!reviewBacklogRes.ok) {
     throw new Error(`Governance review backlog fetch failed: ${reviewBacklogRes.status}`);
   }
+  if (!arbitrationBacklogRes.ok) {
+    throw new Error(`Governance arbitration backlog fetch failed: ${arbitrationBacklogRes.status}`);
+  }
 
   const scorecardData = await scorecardRes.json() as {
     summary?: GovernanceScorecardSummary;
@@ -648,6 +682,12 @@ export async function fetchGovernanceEvalSnapshot(days = 30, limit = 5): Promise
     limit?: number;
     queueSummary?: GovernanceReviewBacklogSummary;
     items?: GovernanceReviewBacklogItem[];
+  };
+  const arbitrationBacklogData = await arbitrationBacklogRes.json() as {
+    windowDays?: number;
+    limit?: number;
+    queueSummary?: GovernanceArbitrationBacklogSummary;
+    items?: GovernanceArbitrationBacklogItem[];
   };
 
   const scorecard = scorecardData.summary;
@@ -683,6 +723,20 @@ export async function fetchGovernanceEvalSnapshot(days = 30, limit = 5): Promise
     },
     items: reviewBacklogData.items ?? [],
   };
+  const arbitrationBacklog: GovernanceArbitrationBacklogPayload = {
+    windowDays: arbitrationBacklogData.windowDays ?? days,
+    limit: arbitrationBacklogData.limit ?? limit,
+    queueSummary: arbitrationBacklogData.queueSummary ?? {
+      queueName: 'tri-source-arbitration-backlog',
+      status: 'green',
+      divergentCount: 0,
+      unreviewedCount: 0,
+      reversedCount: 0,
+      oldestAgeMinutes: null,
+      outputCount: 0,
+    },
+    items: arbitrationBacklogData.items ?? [],
+  };
 
   return {
     contractVersion: 'canvas.downstream.eval.v1',
@@ -692,6 +746,7 @@ export async function fetchGovernanceEvalSnapshot(days = 30, limit = 5): Promise
     legoFactory,
     memory,
     reviewBacklog,
+    arbitrationBacklog,
     coverageGaps: [...(scorecard.coverageGaps ?? []), ...(memory.coverageGaps ?? [])],
   };
 }

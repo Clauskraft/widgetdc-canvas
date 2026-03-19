@@ -588,6 +588,7 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
           legoFactorySummary: payload.legoFactory.queueSummary as unknown as Record<string, unknown>,
           memoryGovernance: payload.memory as unknown as Record<string, unknown>,
           reviewBacklog: payload.reviewBacklog as unknown as Record<string, unknown>,
+          arbitrationBacklog: payload.arbitrationBacklog as unknown as Record<string, unknown>,
           coverageGaps: payload.coverageGaps as unknown as Array<Record<string, unknown>>,
           governedOutputs: payload.legoFactory.recentGovernedOutputs as unknown as Array<Record<string, unknown>>,
           readOnly: payload.readOnly,
