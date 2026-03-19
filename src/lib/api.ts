@@ -272,13 +272,16 @@ export interface ComplianceGapRecord {
 }
 
 export async function reasonCall(query: string, context?: Record<string, unknown>): Promise<ReasonResponse> {
+  const requestContext = {
+    ...(context ?? {}),
+    ...(query.length > 200 ? { enriched_prompt: query } : {}),
+  };
   const res = await fetch(`${RLM_URL}/reason`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       task: query,
-      context: context ?? {},
-      enriched_prompt: query.length > 200 ? query : undefined,
+      context: requestContext,
     }),
     signal: AbortSignal.timeout(60_000),
   });
