@@ -6,6 +6,7 @@ import {
   fetchOrchestratorRoutingSnapshot,
   graphSearch,
   graphWindow,
+  reasonCall,
 } from './api';
 
 describe('Canvas API: LibreChat runtime intelligence', () => {
@@ -390,5 +391,45 @@ describe('Canvas API: canonical graph routes', () => {
     expect(result).toEqual([
       { id: 'flow-1', label: 'Approval Management', type: 'L1ProcessFlow', score: 1 },
     ]);
+  });
+});
+
+describe('Canvas API: RLM reasoning route', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('posts /reason with canonical task payload shape', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        recommendation: 'Clarify scope',
+        confidence: 0.95,
+        sources: [],
+      }),
+    } as Response);
+
+    const result = await reasonCall('widgetdc', { notebook_hits: 0 });
+
+    const [url, init] = fetchMock.mock.calls.at(-1) as [string, RequestInit];
+    expect(url).toBe('/reason');
+    expect(init).toEqual(expect.objectContaining({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    }));
+
+    const body = JSON.parse(String(init.body));
+    expect(body).toEqual({
+      task: 'widgetdc',
+      context: { notebook_hits: 0 },
+      enriched_prompt: undefined,
+    });
+
+    expect(result).toEqual({
+      recommendation: 'Clarify scope',
+      thinking_steps: [],
+      confidence: 0.95,
+      sources: [],
+    });
   });
 });

@@ -276,7 +276,7 @@ export async function reasonCall(query: string, context?: Record<string, unknown
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      instruction: query,
+      task: query,
       context: context ?? {},
       enriched_prompt: query.length > 200 ? query : undefined,
     }),
