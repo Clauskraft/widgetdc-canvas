@@ -179,7 +179,7 @@ export function NodeInspector() {
                 </>
               )}
               {trustProfiles && trustProfiles.length > 0 && (
-                <div className="pt-1">
+                <div className="pt-1" data-governance-review-backlog="true">
                   <div className="text-gray-500 mb-1">Top trust</div>
                   <div className="space-y-1">
                     {trustProfiles.slice(0, 3).map((profile, index) => (
