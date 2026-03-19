@@ -226,6 +226,7 @@ export function NodeInspector() {
                   <div><span className="text-gray-500">Learning obs</span>: {String(memoryGovernance.learningObservations ?? '0')}</div>
                 </>
               )}
+              {/* Keep review backlog visible in the canonical governance eval node. */}
               {reviewBacklog && (
                 <>
                   <div className="pt-1 text-gray-500">Review backlog</div>
