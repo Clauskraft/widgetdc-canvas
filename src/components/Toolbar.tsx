@@ -33,26 +33,26 @@ import { useReactFlow } from '@xyflow/react';
 import { toPng, toSvg } from 'html-to-image';
 import { useCanvasStore } from '../store/canvasStore';
 import { mcpCall } from '../lib/api';
-import type { CanvasNodeType } from '../types/canvas';
+import type { CanvasNodeInputType } from '../types/canvas';
 
-const NODE_OPTIONS: { type: CanvasNodeType; label: string; icon: typeof Server; group: string }[] = [
+const NODE_OPTIONS: { type: CanvasNodeInputType; label: string; icon: typeof Server; group: string }[] = [
   // Infrastructure
-  { type: 'server',   label: 'Server / Gateway',  icon: Server,     group: 'INFRA' },
-  { type: 'endpoint', label: 'API Endpoint',       icon: Plug,       group: 'INFRA' },
+  { type: 'CodeImplementation', label: 'Server / Gateway',  icon: Server,     group: 'INFRA' },
+  { type: 'MCPTool',            label: 'API Endpoint',      icon: Plug,       group: 'INFRA' },
   // Capability
-  { type: 'tool',     label: 'MCP Tool',           icon: Wrench,     group: 'CAPABILITY' },
+  { type: 'Tool',     label: 'MCP Tool',           icon: Wrench,     group: 'CAPABILITY' },
   // Orchestration
-  { type: 'pipeline', label: 'Pipeline / Workflow', icon: GitBranch,  group: 'ORCHESTRATION' },
-  { type: 'agent',    label: 'Agent',               icon: Bot,        group: 'ORCHESTRATION' },
+  { type: 'Track',    label: 'Pipeline / Workflow', icon: GitBranch,  group: 'ORCHESTRATION' },
+  { type: 'Agent',    label: 'Agent',               icon: Bot,        group: 'ORCHESTRATION' },
   // Intelligence
-  { type: 'entity',   label: 'Entity (Graph)',      icon: Database,     group: 'INTELLIGENCE' },
-  { type: 'insight',  label: 'Insight / Finding',   icon: Lightbulb,    group: 'INTELLIGENCE' },
-  { type: 'evidence', label: 'Evidence / Artifact', icon: FileSearch,   group: 'INTELLIGENCE' },
+  { type: 'Entity',   label: 'Entity (Graph)',      icon: Database,     group: 'INTELLIGENCE' },
+  { type: 'Insight',  label: 'Insight / Finding',   icon: Lightbulb,    group: 'INTELLIGENCE' },
+  { type: 'Evidence', label: 'Evidence / Artifact', icon: FileSearch,   group: 'INTELLIGENCE' },
   // Reasoning
-  { type: 'thought',  label: 'Thought / Reasoning', icon: BrainCircuit, group: 'REASONING' },
+  { type: 'Claim',    label: 'Thought / Reasoning', icon: BrainCircuit, group: 'REASONING' },
   // Sandbox + Meta
   { type: 'query',    label: 'Query Node',          icon: Terminal,     group: 'SANDBOX' },
-  { type: 'artifact', label: 'Artifact',            icon: FileCode,     group: 'SANDBOX' },
+  { type: 'Artifact', label: 'Artifact',            icon: FileCode,     group: 'SANDBOX' },
   { type: 'combo',    label: 'Combo Group',         icon: Layers,       group: 'META' },
 ];
 
@@ -99,7 +99,7 @@ export function Toolbar() {
     setTesting(false);
   };
 
-  const handleAddNode = (type: CanvasNodeType, label: string) => {
+  const handleAddNode = (type: CanvasNodeInputType, label: string) => {
     addNode(type, label);
     setShowAdd(false);
   };

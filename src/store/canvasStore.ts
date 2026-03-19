@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
 import {
   type Node,
   type Edge,
@@ -12,11 +11,19 @@ import {
 } from '@xyflow/react';
 import {
   type CanvasNodeData,
+  type CanvasNodeInputType,
   type CanvasNodeType,
   type ProvenanceData,
+  normalizeCanvasNodeType,
   normalizeRegulatoryLevel,
 } from '../types/canvas';
 import { applyDagreLayout, alignNodesToColumns } from '../lib/layout';
+import {
+  bindCanvasStoreToCrdt,
+  canvasDocBindings,
+  replaceCanvasEdges,
+  replaceCanvasNodes,
+} from './crdt';
 import {
   graphRead,
   graphWrite,
@@ -100,8 +107,8 @@ interface CanvasState {
   onConnect: OnConnect;
 
   // Node operations
-  addNode: (type: CanvasNodeType, label: string, subtitle?: string, position?: { x: number; y: number }, provenance?: ProvenanceData) => void;
-  addNodeWithData: (type: CanvasNodeType, data: Partial<CanvasNodeData>, position?: { x: number; y: number }) => string;
+  addNode: (type: CanvasNodeInputType, label: string, subtitle?: string, position?: { x: number; y: number }, provenance?: ProvenanceData) => void;
+  addNodeWithData: (type: CanvasNodeInputType, data: Partial<CanvasNodeData>, position?: { x: number; y: number }) => string;
   importArtifactSurface: (payload: ArtifactSurfacePayload, position?: { x: number; y: number }) => string;
   importLibreChatRuntime: (payload: LibreChatRuntimeIntelligencePayload, position?: { x: number; y: number }) => string;
   importOrchestratorRouting: (payload: OrchestratorRoutingSnapshotPayload, position?: { x: number; y: number }) => string;
@@ -129,7 +136,7 @@ interface CanvasState {
   redo: () => void;
 
   // Graph operations
-  addNodesFromGraph: (records: unknown[], nodeType: CanvasNodeType, labelField?: string, provenance?: ProvenanceData) => void;
+  addNodesFromGraph: (records: unknown[], nodeType: CanvasNodeInputType, labelField?: string, provenance?: ProvenanceData) => void;
   saveToGraph: () => Promise<void>;
   loadFromGraph: (canvasId?: string) => Promise<void>;
   clearCanvas: () => void;
@@ -145,7 +152,7 @@ interface CanvasState {
 
   // Canvas 5X: AI Reasoning
   reason: (query: string) => Promise<ReasonResponse>;
-  injectToCanvas: (text: string, nodeType?: CanvasNodeType) => string;
+  injectToCanvas: (text: string, nodeType?: CanvasNodeInputType) => string;
 
   // Canvas 5X: Tender Matching (G3)
   matchTenders: (nodeId: string) => Promise<void>;
@@ -211,25 +218,62 @@ function nextNodeId() {
   return `node-${Date.now()}-${++nodeIdCounter}`;
 }
 
+type CanvasStatePatch = Partial<CanvasState>;
+type CanvasStateUpdater = CanvasStatePatch | ((state: CanvasState) => CanvasStatePatch);
+type CanvasSet = (partial: CanvasStateUpdater) => void;
+
+function createCanvasSyncedSet(set: CanvasSet, get: () => CanvasState): CanvasSet {
+  return (partial) => {
+    const resolved = typeof partial === 'function' ? partial(get()) : partial;
+    const hasNodes = Object.prototype.hasOwnProperty.call(resolved, 'nodes');
+    const hasEdges = Object.prototype.hasOwnProperty.call(resolved, 'edges');
+
+    if (hasNodes) {
+      replaceCanvasNodes(canvasDocBindings, resolved.nodes ?? []);
+    }
+
+    if (hasEdges) {
+      replaceCanvasEdges(canvasDocBindings, resolved.edges ?? []);
+    }
+
+    const nextState: CanvasStatePatch = { ...resolved };
+
+    if (hasNodes) {
+      delete nextState.nodes;
+    }
+
+    if (hasEdges) {
+      delete nextState.edges;
+    }
+
+    if (Object.keys(nextState).length > 0) {
+      set(nextState);
+    }
+  };
+}
+
 function nodeTypeFromLabel(label: string): CanvasNodeType {
   const l = label.toLowerCase();
   // Foundry building blocks (ADR-001 — 5 core blocks)
-  if (l.includes('answerblock') || l.includes('answer_block') || l.includes('answer block')) return 'answer-block';
-  if (l.includes('controlpack') || l.includes('control_pack') || l.includes('control pack')) return 'control-pack';
-  if (l.includes('migrationpath') || l.includes('migration_path') || l.includes('migration path')) return 'migration-path';
-  if (l.includes('replacementcandidate') || l.includes('replacement_candidate') || l.includes('replacement candidate')) return 'replacement-candidate';
-  if (l === 'pattern' || l.includes('pattern') && !l.includes('anti')) return 'pattern';
+  if (l.includes('answerblock') || l.includes('answer_block') || l.includes('answer block')) return 'StrategicLeverage';
+  if (l.includes('controlpack') || l.includes('control_pack') || l.includes('control pack')) return 'GuardrailRule';
+  if (l.includes('migrationpath') || l.includes('migration_path') || l.includes('migration path')) return 'Track';
+  if (l.includes('replacementcandidate') || l.includes('replacement_candidate') || l.includes('replacement candidate')) return 'Decision';
+  if (l === 'pattern' || l.includes('pattern') && !l.includes('anti')) return 'KnowledgePattern';
   // Standard types
-  if (l.includes('agent')) return 'agent';
-  if (l.includes('tool') || l.includes('mcp')) return 'tool';
-  if (l.includes('service') || l.includes('server')) return 'server';
-  if (l.includes('endpoint') || l.includes('api')) return 'endpoint';
-  if (l.includes('insight') || l.includes('finding')) return 'insight';
-  if (l.includes('evidence') || l.includes('document')) return 'evidence';
-  if (l.includes('pipeline') || l.includes('workflow')) return 'pipeline';
-  if (l.includes('thought') || l.includes('reason') || l.includes('decision')) return 'thought';
-  if (l.includes('lesson') || l.includes('memory')) return 'thought';
-  return 'entity';
+  if (l.includes('agent')) return 'Agent';
+  if (l.includes('tool')) return 'Tool';
+  if (l.includes('mcp') || l.includes('endpoint') || l.includes('api')) return 'MCPTool';
+  if (l.includes('service') || l.includes('server')) return 'CodeImplementation';
+  if (l.includes('insight') || l.includes('finding')) return 'Insight';
+  if (l.includes('evidence') || l.includes('document')) return 'Evidence';
+  if (l.includes('pipeline') || l.includes('workflow')) return 'Track';
+  if (l.includes('thought') || l.includes('reason')) return 'Claim';
+  if (l.includes('decision')) return 'Decision';
+  if (l.includes('lesson') || l.includes('memory')) return 'Memory';
+  if (l.includes('compliancegap') || l.includes('compliance gap')) return 'ComplianceGap';
+  if (l.includes('strategicleverage') || l.includes('strategic leverage')) return 'StrategicLeverage';
+  return 'Entity';
 }
 
 const PROGRESSIVE_EXPAND_LIMIT = 20;
@@ -330,9 +374,11 @@ function patchNodeFromArtifactSurface(node: Node, payload: ArtifactSurfacePayloa
   };
 }
 
-export const useCanvasStore = create<CanvasState>()(
-  persist(
-    (set, get) => ({
+export const useCanvasStore = create<CanvasState>()((set, get) => {
+    const rawSet = set as CanvasSet;
+    set = createCanvasSyncedSet(rawSet, get);
+
+    return {
       nodes: [],
       edges: [],
       layoutMode: 'freeform',
@@ -410,11 +456,12 @@ export const useCanvasStore = create<CanvasState>()(
         get().pushSnapshot();
         const id = nextNodeId();
         const { nodes, edges, layoutMode } = get();
+        const canonicalType = normalizeCanvasNodeType(type);
         const newNode: Node = {
           id,
-          type,
+          type: canonicalType,
           position: position ?? { x: 100 + Math.random() * 400, y: 100 + Math.random() * 400 },
-          data: { label, subtitle, nodeType: type, provenance },
+          data: { label, subtitle, nodeType: canonicalType, provenance },
         };
         const updatedNodes = [...nodes, newNode];
         if (layoutMode === 'mindmap') {
@@ -428,11 +475,12 @@ export const useCanvasStore = create<CanvasState>()(
         get().pushSnapshot();
         const id = nextNodeId();
         const { nodes, edges, layoutMode } = get();
+        const canonicalType = normalizeCanvasNodeType(type);
         const newNode: Node = {
           id,
-          type,
+          type: canonicalType,
           position: position ?? { x: 100 + Math.random() * 600, y: 100 + Math.random() * 600 },
-          data: { label: 'New Node', nodeType: type, ...data },
+          data: { label: 'New Node', ...data, nodeType: canonicalType },
         };
         const updatedNodes = [...nodes, newNode];
         if (layoutMode === 'mindmap') {
@@ -459,14 +507,14 @@ export const useCanvasStore = create<CanvasState>()(
         const topProfiles = payload.topTrustProfiles.slice(0, 3);
         const anchorPosition = position ?? { x: 240, y: 180 };
 
-        const pipelineId = get().addNodeWithData('pipeline', {
+        const pipelineId = get().addNodeWithData('Track', {
           label: latestDecision
             ? `Routing: ${latestDecision.selected_capability}`
             : 'Routing Snapshot',
           subtitle: latestDecision
             ? `${latestDecision.selected_agent_id} • ${latestDecision.reason_code} • ${(latestDecision.trust_score * 100).toFixed(0)}% trust`
             : 'No routing decisions available',
-          nodeType: 'pipeline',
+          nodeType: 'Track',
           routeFlowRef: latestDecision?.intent?.flow_ref,
           routeSelectedAgent: latestDecision?.selected_agent_id,
           routeCapability: latestDecision?.selected_capability,
@@ -486,10 +534,10 @@ export const useCanvasStore = create<CanvasState>()(
         }, anchorPosition);
 
         topProfiles.forEach((profile, index) => {
-          const agentId = get().addNodeWithData('agent', {
+          const agentId = get().addNodeWithData('Agent', {
             label: profile.agent_id,
             subtitle: `${profile.task_domain} • ${(profile.bayesian_score * 100).toFixed(0)}% • ${profile.scorecard_dimension}`,
-            nodeType: 'agent',
+            nodeType: 'Agent',
             complianceScore: profile.bayesian_score,
             routingDecision: latestDecision as unknown as Record<string, unknown> | undefined,
             workflowEnvelope: workflow as unknown as Record<string, unknown> | undefined,
@@ -532,10 +580,10 @@ export const useCanvasStore = create<CanvasState>()(
           ? `${(memoryCoverage * 100).toFixed(1)}% memory coverage`
           : 'memory coverage n/a';
 
-        const nodeId = get().addNodeWithData('pipeline', {
+        const nodeId = get().addNodeWithData('Track', {
           label: 'Downstream Evaluation',
           subtitle: `${payload.scorecard.verifiedDecisions} verified • ${payload.legoFactory.queueSummary.blocked} blocked • ${memoryCoverageText}`,
-          nodeType: 'pipeline',
+          nodeType: 'Track',
           governanceScorecard: payload.scorecard as unknown as Record<string, unknown>,
           legoFactorySummary: payload.legoFactory.queueSummary as unknown as Record<string, unknown>,
           memoryGovernance: payload.memory as unknown as Record<string, unknown>,
@@ -680,7 +728,7 @@ export const useCanvasStore = create<CanvasState>()(
             const severity = String(gap.severity ?? 'medium').toLowerCase();
             overlayNodes.push({
               id: nodeId,
-              type: 'insight',
+              type: 'Insight',
               position: {
                 x: baseX + (index % 4) * 260,
                 y: baseY + Math.floor(index / 4) * 110,
@@ -688,7 +736,7 @@ export const useCanvasStore = create<CanvasState>()(
               data: {
                 label: title.slice(0, 72),
                 subtitle,
-                nodeType: 'insight',
+                nodeType: 'Insight',
                 regulatoryLevel: severity === 'critical' ? 'strict' : severity === 'high' ? 'guideline' : 'info',
                 complianceScore: severity === 'critical' ? 0.15 : severity === 'high' ? 0.45 : 0.7,
                 signalIntensity: severity === 'critical' ? 0.95 : severity === 'high' ? 0.75 : 0.55,
@@ -895,12 +943,12 @@ export const useCanvasStore = create<CanvasState>()(
 
             return {
               id: String(p.id ?? nextNodeId()),
-              type: String(p.nodeType ?? 'entity'),
+              type: normalizeCanvasNodeType((String(p.nodeType ?? 'Entity')) as CanvasNodeInputType),
               position: { x: Number(p.posX ?? 0), y: Number(p.posY ?? 0) },
               data: {
                 label: String(p.label ?? 'Unknown'),
                 subtitle: enrichment.subtitle || (p.subtitle ? String(p.subtitle) : undefined),
-                nodeType: (p.nodeType ?? 'entity') as CanvasNodeType,
+                nodeType: normalizeCanvasNodeType((String(p.nodeType ?? 'Entity')) as CanvasNodeInputType),
                 provenance,
                 thinkingSteps,
                 reasoningStatus: p.reasoningStatus ? String(p.reasoningStatus) as CanvasNodeData['reasoningStatus'] : undefined,
@@ -1268,11 +1316,11 @@ export const useCanvasStore = create<CanvasState>()(
       },
 
       injectToCanvas: (text, nodeType) => {
-        const type = nodeType ?? 'insight';
+        const type = nodeType ?? 'Insight';
         const id = get().addNodeWithData(type, {
           label: text.slice(0, 60) + (text.length > 60 ? '...' : ''),
           subtitle: text.length > 60 ? text.slice(0, 200) : undefined,
-          nodeType: type,
+          nodeType: normalizeCanvasNodeType(type),
           provenance: {
             createdBy: 'ai',
             createdAt: new Date().toISOString(),
@@ -1286,11 +1334,11 @@ export const useCanvasStore = create<CanvasState>()(
         const id = nextNodeId();
         const newNode: Node = {
           id,
-          type: 'thought',
+          type: 'Claim',
           position,
           data: { 
             label: '', 
-            nodeType: 'thought', 
+            nodeType: 'Claim', 
             isNew: true,
             provenance: { createdBy: 'manual', createdAt: new Date().toISOString(), source: 'double-click' }
           },
@@ -1331,7 +1379,7 @@ export const useCanvasStore = create<CanvasState>()(
           const parentPos = node.position;
           const newNodes: Node[] = result.matches.map((match, i) => ({
             id: `tender-${match.tender_id?.slice(0, 8) ?? i}-${Date.now()}`,
-            type: 'evidence' as const,
+            type: 'Evidence' as const,
             position: {
               x: parentPos.x + 300,
               y: parentPos.y + (i - result.matches!.length / 2) * 80,
@@ -1339,7 +1387,7 @@ export const useCanvasStore = create<CanvasState>()(
             data: {
               label: match.text?.slice(0, 60) + ((match.text?.length ?? 0) > 60 ? '...' : ''),
               subtitle: `${match.category ?? 'Tender'} (${((match.score ?? 0) * 100).toFixed(0)}%)`,
-              nodeType: 'evidence' as CanvasNodeType,
+              nodeType: 'Evidence' as CanvasNodeType,
               complianceScore: match.confidence ?? 0.5,
               signalIntensity: (match.score ?? 0) > 0.8 ? 0.85 : 0.5,
               provenance: {
@@ -1423,11 +1471,11 @@ export const useCanvasStore = create<CanvasState>()(
               const m = tenderResult.value.matches[i];
               const nId = nextNodeId();
               newNodes.push({
-                id: nId, type: 'evidence',
+                id: nId, type: 'Evidence',
                 position: { x: parentPos.x + 350, y: parentPos.y + i * 70 - 150 },
                 data: {
                   label: m.text?.slice(0, 50) + '...', subtitle: `Tender: ${m.category} (${((m.score ?? 0) * 100).toFixed(0)}%)`,
-                  nodeType: 'evidence', complianceScore: m.confidence, signalIntensity: m.score > 0.8 ? 0.85 : 0.5,
+                  nodeType: 'Evidence', complianceScore: m.confidence, signalIntensity: m.score > 0.85 ? 0.85 : 0.5,
                   provenance: { createdBy: 'tool', createdAt: new Date().toISOString(), source: 'auto-analyze → nexus.tender_match', tool: 'nexus.tender_match' },
                 },
               });
@@ -1440,10 +1488,10 @@ export const useCanvasStore = create<CanvasState>()(
             const r = reasonResult.value;
             const nId = nextNodeId();
             newNodes.push({
-              id: nId, type: 'thought',
+              id: nId, type: 'Claim',
               position: { x: parentPos.x - 300, y: parentPos.y },
               data: {
-                label: `Analysis: ${label}`, subtitle: 'Auto-Analysis', nodeType: 'thought',
+                label: `Analysis: ${label}`, subtitle: 'Auto-Analysis', nodeType: 'Claim',
                 thinkingSteps: r.thinking_steps, reasoningStatus: 'complete',
                 complianceScore: r.confidence,
                 provenance: { createdBy: 'ai', createdAt: new Date().toISOString(), source: 'auto-analyze → /reason', confidence: r.confidence },
@@ -1473,10 +1521,10 @@ export const useCanvasStore = create<CanvasState>()(
         set({ isLoading: true });
         t?.('info', 'Generating narrative report...');
         try {
-          const entities = nodes.filter(n => n.type === 'entity');
-          const evidence = nodes.filter(n => n.type === 'evidence');
-          const insights = nodes.filter(n => n.type === 'insight');
-          const thoughts = nodes.filter(n => n.type === 'thought');
+          const entities = nodes.filter(n => n.type === 'Entity');
+          const evidence = nodes.filter(n => n.type === 'Evidence');
+          const insights = nodes.filter(n => n.type === 'Insight' || n.type === 'StrategicInsight');
+          const thoughts = nodes.filter(n => n.type === 'Claim');
           const edgeLabels = get().edges.map(e => (e as Edge & { label?: string }).label).filter(Boolean);
 
           const canvasSummary = [
@@ -1493,10 +1541,10 @@ export const useCanvasStore = create<CanvasState>()(
             { domain: 'consulting', output_format: 'narrative' },
           );
 
-          get().addNodeWithData('artifact', {
+          get().addNodeWithData('Artifact', {
             label: 'Narrative Report',
             subtitle: `Generated from ${nodes.length} nodes`,
-            nodeType: 'artifact',
+            nodeType: 'Artifact',
             artifactType: 'markdown',
             artifactSource: result.recommendation,
             provenance: {
@@ -1520,7 +1568,7 @@ export const useCanvasStore = create<CanvasState>()(
       evaluateHypothesis: async (thoughtNodeId) => {
         const { nodes, edges } = get();
         const thought = nodes.find(n => n.id === thoughtNodeId);
-        if (!thought || thought.type !== 'thought') {
+        if (!thought || thought.type !== 'Claim') {
           get()._toast?.('info', 'Select a thought/hypothesis node first');
           return;
         }
@@ -1532,7 +1580,7 @@ export const useCanvasStore = create<CanvasState>()(
         try {
           const connectedEdges = edges.filter(e => e.source === thoughtNodeId || e.target === thoughtNodeId);
           const connectedNodeIds = connectedEdges.map(e => e.source === thoughtNodeId ? e.target : e.source);
-          const evidenceNodes = nodes.filter(n => connectedNodeIds.includes(n.id) && (n.type === 'evidence' || n.type === 'insight'));
+          const evidenceNodes = nodes.filter(n => connectedNodeIds.includes(n.id) && (n.type === 'Evidence' || n.type === 'Insight' || n.type === 'StrategicInsight'));
 
           const prompt = [
             `Evaluate this hypothesis against the connected evidence. Score 0.0 (fully refuted) to 1.0 (fully supported).`,
@@ -1613,11 +1661,11 @@ export const useCanvasStore = create<CanvasState>()(
           for (const [domain, ins] of domains) {
             const nId = nextNodeId();
             newNodes.push({
-              id: nId, type: 'insight',
+              id: nId, type: 'Insight',
               position: { x, y: 100 },
               data: {
                 label: `Pattern: ${domain}`, subtitle: `${ins.length} insights analyzed`,
-                nodeType: 'insight', signalIntensity: 0.8,
+                nodeType: 'Insight', signalIntensity: 0.8,
                 provenance: { createdBy: 'ai', createdAt: new Date().toISOString(), source: 'discoverPatterns' },
               },
             });
@@ -1626,11 +1674,11 @@ export const useCanvasStore = create<CanvasState>()(
 
           const synthId = nextNodeId();
           newNodes.push({
-            id: synthId, type: 'thought',
+            id: synthId, type: 'Claim',
             position: { x: x / 2 - 140, y: 250 },
             data: {
               label: 'Cross-Engagement Synthesis',
-              nodeType: 'thought', thinkingSteps: result.thinking_steps,
+              nodeType: 'Claim', thinkingSteps: result.thinking_steps,
               reasoningStatus: 'complete', complianceScore: result.confidence,
               provenance: { createdBy: 'ai', createdAt: new Date().toISOString(), source: 'discoverPatterns', confidence: result.confidence },
             },
@@ -1795,28 +1843,28 @@ Svar i JSON format: {
           const newNodes: Node[] = [
             {
               id: nextNodeId(),
-              type: 'insight',
+              type: 'Insight',
               position: { x: parentPos.x + 300, y: parentPos.y - 100 },
               data: { 
-                label: parsed.direct.label, subtitle: parsed.direct.detail, nodeType: 'insight',
+                label: parsed.direct.label, subtitle: parsed.direct.detail, nodeType: 'Insight',
                 provenance: { createdBy: 'ai', createdAt: new Date().toISOString(), source: 'Consequence Engine: Direct' }
               }
             },
             {
               id: nextNodeId(),
-              type: 'insight',
+              type: 'Insight',
               position: { x: parentPos.x + 350, y: parentPos.y },
               data: { 
-                label: parsed.ripple.label, subtitle: parsed.ripple.detail, nodeType: 'insight',
+                label: parsed.ripple.label, subtitle: parsed.ripple.detail, nodeType: 'Insight',
                 provenance: { createdBy: 'ai', createdAt: new Date().toISOString(), source: 'Consequence Engine: Ripple' }
               }
             },
             {
               id: nextNodeId(),
-              type: 'insight',
+              type: 'Insight',
               position: { x: parentPos.x + 300, y: parentPos.y + 100 },
               data: { 
-                label: parsed.risk.label, subtitle: parsed.risk.detail, nodeType: 'insight', signalIntensity: 0.9,
+                label: parsed.risk.label, subtitle: parsed.risk.detail, nodeType: 'Insight', signalIntensity: 0.9,
                 provenance: { createdBy: 'ai', createdAt: new Date().toISOString(), source: 'Consequence Engine: Risk' }
               }
             }
@@ -1875,10 +1923,10 @@ Svar i Markdown format.`;
 
           const result = await reasonCall(prompt, { domain: 'critical-synthesis' });
 
-          get().addNodeWithData('artifact', {
+          get().addNodeWithData('Artifact', {
             label: 'Critical Synthesis Report',
             subtitle: 'Strategisk sammensmeltning vs. Empiri',
-            nodeType: 'artifact',
+            nodeType: 'Artifact',
             artifactType: 'markdown',
             artifactSource: result.recommendation,
             provenance: {
@@ -1928,7 +1976,7 @@ Svar i Markdown format.`;
           }
 
           if (template.autoAnalyze) {
-            const firstEntity = get().nodes.find(n => n.type === 'entity');
+            const firstEntity = get().nodes.find(n => n.type === 'Entity');
             if (firstEntity) {
               await get().autoAnalyze(firstEntity.id);
             }
@@ -1982,7 +2030,7 @@ Svar i Markdown format.`;
           for (const raw of steps) {
             const s = raw as Record<string, unknown>;
             const ctx = String(s.nodeContext ?? 'replay');
-            get().addNode('thought', `[${s.actionType}] ${ctx}`, undefined, undefined, {
+            get().addNode('Claim', `[${s.actionType}] ${ctx}`, undefined, undefined, {
               createdBy: 'pipeline',
               createdAt: String(s.timestamp ?? new Date().toISOString()),
               source: `replay:${engagementId}`,
@@ -2146,9 +2194,9 @@ Svar i Markdown format.`;
             await get().loadTemplate(templateId);
           }
 
-          const entityId = get().addNodeWithData('entity', {
+          const entityId = get().addNodeWithData('Entity', {
             label: entityName,
-            nodeType: 'entity',
+            nodeType: 'Entity',
             provenance: { createdBy: 'pipeline', createdAt: new Date().toISOString(), source: 'analysis-pipeline' },
           });
 
@@ -2195,10 +2243,10 @@ Svar i Markdown format.`;
           } else if (cmd.startsWith('/analyze')) {
             await get().autoAnalyze(nodeId);
           } else if (cmd === '/help' || cmd.includes('hvad kan du')) {     
-            get().addNodeWithData('thought', { 
+            get().addNodeWithData('Claim', { 
               label: 'Oraklets Kapabiliteter', 
               subtitle: 'Jeg ræsonnerer over 5 lag: Intern, Ekstern, Egen, Fælles og din kuraterede Notebook.', 
-              nodeType: 'thought' 
+              nodeType: 'Claim' 
             }, { x: node.position.x + 300, y: node.position.y });
           } else {
             let neighbors: string[] = [];
@@ -2219,15 +2267,15 @@ Svar i Markdown format.`;
             updateStatus('thinking', 'Henter grounded viden fra Notebook (curated library)...');
             const notebookContext = await fetchNotebookContext(label !== 'unnamed thought' ? label : command);
 
-            const result = await reasonCall(`Svar paa: "${command}" in context of "${label || 'thought'}".
+            const result = await reasonCall(`Svar paa: "${command}" in context of "${label || 'claim'}".
 Internal: ${neighbors.join(', ') || 'None'}
 Global: ${collectiveMemories.length} lessons.
 Notebook: ${notebookContext.slice(0, 500)}`, { domain: 'contextual-node-oracle' });
 
-            const newId = get().addNodeWithData('insight', { 
+            const newId = get().addNodeWithData('Insight', { 
               label: result.recommendation.slice(0, 60) + (result.recommendation.length > 60 ? '...' : ''), 
               subtitle: result.recommendation, 
-              nodeType: 'insight', 
+              nodeType: 'Insight', 
               thinkingSteps: result.thinking_steps, 
               provenance: { createdBy: 'ai', createdAt: new Date().toISOString(), source: `Orakel-svar: ${command}`, confidence: result.confidence } 
             }, { x: node.position.x + 350, y: node.position.y });
@@ -2276,10 +2324,10 @@ Notebook: ${notebookContext.slice(0, 500)}`, { domain: 'contextual-node-oracle' 
           const avgX = nodes.reduce((s, n) => s + n.position.x, 0) / nodes.length;
           const avgY = nodes.reduce((s, n) => s + n.position.y, 0) / nodes.length;
 
-          get().addNodeWithData('artifact', {
+          get().addNodeWithData('Artifact', {
             label: 'Neural Briefing: Strategy Podcast',
             subtitle: 'Programmatic Audio Overview (NotebookLM)',
-            nodeType: 'artifact',
+            nodeType: 'Artifact',
             artifactType: 'audio',
             reasoningStatus: 'thinking',
             thinkingSteps: ['Context Injected', 'Audio Generation Triggered', 'Waiting for sync...'],
@@ -2297,32 +2345,7 @@ Notebook: ${notebookContext.slice(0, 500)}`, { domain: 'contextual-node-oracle' 
           set({ isLoading: false });
         }
       },
-    }),
-    {
-      name: 'widgetdc-canvas-storage',
-      storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
-        nodes: state.nodes.map(n => ({
-          ...n,
-          data: {
-            ...n.data,
-            thinkingSteps: undefined,
-            evidenceLinks: undefined,
-            artifactSource: typeof n.data.artifactSource === 'string'
-              ? (n.data.artifactSource as string).slice(0, 500)
-              : undefined,
-            subtitle: typeof n.data.subtitle === 'string' && (n.data.subtitle as string).length > 200
-              ? (n.data.subtitle as string).slice(0, 200)
-              : n.data.subtitle,
-          },
-        })),
-        edges: state.edges,
-        layoutMode: state.layoutMode,
-        canvasId: state.canvasId,
-        knowledgeExplorerMode: state.knowledgeExplorerMode,
-        routingSnapshot: state.routingSnapshot,
-        governanceSnapshot: state.governanceSnapshot,
-      }),
-    }
-  )
-);
+    };
+});
+
+bindCanvasStoreToCrdt(useCanvasStore, canvasDocBindings);

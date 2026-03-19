@@ -35,12 +35,12 @@ function resetStore() {
     nodes: [
       {
         id: 'node-1',
-        type: 'entity',
+        type: 'Entity',
         position: { x: 0, y: 0 },
         data: {
           label: 'Selected Node',
           subtitle: 'Hook-stable details',
-          nodeType: 'entity',
+          nodeType: 'Entity',
           provenance: {
             createdBy: 'manual',
             createdAt: '2026-03-17T00:00:00.000Z',
@@ -50,11 +50,11 @@ function resetStore() {
       },
       {
         id: 'artifact-1',
-        type: 'artifact',
+        type: 'Artifact',
         position: { x: 80, y: 40 },
         data: {
           label: 'Decision Pack',
-          nodeType: 'artifact',
+          nodeType: 'Artifact',
           artifactId: 'artifact-1',
           reviewState: 'export_ready',
           renderPackageId: 'renderpkg-1',

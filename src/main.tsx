@@ -4,6 +4,7 @@ import { ReactFlowProvider } from '@xyflow/react';
 import { motion } from 'framer-motion';
 import { BookOpen, Map } from 'lucide-react';
 import { Canvas } from './components/Canvas';
+import { CanvasCollaboration } from './components/CanvasCollaboration';
 import { Toolbar } from './components/Toolbar';
 import { AIPanel } from './components/AIPanel';
 import { ToolPalette } from './components/ToolPalette';
@@ -12,20 +13,15 @@ import { NodeInspector } from './components/NodeInspector';
 import { CommandPalette } from './components/CommandPalette';
 import { Journal } from './components/Journal';
 import { ToastProvider, useToast } from './components/Toast';
+import { SnoutObserver } from './components/SnoutObserver';
 import { useCanvasStore } from './store/canvasStore';
 import './index.css';
 
+const DEBUG_BUILD_STAMP = 'OMNI-MERGE-VERIFY-2026-03-19T03:17Z';
+
 function hasPersistedCanvasState(): boolean {
-  try {
-    const raw = localStorage.getItem('widgetdc-canvas-storage');
-    if (!raw) return false;
-    const parsed = JSON.parse(raw) as { state?: { nodes?: unknown[]; edges?: unknown[] } };
-    const nodes = parsed?.state?.nodes;
-    const edges = parsed?.state?.edges;
-    return (Array.isArray(nodes) && nodes.length > 0) || (Array.isArray(edges) && edges.length > 0);
-  } catch {
-    return false;
-  }
+  const { nodes, edges } = useCanvasStore.getState();
+  return nodes.length > 0 || edges.length > 0;
 }
 
 function AutoLoader() {
@@ -89,6 +85,9 @@ function App() {
                   <span className="text-xl">🧠</span>
                   <h1 className="text-sm font-bold text-gray-100 tracking-wide">WidgeTDC Canvas</h1>
                   <button className="text-xs text-gray-500 border-l border-neural-border pl-3 hover:text-gray-300">Se Cockpit-version</button>
+                  <span className="text-[10px] font-black text-lime-300 border-l border-lime-500/30 pl-3 tracking-widest">
+                    {DEBUG_BUILD_STAMP}
+                  </span>
                 </div>
                 
                 <div className="flex items-center gap-4">
@@ -111,6 +110,8 @@ function App() {
                 <NodeInspector />
                 <AIPanel />
                 <AutoLoader />
+                <CanvasCollaboration />
+                <SnoutObserver />
               </div>
 
               <StatusBar />
@@ -150,6 +151,8 @@ if (container) {
   // Expose store for Stability Audit (Day 5)
   if (import.meta.env.DEV) {
     (window as any).useCanvasStore = useCanvasStore;
+    (window as any).__WIDGETDC_CANVAS_BUILD__ = DEBUG_BUILD_STAMP;
+    document.title = `WidgeTDC Canvas ${DEBUG_BUILD_STAMP}`;
   }
 
   const root = createRoot(container);

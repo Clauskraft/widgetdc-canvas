@@ -273,15 +273,18 @@ describe('Canvas API: canonical graph routes', () => {
   });
 
   it('posts graph.window with canonical payload shape', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        success: true,
+    const responsePayload = {
+      success: true,
+      result: {
         nodes: [{ id: 'domain-1', label: 'Strategy', type: 'ConsultingDomain' }],
         edges: [{ source: 'domain-1', target: 'flow-1', type: 'HAS_SUBPROCESS' }],
         total_count: 1,
         lod_level: 'overview',
-      }),
+      },
+    };
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify(responsePayload),
     } as Response);
 
     const result = await graphWindow('overview', { centerNodeId: 'Strategy', limit: 25 });
@@ -315,14 +318,17 @@ describe('Canvas API: canonical graph routes', () => {
   });
 
   it('posts graph.search with canonical payload shape', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        success: true,
+    const responsePayload = {
+      success: true,
+      result: {
         results: [
           { id: 'flow-1', label: 'Approval Management', type: 'L1ProcessFlow', score: 1 },
         ],
-      }),
+      },
+    };
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify(responsePayload),
     } as Response);
 
     const result = await graphSearch('approval', { nodeTypes: ['L1ProcessFlow'], limit: 10 });

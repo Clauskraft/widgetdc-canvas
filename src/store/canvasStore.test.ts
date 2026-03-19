@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { useCanvasStore, type ActionRecommendation } from './canvasStore';
+import { resetCanvasCrdt } from './crdt';
 import { normalizeRegulatoryLevel } from '../types/canvas';
 
 // ---- Mocks ----
@@ -63,6 +64,7 @@ function resetStore() {
 }
 
 beforeEach(() => {
+  resetCanvasCrdt();
   resetStore();
   vi.clearAllMocks();
 });
@@ -76,9 +78,9 @@ describe('Core Operations', () => {
     store.addNode('entity', 'TestEntity');
     const nodes = useCanvasStore.getState().nodes;
     expect(nodes).toHaveLength(1);
-    expect(nodes[0].type).toBe('entity');
+    expect(nodes[0].type).toBe('Entity');
     expect(nodes[0].data.label).toBe('TestEntity');
-    expect(nodes[0].data.nodeType).toBe('entity');
+    expect(nodes[0].data.nodeType).toBe('Entity');
   });
 
   it('addNode accepts optional subtitle and position', () => {
@@ -657,7 +659,7 @@ describe('Graph Operations', () => {
     await useCanvasStore.getState().matchTenders(nodeId);
     const nodes = useCanvasStore.getState().nodes;
     expect(nodes.length).toBe(2); // original + 1 tender
-    expect(nodes[1].type).toBe('evidence');
+    expect(nodes[1].type).toBe('Evidence');
     const edges = useCanvasStore.getState().edges;
     expect(edges.length).toBe(1);
     expect(edges[0].source).toBe(nodeId);
@@ -829,7 +831,7 @@ describe('Strategic 10', () => {
 
     const result = await useCanvasStore.getState().generateNarrative();
     expect(result).toBe('Narrative text about Alpha');
-    const artifacts = useCanvasStore.getState().nodes.filter(n => n.type === 'artifact');
+    const artifacts = useCanvasStore.getState().nodes.filter(n => n.type === 'Artifact');
     expect(artifacts).toHaveLength(1);
     expect(artifacts[0].data.label).toBe('Narrative Report');
   });
@@ -838,12 +840,12 @@ describe('Strategic 10', () => {
     const store = useCanvasStore.getState();
     const id = store.addNodeWithData('thought', {
       label: 'Hypothesis: Market grows 20%',
-      nodeType: 'thought',
+      nodeType: 'Claim',
     });
     // Force node type to thought
     useCanvasStore.setState({
       nodes: useCanvasStore.getState().nodes.map(n =>
-        n.id === id ? { ...n, type: 'thought' } : n
+        n.id === id ? { ...n, type: 'Claim' } : n
       ),
     });
 

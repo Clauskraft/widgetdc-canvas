@@ -15,18 +15,49 @@ export async function mcpCall<T = unknown>(tool: string, payload: Record<string,
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${API_KEY}`,
+      'X-API-Key': API_KEY,
     },
     body: JSON.stringify({ tool, payload }),
     signal: AbortSignal.timeout(30_000),
   });
 
-  if (!res.ok) {
-    throw new Error(`MCP call failed: ${res.status} ${res.statusText}`);
+  let data: unknown = null;
+  let rawText = '';
+
+  try {
+    rawText = await res.text();
+    data = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    data = rawText || null;
   }
 
-  const data = await res.json();
-  if (data?.error) {
-    throw new Error(data.error?.message ?? String(data.error));
+  if (!res.ok) {
+    const body = data as {
+      error?: string | { message?: string };
+      message?: string;
+      legalVeto?: { reason?: string; constraintName?: string; lawName?: string };
+    } | null;
+    const backendMessage =
+      typeof body?.error === 'string' ? body.error
+      : typeof body?.error?.message === 'string' ? body.error.message
+      : typeof body?.message === 'string' ? body.message
+      : body?.legalVeto?.reason
+      ?? rawText
+      ?? res.statusText;
+    const extra =
+      body?.legalVeto
+        ? ` [${body.legalVeto.constraintName ?? 'Legal gate'}${body.legalVeto.lawName ? ` / ${body.legalVeto.lawName}` : ''}]`
+        : '';
+    throw new Error(`MCP ${tool} failed: ${res.status} ${backendMessage}${extra}`);
+  }
+
+  const typed = data as { error?: string | { message?: string } } | null;
+  if (typed?.error) {
+    throw new Error(
+      typeof typed.error === 'string'
+        ? `MCP ${tool} failed: ${typed.error}`
+        : `MCP ${tool} failed: ${typed.error.message ?? 'Unknown MCP error'}`
+    );
   }
   return data as T;
 }
@@ -83,6 +114,12 @@ export async function graphWindow(
 ): Promise<GraphWindowResponse> {
   const result = await mcpCall<{
     success?: boolean;
+    result?: {
+      nodes?: unknown[];
+      edges?: unknown[];
+      total_count?: number;
+      lod_level?: string;
+    };
     nodes?: unknown[];
     edges?: unknown[];
     total_count?: number;
@@ -93,11 +130,12 @@ export async function graphWindow(
     limit: options?.limit,
   });
 
+  const inner = result?.result ?? result;
   return {
-    nodes: (result?.nodes as unknown[]) ?? [],
-    edges: (result?.edges as unknown[]) ?? [],
-    totalCount: Number(result?.total_count ?? 0),
-    lodLevel: String(result?.lod_level ?? lod),
+    nodes: (inner?.nodes as unknown[]) ?? [],
+    edges: (inner?.edges as unknown[]) ?? [],
+    totalCount: Number(inner?.total_count ?? 0),
+    lodLevel: String(inner?.lod_level ?? lod),
   };
 }
 
@@ -114,6 +152,9 @@ export async function graphSearch(
 ): Promise<GraphSearchResult[]> {
   const result = await mcpCall<{
     success?: boolean;
+    result?: {
+      results?: GraphSearchResult[];
+    };
     results?: GraphSearchResult[];
   }>('graph.search', {
     query,
@@ -121,7 +162,8 @@ export async function graphSearch(
     limit: options?.limit,
   });
 
-  return Array.isArray(result?.results) ? result.results : [];
+  const inner = result?.result ?? result;
+  return Array.isArray(inner?.results) ? inner.results : [];
 }
 
 function graphWindowToNeighborRecords(
@@ -593,10 +635,13 @@ export interface ToolDefinition {
 
 export async function listMcpTools(): Promise<ToolDefinition[]> {
   const res = await fetch(`${API_URL}/api/mcp/tools`, {
-    headers: { 'Authorization': `Bearer ${API_KEY}` },
+    headers: {
+      'Authorization': `Bearer ${API_KEY}`,
+      'X-API-Key': API_KEY,
+    },
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) return [];
   const data = await res.json();
-  return (data?.tools ?? data ?? []) as ToolDefinition[];
+  return (data?.data?.definitions ?? data?.definitions ?? data?.tools ?? data ?? []) as ToolDefinition[];
 }

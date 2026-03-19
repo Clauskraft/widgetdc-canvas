@@ -3,7 +3,7 @@ import { X, Send, Loader2, ChevronDown, ChevronRight, ArrowDownToLine, BrainCirc
 import { useCanvasStore } from '../store/canvasStore';
 import { graphRead, graphSearch, graphTextSearch, graphWindow, mcpCall, isComplianceQuery } from '../lib/api';
 import { ragQuery, type SuggestedAction } from '../lib/rag';
-import type { CanvasNodeType } from '../types/canvas';
+import type { CanvasNodeInputType } from '../types/canvas';
 import { syncNotebookLM, saveNotebookLMCookie } from '../lib/connectors';
 import { runPipeline, runFullEnrichment, DANISH_TARGETS } from '../testcases/competitive-intel-pipeline';
 import {
@@ -25,41 +25,41 @@ interface Message {
 
 const COMMAND_MAP: {
   pattern: RegExp;
-  handler: (match: RegExpMatchArray) => Promise<{ records: unknown[]; nodeType: CanvasNodeType; labelField: string; message: string }>;
+  handler: (match: RegExpMatchArray) => Promise<{ records: unknown[]; nodeType: CanvasNodeInputType; labelField: string; message: string }>;
 }[] = [
   {
     pattern: /^(show|vis|hent)\s+(all\s+)?agents?$/i,
     handler: async () => {
       const records = await graphRead("MATCH (a:Agent) WHERE a.status <> 'deprecated' RETURN a LIMIT 30");
-      return { records, nodeType: 'agent', labelField: 'name', message: `Found ${(records as unknown[]).length} agents` };
+      return { records, nodeType: 'Agent', labelField: 'name', message: `Found ${(records as unknown[]).length} agents` };
     },
   },
   {
     pattern: /^(show|vis|hent)\s+(all\s+)?servers?$/i,
     handler: async () => {
       const records = await graphRead('MATCH (s:Service) RETURN s LIMIT 30');
-      return { records, nodeType: 'server', labelField: 'name', message: `Found ${(records as unknown[]).length} servers` };
+      return { records, nodeType: 'CodeImplementation', labelField: 'name', message: `Found ${(records as unknown[]).length} servers` };
     },
   },
   {
     pattern: /^(show|vis|hent)\s+(all\s+)?tools?$/i,
     handler: async () => {
       const records = await graphRead('MATCH (t:MCPTool) RETURN t LIMIT 50');
-      return { records, nodeType: 'tool', labelField: 'name', message: `Found ${(records as unknown[]).length} tools` };
+      return { records, nodeType: 'Tool', labelField: 'name', message: `Found ${(records as unknown[]).length} tools` };
     },
   },
   {
     pattern: /^(show|vis|hent)\s+(all\s+)?entities$/i,
     handler: async () => {
       const records = await graphRead('MATCH (d:ConsultingDomain) RETURN d LIMIT 30');
-      return { records, nodeType: 'entity', labelField: 'name', message: `Found ${(records as unknown[]).length} entities` };
+      return { records, nodeType: 'Entity', labelField: 'name', message: `Found ${(records as unknown[]).length} entities` };
     },
   },
   {
     pattern: /^(show|vis|hent)\s+(all\s+)?competitors?$/i,
     handler: async () => {
       const records = await graphRead('MATCH (c:Competitor) RETURN c LIMIT 30');
-      return { records, nodeType: 'entity', labelField: 'name', message: `Found ${(records as unknown[]).length} competitors` };
+      return { records, nodeType: 'Entity', labelField: 'name', message: `Found ${(records as unknown[]).length} competitors` };
     },
   },
   {
@@ -67,7 +67,7 @@ const COMMAND_MAP: {
     handler: async (match) => {
       const query = match[1]?.trim() ?? '';
       const records = await graphRead(query);
-      return { records, nodeType: 'entity', labelField: 'name', message: `Query returned ${(records as unknown[]).length} records` };
+      return { records, nodeType: 'Entity', labelField: 'name', message: `Query returned ${(records as unknown[]).length} records` };
     },
   },
   {
@@ -75,7 +75,7 @@ const COMMAND_MAP: {
     handler: async (match) => {
       const query = match[2]?.trim() ?? '';
       const records = await graphSearch(query, { limit: 20 });
-      return { records, nodeType: 'entity', labelField: 'label', message: `Found ${(records as unknown[]).length} graph matches for "${query}"` };
+      return { records, nodeType: 'Entity', labelField: 'label', message: `Found ${(records as unknown[]).length} graph matches for "${query}"` };
     },
   },
   {
@@ -85,7 +85,7 @@ const COMMAND_MAP: {
       const result = await graphWindow(lod, { limit: lod === 'detail' ? 300 : undefined });
       return {
         records: result.nodes,
-        nodeType: 'entity',
+        nodeType: 'Entity',
         labelField: 'label',
         message: `Loaded graph ${lod} window with ${result.nodes.length} nodes and ${result.edges.length} edges`,
       };
@@ -121,13 +121,13 @@ const PIPELINE_COMMANDS: {
       if (!target) return `Target "${targetName}" not found.`;
       addMsg(`Starting CI Pipeline for ${target.name}...`);
       const result = await runPipeline(target);
-      addNode('entity', target.name, target.domain);
+      addNode('Entity', target.name, target.domain);
       return `Pipeline complete for ${target.name}.`;
     },
   },
 ];
 
-function MessageBubble({ msg, onInject, onRunCommand }: { msg: Message; onInject: (text: string, type?: CanvasNodeType) => string; onRunCommand?: (cmd: string) => void }) {
+function MessageBubble({ msg, onInject, onRunCommand }: { msg: Message; onInject: (text: string, type?: CanvasNodeInputType) => string; onRunCommand?: (cmd: string) => void }) {
   const [showThinking, setShowThinking] = useState(false);
   const hasThinking = msg.thinkingSteps && msg.thinkingSteps.length > 0;
 
@@ -147,7 +147,7 @@ function MessageBubble({ msg, onInject, onRunCommand }: { msg: Message; onInject
         </div>
       )}
       {msg.injectable && msg.role === 'assistant' && (
-        <button onClick={() => onInject(msg.content, 'insight')} className="mt-2 flex items-center gap-1 text-[11px] text-tdc-400 hover:text-tdc-300">
+        <button onClick={() => onInject(msg.content, 'Insight')} className="mt-2 flex items-center gap-1 text-[11px] text-tdc-400 hover:text-tdc-300">
           <ArrowDownToLine size={11} /> Inject to Canvas
         </button>
       )}

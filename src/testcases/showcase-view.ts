@@ -28,16 +28,16 @@ export async function generateShowcaseView(): Promise<{ nodes: Node<CanvasNodeDa
   // ═══ TOP: Pipeline + Agent ═══
   nodes.push({
     id: 'ci-pipeline',
-    type: 'pipeline',
+    type: 'Track',
     position: { x: 300, y: -80 },
-    data: { label: 'CI Intelligence Pipeline', subtitle: '5-step competitive enrichment workflow', nodeType: 'pipeline' },
+    data: { label: 'CI Intelligence Pipeline', subtitle: '5-step competitive enrichment workflow', nodeType: 'Track' },
   });
 
   nodes.push({
     id: 'ci-agent',
-    type: 'agent',
+    type: 'Agent',
     position: { x: 600, y: -80 },
-    data: { label: 'omega-sentinel', subtitle: 'Autonomous pipeline runner', nodeType: 'agent' },
+    data: { label: 'omega-sentinel', subtitle: 'Autonomous pipeline runner', nodeType: 'Agent' },
   });
 
   edges.push({ id: 'e-agent-pipeline', source: 'ci-agent', target: 'ci-pipeline' });
@@ -45,16 +45,16 @@ export async function generateShowcaseView(): Promise<{ nodes: Node<CanvasNodeDa
   // ═══ INFRA: Backend + Neo4j ═══
   nodes.push({
     id: 'infra-backend',
-    type: 'server',
+    type: 'CodeImplementation',
     position: { x: -200, y: -80 },
-    data: { label: 'Backend Express', subtitle: '777 endpoints, 329 MCP tools', nodeType: 'server' },
+    data: { label: 'Backend Express', subtitle: '777 endpoints, 329 MCP tools', nodeType: 'CodeImplementation' },
   });
 
   nodes.push({
     id: 'infra-neo4j',
-    type: 'server',
+    type: 'CodeImplementation',
     position: { x: -200, y: 20 },
-    data: { label: 'Neo4j AuraDB', subtitle: '201K+ nodes, 1.57M+ edges', nodeType: 'server' },
+    data: { label: 'Neo4j AuraDB', subtitle: '201K+ nodes, 1.57M+ edges', nodeType: 'CodeImplementation' },
   });
 
   edges.push({ id: 'e-backend-neo4j', source: 'infra-backend', target: 'infra-neo4j' });
@@ -73,9 +73,9 @@ export async function generateShowcaseView(): Promise<{ nodes: Node<CanvasNodeDa
   tools.forEach((t, i) => {
     nodes.push({
       id: t.id,
-      type: 'tool',
+      type: 'Tool',
       position: { x: 0, y: 80 + i * 110 },
-      data: { label: t.label, subtitle: t.sub, nodeType: 'tool' },
+      data: { label: t.label, subtitle: t.sub, nodeType: 'Tool' },
     });
     // Connect pipeline to each tool
     edges.push({ id: `e-pipe-${t.id}`, source: 'ci-pipeline', target: t.id });
@@ -97,9 +97,9 @@ export async function generateShowcaseView(): Promise<{ nodes: Node<CanvasNodeDa
   evidenceOutputs.forEach((o, i) => {
     nodes.push({
       id: o.id,
-      type: 'evidence',
+      type: 'Evidence',
       position: { x: 380, y: 80 + i * 110 },
-      data: { label: o.label, subtitle: o.sub, nodeType: 'evidence' },
+      data: { label: o.label, subtitle: o.sub, nodeType: 'Evidence' },
     });
     edges.push({
       id: `e-${o.fromTool}-${o.id}`,
@@ -123,9 +123,9 @@ export async function generateShowcaseView(): Promise<{ nodes: Node<CanvasNodeDa
     // Market header entity
     nodes.push({
       id: 'market-header',
-      type: 'entity',
+      type: 'Entity',
       position: { x: 780, y: 0 },
-      data: { label: 'Danish Consulting Market', subtitle: `${competitors.length} firms profiled`, nodeType: 'entity' },
+      data: { label: 'Danish Consulting Market', subtitle: `${competitors.length} firms profiled`, nodeType: 'Entity' },
     });
 
     // Connect evidence to market
@@ -137,12 +137,12 @@ export async function generateShowcaseView(): Promise<{ nodes: Node<CanvasNodeDa
       const compId = `comp-${i}`;
       nodes.push({
         id: compId,
-        type: 'entity',
+        type: 'Entity',
         position: { x: 750, y: 80 + i * 90 },
         data: {
           label: String(comp?.name ?? 'Unknown'),
           subtitle: `${tc} SaaS tools detected`,
-          nodeType: 'entity',
+          nodeType: 'Entity',
         },
       });
       edges.push({ id: `e-market-${compId}`, source: 'market-header', target: compId });
@@ -157,9 +157,9 @@ export async function generateShowcaseView(): Promise<{ nodes: Node<CanvasNodeDa
 
     nodes.push({
       id: 'tech-header',
-      type: 'evidence',
+      type: 'Evidence',
       position: { x: 1130, y: 0 },
-      data: { label: 'Shared Tech Stack', subtitle: `${techData.length} SaaS tools detected`, nodeType: 'evidence' },
+      data: { label: 'Shared Tech Stack', subtitle: `${techData.length} SaaS tools detected`, nodeType: 'Evidence' },
     });
 
     techData.forEach((td, i) => {
@@ -167,12 +167,12 @@ export async function generateShowcaseView(): Promise<{ nodes: Node<CanvasNodeDa
       const techId = `shared-tech-${i}`;
       nodes.push({
         id: techId,
-        type: 'entity',
+        type: 'Entity',
         position: { x: 1080 + (i % 2) * 200, y: 80 + Math.floor(i / 2) * 90 },
         data: {
           label: String(td?.tech ?? 'Unknown'),
           subtitle: `${users}/10 competitors`,
-          nodeType: 'entity',
+          nodeType: 'Entity',
         },
       });
       edges.push({ id: `e-th-${techId}`, source: 'tech-header', target: techId });
@@ -187,18 +187,18 @@ export async function generateShowcaseView(): Promise<{ nodes: Node<CanvasNodeDa
   } catch (err) {
     nodes.push({
       id: 'no-data',
-      type: 'insight',
+      type: 'Insight',
       position: { x: 750, y: 300 },
-      data: { label: 'No Neo4j data', subtitle: String(err), nodeType: 'insight' },
+      data: { label: 'No Neo4j data', subtitle: String(err), nodeType: 'Insight' },
     });
   }
 
   // ═══ BOTTOM: KOMBIT Infrastructure Case Study (y=900) ═══
   nodes.push({
     id: 'kombit-pipeline',
-    type: 'pipeline',
+    type: 'Track',
     position: { x: 380, y: 900 },
-    data: { label: 'KOMBIT Case Study', subtitle: '15 subdomains, 6 admin portals discovered', nodeType: 'pipeline' },
+    data: { label: 'KOMBIT Case Study', subtitle: '15 subdomains, 6 admin portals discovered', nodeType: 'Track' },
   });
 
   edges.push({ id: 'e-infra-kombit', source: 'ev-infra', target: 'kombit-pipeline' });
@@ -215,9 +215,9 @@ export async function generateShowcaseView(): Promise<{ nodes: Node<CanvasNodeDa
   kombitSubs.forEach((ks, i) => {
     nodes.push({
       id: ks.id,
-      type: 'endpoint',
+      type: 'MCPTool',
       position: { x: 80 + (i % 3) * 300, y: 1010 + Math.floor(i / 3) * 100 },
-      data: { label: ks.label, subtitle: ks.sub, nodeType: 'endpoint' },
+      data: { label: ks.label, subtitle: ks.sub, nodeType: 'MCPTool' },
     });
     edges.push({ id: `e-kombit-${ks.id}`, source: 'kombit-pipeline', target: ks.id });
   });
@@ -225,39 +225,40 @@ export async function generateShowcaseView(): Promise<{ nodes: Node<CanvasNodeDa
   // ═══ INSIGHT NODES ═══
   nodes.push({
     id: 'insight-1',
-    type: 'insight',
+    type: 'Insight',
     position: { x: 80, y: 1220 },
     data: {
       label: 'Integration Gaps',
       subtitle: 'Separate admin portals = integration consulting opportunity',
-      nodeType: 'insight',
+      nodeType: 'Insight',
     },
   });
   edges.push({ id: 'e-k-dok-insight', source: 'k-dok', target: 'insight-1' });
 
   nodes.push({
     id: 'insight-2',
-    type: 'insight',
+    type: 'Insight',
     position: { x: 380, y: 1220 },
     data: {
       label: 'API-First Architecture',
       subtitle: 'gapi.* subdomains = API governance opportunity',
-      nodeType: 'insight',
+      nodeType: 'Insight',
     },
   });
   edges.push({ id: 'e-k-gapi-insight', source: 'k-gapi', target: 'insight-2' });
 
   nodes.push({
     id: 'insight-3',
-    type: 'insight',
+    type: 'Insight',
     position: { x: 680, y: 1220 },
     data: {
       label: 'Security Posture',
       subtitle: 'Certificate management across 6 portals = audit target',
-      nodeType: 'insight',
+      nodeType: 'Insight',
     },
   });
   edges.push({ id: 'e-k-cert-insight', source: 'k-cert', target: 'insight-3' });
 
   return { nodes, edges };
 }
+

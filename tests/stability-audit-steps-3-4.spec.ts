@@ -56,9 +56,9 @@ test.describe('Canvas Stability Audit - Steps 3 & 4', () => {
       for (let i = 0; i < 200; i++) {
         nodes.push({
           id: `virt-node-${i}`,
-          type: 'entity',
+          type: 'Entity',
           position: { x: i * 500, y: 500 },
-          data: { label: `Far Node ${i}`, nodeType: 'entity' }
+          data: { label: `Far Node ${i}`, nodeType: 'Entity' }
         });
       }
       store.setState({ nodes });

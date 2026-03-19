@@ -52,7 +52,7 @@ export function Journal({ isVisible, onFlip }: JournalProps) {
       addNodeWithData('insight', {
         label: selectedText.slice(0, 60) + (selectedText.length > 60 ? '...' : ''),
         subtitle: selectedText,
-        nodeType: 'insight',
+        nodeType: 'Insight',
         provenance: {
           createdBy: 'manual',
           createdAt: new Date().toISOString(),

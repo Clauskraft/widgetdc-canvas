@@ -1,4 +1,5 @@
 import type { CanvasNodeData, CanvasNodeType } from '../types/canvas';
+import type { NodeLabel } from '@widgetdc/contracts/graph';
 
 export interface ArtifactSurfacePayload {
   contract_version: string;
@@ -85,12 +86,12 @@ export interface LibreChatRuntimeIntelligencePayload {
 
 function inferCanvasNodeType(artifactType: string): CanvasNodeType {
   const value = artifactType.toLowerCase();
-  if (value.includes('answer')) return 'answer-block';
-  if (value.includes('pattern')) return 'pattern';
-  if (value.includes('control')) return 'control-pack';
-  if (value.includes('migration')) return 'migration-path';
-  if (value.includes('replacement')) return 'replacement-candidate';
-  return 'artifact';
+  if (value.includes('answer')) return 'StrategicLeverage';
+  if (value.includes('pattern')) return 'KnowledgePattern';
+  if (value.includes('control')) return 'GuardrailRule';
+  if (value.includes('migration')) return 'Track';
+  if (value.includes('replacement')) return 'Decision';
+  return 'Artifact';
 }
 
 export function artifactSurfaceToCanvasNode(
@@ -136,7 +137,7 @@ export function artifactSurfaceToCanvasNode(
       renderContract: lineage.render_contract,
       renderPackageId: lineage.render_package_id,
       sourceGraphNodeId: lineage.source_graph_node_id ?? undefined,
-      sourceGraphLabels: lineage.source_graph_labels ?? [],
+      sourceGraphLabels: (lineage.source_graph_labels ?? []) as NodeLabel[],
       sourceAssetIds,
       availableActions: review?.available_actions ?? [],
       signalIntensity: qualityGate === 'degraded' ? 0.95 : qualityGate === 'warning' ? 0.65 : 0.45,

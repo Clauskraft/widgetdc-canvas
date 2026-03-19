@@ -26,22 +26,24 @@ const areNodePropsEqual = (prev: NodeProps<CanvasNode>, next: NodeProps<CanvasNo
 };
 
 const NODE_CONFIG: Record<CanvasNodeType, { color: string; icon: typeof Server; layerLabel: string }> = {
-  server:   { color: '#64748b', icon: Server,       layerLabel: 'INFRA' },
-  endpoint: { color: '#14b8a6', icon: Plug,         layerLabel: 'INFRA' },
-  tool:     { color: '#667eea', icon: Wrench,       layerLabel: 'CAPABILITY' },
-  pipeline: { color: '#06b6d4', icon: GitBranch,    layerLabel: 'ORCHESTRATION' },
-  agent:    { color: '#e20074', icon: Bot,          layerLabel: 'ORCHESTRATION' },
-  entity:   { color: '#f4bb00', icon: Database,     layerLabel: 'INTELLIGENCE' },
-  insight:  { color: '#22c55e', icon: Lightbulb,    layerLabel: 'INTELLIGENCE' },
-  evidence: { color: '#f97316', icon: FileSearch,   layerLabel: 'INTELLIGENCE' },
-  artifact: { color: '#ec4899', icon: FileCode,     layerLabel: 'INTELLIGENCE' },
-  thought:  { color: '#8b5cf6', icon: BrainCircuit, layerLabel: 'REASONING' },
+  CodeImplementation: { color: '#64748b', icon: Server,       layerLabel: 'INFRA' },
+  MCPTool:            { color: '#14b8a6', icon: Plug,         layerLabel: 'INFRA' },
+  Tool:               { color: '#667eea', icon: Wrench,       layerLabel: 'CAPABILITY' },
+  Track:              { color: '#06b6d4', icon: GitBranch,    layerLabel: 'ORCHESTRATION' },
+  Agent:              { color: '#e20074', icon: Bot,          layerLabel: 'ORCHESTRATION' },
+  Entity:             { color: '#f4bb00', icon: Database,     layerLabel: 'INTELLIGENCE' },
+  Insight:            { color: '#22c55e', icon: Lightbulb,    layerLabel: 'INTELLIGENCE' },
+  Evidence:           { color: '#f97316', icon: FileSearch,   layerLabel: 'INTELLIGENCE' },
+  Artifact:           { color: '#ec4899', icon: FileCode,     layerLabel: 'INTELLIGENCE' },
+  Claim:              { color: '#8b5cf6', icon: BrainCircuit, layerLabel: 'REASONING' },
   query:    { color: '#a855f7', icon: Terminal,      layerLabel: 'SANDBOX' },
-  'answer-block':          { color: '#0ea5e9', icon: BookOpen,        layerLabel: 'FOUNDRY' },
-  'pattern':               { color: '#6366f1', icon: Fingerprint,     layerLabel: 'FOUNDRY' },
-  'control-pack':          { color: '#ef4444', icon: Shield,          layerLabel: 'FOUNDRY' },
-  'migration-path':        { color: '#f59e0b', icon: Route,           layerLabel: 'FOUNDRY' },
-  'replacement-candidate': { color: '#06b6d4', icon: ArrowLeftRight,  layerLabel: 'FOUNDRY' },
+  StrategicLeverage:       { color: '#0ea5e9', icon: BookOpen,        layerLabel: 'FOUNDRY' },
+  KnowledgePattern:        { color: '#6366f1', icon: Fingerprint,     layerLabel: 'FOUNDRY' },
+  GuardrailRule:           { color: '#ef4444', icon: Shield,          layerLabel: 'FOUNDRY' },
+  Decision:                { color: '#06b6d4', icon: ArrowLeftRight,  layerLabel: 'FOUNDRY' },
+  ComplianceGap:           { color: '#f59e0b', icon: Route,           layerLabel: 'FOUNDRY' },
+  StrategicInsight:        { color: '#22c55e', icon: Sparkles,        layerLabel: 'INTELLIGENCE' },
+  Memory:                  { color: '#8b5cf6', icon: BrainCircuit,    layerLabel: 'MEMORY' },
   combo:    { color: '#6b7280', icon: Layers,        layerLabel: 'META' },
 };
 
@@ -76,7 +78,7 @@ function FloatingToolbar({ id, nodeType, isVisible }: { id: string; nodeType: Ca
     const actions = [];
     
     // Core expansion actions
-    if (['entity', 'agent', 'thought'].includes(nodeType)) {
+    if (['Entity', 'Agent', 'Claim', 'StrategicLeverage', 'ComplianceGap'].includes(nodeType)) {
       actions.push({ id: 'expand', label: 'Expand', icon: GitBranch, color: 'text-sky-400', onClick: () => expandNode(id) });
     }
 
@@ -89,15 +91,15 @@ function FloatingToolbar({ id, nodeType, isVisible }: { id: string; nodeType: Ca
     // Intelligence actions
     actions.push({ id: 'analyze', label: 'Analyze', icon: Sparkles, color: 'text-purple-400', onClick: () => autoAnalyze(id) });
 
-    if (['entity', 'agent'].includes(nodeType)) {
+    if (['Entity', 'Agent', 'StrategicLeverage', 'ComplianceGap'].includes(nodeType)) {
       actions.push({ id: 'tenders', label: 'Tenders', icon: Search, color: 'text-amber-400', onClick: () => matchTenders(id) });
     }
 
-    if (['insight', 'evidence', 'artifact', 'answer-block', 'pattern', 'control-pack', 'migration-path', 'replacement-candidate'].includes(nodeType)) {
+    if (['Insight', 'Evidence', 'Artifact', 'StrategicLeverage', 'KnowledgePattern', 'GuardrailRule', 'Track', 'Decision', 'StrategicInsight'].includes(nodeType)) {
       actions.push({ id: 'link', label: 'Link', icon: Link2, color: 'text-emerald-400', onClick: () => crossReference(id) });
     }
 
-    if (nodeType === 'thought') {
+    if (nodeType === 'Claim') {
       actions.push({ id: 'score', label: 'Hypothesis', icon: BrainCircuit, color: 'text-rose-400', onClick: () => evaluateHypothesis(id) });
     }
 
@@ -141,7 +143,7 @@ function BaseNode({ id, data, selected }: NodeProps<CanvasNode>) {
   const zoom = useStore((s) => s.transform[2]);
   const isLowDetail = zoom < 0.6;
 
-  const config = NODE_CONFIG[data.nodeType] ?? NODE_CONFIG.entity;
+  const config = NODE_CONFIG[data.nodeType] ?? NODE_CONFIG.Entity;
   const Icon = config.icon;
   const isGhost = /ghost/i.test(data.subtitle ?? '');
   const isRejected = data.isRejected === true;
@@ -373,7 +375,7 @@ function ArtifactNode({ id, data, selected }: NodeProps<CanvasNode>) {
   const zoom = useStore((s) => s.transform[2]);
   const isLowDetail = zoom < 0.6;
 
-  const config = NODE_CONFIG.artifact;
+  const config = NODE_CONFIG.Artifact;
   const artType = data.artifactType ?? 'markdown';
   const reasoningStatus = (data.reasoningStatus as string) ?? 'complete';
   const reviewState = typeof data.reviewState === 'string' ? data.reviewState : undefined;
@@ -505,7 +507,7 @@ function ThoughtNode({ id, data, selected }: NodeProps<CanvasNode>) {
   const zoom = useStore((s) => s.transform[2]);
   const isLowDetail = zoom < 0.6;
 
-  const config = NODE_CONFIG.thought;
+  const config = NODE_CONFIG.Claim;
   const steps = (data.thinkingSteps as string[]) ?? [];
   const status = (data.reasoningStatus as string) ?? 'complete';
   const label = (data?.label as string) || '';
@@ -669,7 +671,7 @@ function FoundryBlockNode({ id, data, selected }: NodeProps<CanvasNode>) {
   const zoom = useStore((s) => s.transform[2]);
   const isLowDetail = zoom < 0.6;
 
-  const config = NODE_CONFIG[data.nodeType] ?? NODE_CONFIG.entity;
+  const config = NODE_CONFIG[data.nodeType] ?? NODE_CONFIG.Entity;
   const Icon = config.icon;
   const confidence = (data.blockConfidence as number) ?? (data.provenance?.confidence);
 
@@ -760,21 +762,23 @@ const MemoizedComboNode = memo(ComboNode, areNodePropsEqual);
 const MemoizedFoundryBlockNode = memo(FoundryBlockNode, areNodePropsEqual);
 
 export const nodeTypes = {
-  server: MemoizedNode,
-  endpoint: MemoizedNode,
-  tool: MemoizedNode,
-  pipeline: MemoizedNode,
-  agent: MemoizedNode,
-  entity: MemoizedNode,
-  insight: MemoizedNode,
-  evidence: MemoizedNode,
-  artifact: MemoizedArtifactNode,
-  thought: MemoizedThoughtNode,
+  CodeImplementation: MemoizedNode,
+  MCPTool: MemoizedNode,
+  Tool: MemoizedNode,
+  Track: MemoizedNode,
+  Agent: MemoizedNode,
+  Entity: MemoizedNode,
+  Insight: MemoizedNode,
+  StrategicInsight: MemoizedNode,
+  Evidence: MemoizedNode,
+  Artifact: MemoizedArtifactNode,
+  Claim: MemoizedThoughtNode,
   query: MemoizedQueryNode,
-  'answer-block': MemoizedFoundryBlockNode,
-  'pattern': MemoizedFoundryBlockNode,
-  'control-pack': MemoizedFoundryBlockNode,
-  'migration-path': MemoizedFoundryBlockNode,
-  'replacement-candidate': MemoizedFoundryBlockNode,
+  StrategicLeverage: MemoizedFoundryBlockNode,
+  KnowledgePattern: MemoizedFoundryBlockNode,
+  GuardrailRule: MemoizedFoundryBlockNode,
+  Decision: MemoizedFoundryBlockNode,
+  ComplianceGap: MemoizedFoundryBlockNode,
+  Memory: MemoizedThoughtNode,
   combo: MemoizedComboNode,
 };

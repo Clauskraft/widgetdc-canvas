@@ -22,9 +22,9 @@ test.describe('Canvas Stability Audit - Steps 1 & 2', () => {
       for (let i = 0; i < 500; i++) {
         nodes.push({
           id: `audit-node-${i}`,
-          type: 'thought',
+          type: 'Claim',
           position: { x: (i % 25) * 300, y: Math.floor(i / 25) * 200 },
-          data: { label: `Audit Node ${i}`, nodeType: 'thought', signalIntensity: 0.9 } // High signal triggers red aura
+          data: { label: `Audit Node ${i}`, nodeType: 'Claim', signalIntensity: 0.9 } // High signal triggers red aura
         });
       }
       store.setState({ nodes });

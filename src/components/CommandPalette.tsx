@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, GitBranch, Terminal, Wrench, Bot, Database, Lightbulb, FileSearch, BrainCircuit, Layers, Sparkles, Save, Upload, Trash2, LayoutGrid, BookOpen, Link2, FileCheck } from 'lucide-react';
 import { useCanvasStore } from '../store/canvasStore';
-import type { CanvasNodeType } from '../types/canvas';
+import type { CanvasNodeInputType } from '../types/canvas';
 
 interface PaletteItem {
   id: string;
@@ -54,12 +54,12 @@ export function CommandPalette() {
     { id: 'undo', label: 'Undo', description: 'Ctrl+Z', category: 'action', icon: Layers, action: () => store.undo() },
     { id: 'redo', label: 'Redo', description: 'Ctrl+Y', category: 'action', icon: Layers, action: () => store.redo() },
     // Add nodes
-    ...(['server', 'endpoint', 'tool', 'pipeline', 'agent', 'entity', 'insight', 'evidence', 'thought', 'query', 'artifact', 'combo'] as CanvasNodeType[]).map(type => ({
+    ...(['CodeImplementation', 'MCPTool', 'Tool', 'Track', 'Agent', 'Entity', 'Insight', 'Evidence', 'Claim', 'query', 'Artifact', 'combo'] as CanvasNodeInputType[]).map(type => ({
       id: `add-${type}`,
       label: `Add ${type} node`,
       description: `Create new ${type}`,
       category: 'node' as const,
-      icon: type === 'agent' ? Bot : type === 'tool' ? Wrench : type === 'thought' ? BrainCircuit : type === 'entity' ? Database : type === 'insight' ? Lightbulb : type === 'evidence' ? FileSearch : type === 'pipeline' ? GitBranch : type === 'query' ? Terminal : Database,
+      icon: type === 'Agent' ? Bot : type === 'Tool' ? Wrench : type === 'Claim' ? BrainCircuit : type === 'Entity' ? Database : type === 'Insight' ? Lightbulb : type === 'Evidence' ? FileSearch : type === 'Track' ? GitBranch : type === 'query' ? Terminal : Database,
       action: () => store.addNode(type, `New ${type}`),
     })),
     // AI commands

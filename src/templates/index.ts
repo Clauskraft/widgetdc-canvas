@@ -1,10 +1,10 @@
-import type { CanvasNodeType } from '../types/canvas';
+import type { CanvasNodeInputType, CanvasNodeType } from '../types/canvas';
 
 export interface CanvasTemplate {
   id: string;
   name: string;
   description: string;
-  queries: Array<{ cypher: string; nodeType: CanvasNodeType; labelField: string }>;
+  queries: Array<{ cypher: string; nodeType: CanvasNodeInputType; labelField: string }>;
   autoAnalyze: boolean;
   layoutMode: 'freeform' | 'mindmap';
   columns?: string[];  // Engagement canvas column names
@@ -71,20 +71,20 @@ export const CANVAS_TEMPLATES: CanvasTemplate[] = [
 
 // Column mapping for engagement canvas layout
 export const ENGAGEMENT_COLUMNS: Record<string, { nodeTypes: CanvasNodeType[]; x: number; color: string }> = {
-  'VISION':          { nodeTypes: ['entity'],              x: 0,    color: '#f4bb00' },
-  'PILLARS':         { nodeTypes: ['insight'],             x: 280,  color: '#22c55e' },
-  'MARKET':          { nodeTypes: ['entity'],              x: 560,  color: '#3b82f6' },
-  'GAPS':            { nodeTypes: ['thought'],             x: 840,  color: '#f97316' },
-  'H5_MIDPOINT':     { nodeTypes: ['thought'],             x: 1120, color: '#8b5cf6' },
-  'H3_MOMENTUM':     { nodeTypes: ['thought'],             x: 1400, color: '#a855f7' },
-  'H1_LAUNCH':       { nodeTypes: ['thought'],             x: 1680, color: '#ec4899' },
-  'RISKS':           { nodeTypes: ['insight'],             x: 1960, color: '#ef4444' },
-  'FINANCE':         { nodeTypes: ['evidence'],            x: 2240, color: '#14b8a6' },
-  'ACTION_PLAN':     { nodeTypes: ['artifact'],            x: 2520, color: '#06b6d4' },
-  'BRIEF':           { nodeTypes: ['entity', 'server'],    x: 0,    color: '#64748b' },
-  'HYPOTHESES':      { nodeTypes: ['thought'],             x: 280,  color: '#8b5cf6' },
-  'EVIDENCE':        { nodeTypes: ['evidence'],            x: 560,  color: '#f97316' },
-  'ANALYSIS':        { nodeTypes: ['insight'],             x: 840,  color: '#22c55e' },
-  'RECOMMENDATIONS': { nodeTypes: ['thought'],             x: 1120, color: '#0047bb' },
-  'DELIVERABLES':    { nodeTypes: ['artifact'],            x: 1400, color: '#ec4899' },
+  'VISION':          { nodeTypes: ['Entity'],                         x: 0,    color: '#f4bb00' },
+  'PILLARS':         { nodeTypes: ['Insight'],                        x: 280,  color: '#22c55e' },
+  'MARKET':          { nodeTypes: ['Entity'],                         x: 560,  color: '#3b82f6' },
+  'GAPS':            { nodeTypes: ['Claim', 'ComplianceGap'],         x: 840,  color: '#f97316' },
+  'H5_MIDPOINT':     { nodeTypes: ['Claim', 'StrategicLeverage'],     x: 1120, color: '#8b5cf6' },
+  'H3_MOMENTUM':     { nodeTypes: ['Claim', 'Track'],                 x: 1400, color: '#a855f7' },
+  'H1_LAUNCH':       { nodeTypes: ['Claim', 'Decision'],              x: 1680, color: '#ec4899' },
+  'RISKS':           { nodeTypes: ['Insight', 'ComplianceGap'],       x: 1960, color: '#ef4444' },
+  'FINANCE':         { nodeTypes: ['Evidence'],                       x: 2240, color: '#14b8a6' },
+  'ACTION_PLAN':     { nodeTypes: ['Artifact', 'Decision'],           x: 2520, color: '#06b6d4' },
+  'BRIEF':           { nodeTypes: ['Entity', 'CodeImplementation'],   x: 0,    color: '#64748b' },
+  'HYPOTHESES':      { nodeTypes: ['Claim'],                          x: 280,  color: '#8b5cf6' },
+  'EVIDENCE':        { nodeTypes: ['Evidence'],                       x: 560,  color: '#f97316' },
+  'ANALYSIS':        { nodeTypes: ['Insight', 'StrategicInsight'],    x: 840,  color: '#22c55e' },
+  'RECOMMENDATIONS': { nodeTypes: ['StrategicLeverage', 'Decision'],  x: 1120, color: '#0047bb' },
+  'DELIVERABLES':    { nodeTypes: ['Artifact'],                       x: 1400, color: '#ec4899' },
 };

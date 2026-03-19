@@ -31,7 +31,7 @@ export const TOOL_REPURPOSING_MAP: ToolRepurposing[] = [
     tool: 'harvest.intel.domain',
     traditionalUse: 'Recon af mål',
     repurposedUse: 'Map konkurrents tech stack (DNS→email, CDN, SaaS)',
-    outputNodeType: 'evidence',
+    outputNodeType: 'Evidence',
     outputLabel: 'TechStackEntry',
     cypher: 'MATCH (c:Competitor)-[:USES_TECH]->(t:TechStackEntry) RETURN c, t',
   },
@@ -39,7 +39,7 @@ export const TOOL_REPURPOSING_MAP: ToolRepurposing[] = [
     tool: 'trident.scan.domain',
     traditionalUse: 'SSL-sårbarhedsscanning',
     repurposedUse: 'Discover cert-infrastruktur (subdomæner, services)',
-    outputNodeType: 'evidence',
+    outputNodeType: 'Evidence',
     outputLabel: 'MarketSignal (SSL)',
     cypher: "MATCH (c:Competitor)-[:EMITS]->(ms:MarketSignal) WHERE ms.type = 'SSL_CERT' RETURN c, ms",
   },
@@ -47,7 +47,7 @@ export const TOOL_REPURPOSING_MAP: ToolRepurposing[] = [
     tool: 'trident.attack-surface',
     traditionalUse: 'Angrebsoverflade-mapping',
     repurposedUse: 'Teknologisk footprint (hosting, frameworks, CDNs)',
-    outputNodeType: 'evidence',
+    outputNodeType: 'Evidence',
     outputLabel: 'MarketSignal (Infra)',
     cypher: "MATCH (c:Competitor)-[:EMITS]->(ms:MarketSignal) WHERE ms.type = 'ATTACK_SURFACE' RETURN c, ms",
   },
@@ -55,7 +55,7 @@ export const TOOL_REPURPOSING_MAP: ToolRepurposing[] = [
     tool: 'trident.dork.scan.org',
     traditionalUse: 'Lækket data-søgning',
     repurposedUse: 'Offentlige dokumenter (PDFs, rapporter, præsentationer)',
-    outputNodeType: 'evidence',
+    outputNodeType: 'Evidence',
     outputLabel: 'PublicDocument',
     cypher: 'MATCH (c:Competitor)-[:PUBLISHES]->(pd:PublicDocument) RETURN c, pd',
   },
@@ -63,7 +63,7 @@ export const TOOL_REPURPOSING_MAP: ToolRepurposing[] = [
     tool: 'trident.cvr.lookup',
     traditionalUse: 'Firmaundersøgelse',
     repurposedUse: 'Ejerstruktur & board-mapping',
-    outputNodeType: 'entity',
+    outputNodeType: 'Entity',
     outputLabel: 'CompanyRegistry',
     cypher: 'MATCH (c:Competitor) WHERE c.cvr IS NOT NULL RETURN c',
   },
@@ -71,7 +71,7 @@ export const TOOL_REPURPOSING_MAP: ToolRepurposing[] = [
     tool: 'harvest.web.scrape',
     traditionalUse: 'Web-scraping (pentest)',
     repurposedUse: 'Capability claims fra konkurrenters hjemmesider',
-    outputNodeType: 'evidence',
+    outputNodeType: 'Evidence',
     outputLabel: 'CompetitorCapability',
     cypher: 'MATCH (c:Competitor)-[:HAS_CAPABILITY]->(cc:CompetitorCapability) RETURN c, cc',
   },
@@ -79,7 +79,7 @@ export const TOOL_REPURPOSING_MAP: ToolRepurposing[] = [
     tool: 'intel.cvr_financials',
     traditionalUse: 'Financial exposure',
     repurposedUse: 'Finansiel sundhedsscore af konkurrenter',
-    outputNodeType: 'evidence',
+    outputNodeType: 'Evidence',
     outputLabel: 'FinancialSnapshot',
     cypher: 'MATCH (c:Competitor)-[:HAS_SNAPSHOT]->(fs:CompetitorSnapshot) RETURN c, fs',
   },
@@ -90,7 +90,7 @@ export const TOOL_REPURPOSING_MAP: ToolRepurposing[] = [
 // ─────────────────────────────────────────────────────────────
 
 export type CanvasViewMode =
-  | 'pipeline'
+  | 'Track'
   | 'market-map'
   | 'tech-landscape'
   | 'infra-topology'
@@ -107,9 +107,9 @@ export function generatePipelineView(): { nodes: Node<CanvasNodeData>[]; edges: 
   // Pipeline header
   nodes.push({
     id: 'center',
-    type: 'pipeline',
+    type: 'Track',
     position: { x: 400, y: 0 },
-    data: { label: 'CI Pipeline', subtitle: 'Pentest → Intelligence Repurposing', nodeType: 'pipeline' },
+    data: { label: 'CI Pipeline', subtitle: 'Pentest → Intelligence Repurposing', nodeType: 'Track' },
   });
 
   TOOL_REPURPOSING_MAP.forEach((tr, i) => {
@@ -118,9 +118,9 @@ export function generatePipelineView(): { nodes: Node<CanvasNodeData>[]; edges: 
 
     nodes.push({
       id: toolId,
-      type: 'tool',
+      type: 'Tool',
       position: { x: 0, y: 120 * (i + 1) },
-      data: { label: tr.tool, subtitle: tr.traditionalUse, nodeType: 'tool' },
+      data: { label: tr.tool, subtitle: tr.traditionalUse, nodeType: 'Tool' },
     });
 
     nodes.push({
@@ -146,9 +146,9 @@ export async function generateMarketMap(): Promise<{ nodes: Node<CanvasNodeData>
 
   nodes.push({
     id: 'market',
-    type: 'entity',
+    type: 'Entity',
     position: { x: 0, y: 0 },
-    data: { label: 'Danish Consulting Market', subtitle: '10 competitors profiled', nodeType: 'entity' },
+    data: { label: 'Danish Consulting Market', subtitle: '10 competitors profiled', nodeType: 'Entity' },
   });
 
   const competitors = await graphRead(
@@ -169,12 +169,12 @@ export async function generateMarketMap(): Promise<{ nodes: Node<CanvasNodeData>
 
     nodes.push({
       id,
-      type: 'entity',
+      type: 'Entity',
       position: { x: 0, y: 0 },
       data: {
         label: String(comp?.name ?? 'Unknown'),
         subtitle: `${techCount} tech, ${signalCount} signals | ${comp?.domain ?? ''}`,
-        nodeType: 'entity',
+        nodeType: 'Entity',
       },
     });
 
@@ -200,9 +200,9 @@ export async function generateTechLandscape(): Promise<{ nodes: Node<CanvasNodeD
 
   nodes.push({
     id: 'tech-center',
-    type: 'pipeline',
+    type: 'Track',
     position: { x: 0, y: 0 },
-    data: { label: 'Tech Landscape', subtitle: 'SaaS adoption across competitors', nodeType: 'pipeline' },
+    data: { label: 'Tech Landscape', subtitle: 'SaaS adoption across competitors', nodeType: 'Track' },
   });
 
   techData.forEach((td, i) => {
@@ -212,12 +212,12 @@ export async function generateTechLandscape(): Promise<{ nodes: Node<CanvasNodeD
 
     nodes.push({
       id,
-      type: 'entity',
+      type: 'Entity',
       position: { x: 0, y: 0 },
       data: {
         label: String(td?.tech ?? 'Unknown'),
         subtitle: `${users} competitors: ${competitors.slice(0, 3).join(', ')}${competitors.length > 3 ? '...' : ''}`,
-        nodeType: 'entity',
+        nodeType: 'Entity',
       },
     });
 
@@ -245,9 +245,9 @@ export async function generateInfraTopology(): Promise<{ nodes: Node<CanvasNodeD
 
   nodes.push({
     id: 'infra',
-    type: 'pipeline',
+    type: 'Track',
     position: { x: 0, y: 0 },
-    data: { label: 'Infrastructure Topology', subtitle: 'Subdomain analysis', nodeType: 'pipeline' },
+    data: { label: 'Infrastructure Topology', subtitle: 'Subdomain analysis', nodeType: 'Track' },
   });
 
   signals.forEach((sig, i) => {
@@ -258,12 +258,12 @@ export async function generateInfraTopology(): Promise<{ nodes: Node<CanvasNodeD
 
     nodes.push({
       id: compId,
-      type: 'entity',
+      type: 'Entity',
       position: { x: 0, y: 0 },
       data: {
         label: String(sig?.competitor ?? 'Unknown'),
         subtitle: `${subs} subdomains, risk: ${risk}`,
-        nodeType: 'entity',
+        nodeType: 'Entity',
       },
     });
 
@@ -274,9 +274,9 @@ export async function generateInfraTopology(): Promise<{ nodes: Node<CanvasNodeD
       const subId = `${compId}-sub-${j}`;
       nodes.push({
         id: subId,
-        type: 'endpoint',
+        type: 'MCPTool',
         position: { x: 0, y: 0 },
-        data: { label: sub, subtitle: 'Discovered subdomain', nodeType: 'endpoint' },
+        data: { label: sub, subtitle: 'Discovered subdomain', nodeType: 'MCPTool' },
       });
       edges.push({ id: `e-${compId}-${subId}`, source: compId, target: subId });
     });
@@ -285,3 +285,4 @@ export async function generateInfraTopology(): Promise<{ nodes: Node<CanvasNodeD
   const laidOut = applyDagreLayout(nodes, edges, 'TB');
   return { nodes: laidOut, edges };
 }
+

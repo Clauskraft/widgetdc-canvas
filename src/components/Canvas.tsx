@@ -19,22 +19,29 @@ import { ENGAGEMENT_COLUMNS } from '../templates';
 import type { CanvasNodeType } from '../types/canvas';
 
 const NODE_COLORS: Record<string, string> = {
-  server:   '#64748b',
-  endpoint: '#14b8a6',
-  tool:     '#667eea',
-  pipeline: '#06b6d4',
-  agent:    '#e20074',
-  entity:   '#f4bb00',
-  insight:  '#22c55e',
-  evidence: '#f97316',
-  artifact: '#ec4899',
-  thought:  '#8b5cf6',
+  CodeImplementation: '#64748b',
+  MCPTool: '#14b8a6',
+  Tool: '#667eea',
+  Track: '#06b6d4',
+  Agent: '#e20074',
+  Entity: '#f4bb00',
+  Insight: '#22c55e',
+  StrategicInsight: '#22c55e',
+  Evidence: '#f97316',
+  Artifact: '#ec4899',
+  Claim: '#8b5cf6',
+  Memory: '#8b5cf6',
+  StrategicLeverage: '#0ea5e9',
+  KnowledgePattern: '#6366f1',
+  GuardrailRule: '#ef4444',
+  Decision: '#06b6d4',
+  ComplianceGap: '#f59e0b',
   query:    '#a855f7',
   combo:    '#6b7280',
 };
 
 // Knowledge Explorer: only show AgentMemory/Lesson/Thought-related nodes
-const KNOWLEDGE_NODE_TYPES = new Set(['thought', 'insight', 'evidence', 'entity']); 
+const KNOWLEDGE_NODE_TYPES = new Set(['Claim', 'Insight', 'StrategicInsight', 'Evidence', 'Entity', 'Memory']); 
 // Actually, in our graph, Lessons might be 'entity' nodes with specific labels.
 // We'll refine the filter to also check for subtitle or data properties.
 
@@ -186,7 +193,7 @@ export function Canvas() {
         addNodeWithData('tool', {
           label: toolName,
           subtitle: event.dataTransfer.getData('application/canvas-tool-group') || undefined,
-          nodeType: 'tool',
+          nodeType: 'Tool',
           provenance: {
             createdBy: 'manual',
             createdAt: new Date().toISOString(),
@@ -270,7 +277,7 @@ export function Canvas() {
         <Controls position="bottom-left" />
         <MiniMap
           position="bottom-right"
-          nodeColor={(node) => NODE_COLORS[node.type ?? 'entity'] ?? '#f4bb00'}
+          nodeColor={(node) => NODE_COLORS[node.type ?? 'Entity'] ?? '#f4bb00'}
           maskColor="rgba(5, 11, 20, 0.8)"
         />
 

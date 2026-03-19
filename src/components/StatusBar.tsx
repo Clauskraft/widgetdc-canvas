@@ -4,7 +4,7 @@ export function StatusBar() {
   const { nodes, edges, canvasId, layoutMode, knowledgeExplorerMode, gapOverlayMode, routingSnapshot } = useCanvasStore();
 
   const typeCounts = nodes.reduce<Record<string, number>>((acc, n) => {
-    const t = n.type ?? 'entity';
+    const t = n.type ?? 'Entity';
     acc[t] = (acc[t] ?? 0) + 1;
     return acc;
   }, {});
