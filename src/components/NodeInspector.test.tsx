@@ -128,8 +128,12 @@ describe('NodeInspector', () => {
     });
 
     expect(view.getByText('Artifact Binding')).toBeTruthy();
-    expect(view.getByText((_, element) => element?.textContent === 'Verification: verified')).toBeTruthy();
-    expect(view.getByText((_, element) => element?.textContent === 'Route: canvas -> foundry.render.sections.v1')).toBeTruthy();
+    expect(view.getByText((_content: string, element: Element | null) => element?.textContent === 'Verification: verified')).toBeTruthy();
+    expect(
+      view.getByText(
+        (_content: string, element: Element | null) => element?.textContent === 'Route: canvas -> foundry.render.sections.v1',
+      ),
+    ).toBeTruthy();
     expect(view.getAllByText('graph.search')).toHaveLength(2);
     expect(view.getByText('91%')).toBeTruthy();
   });
