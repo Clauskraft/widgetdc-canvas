@@ -13,7 +13,11 @@ ENV VITE_RLM_URL=$VITE_RLM_URL
 ENV VITE_WS_URL=$VITE_WS_URL
 RUN npm run build
 
-FROM caddy:2-alpine
-COPY --from=builder /app/dist /srv
-COPY Caddyfile /etc/caddy/Caddyfile
+FROM node:22-alpine AS runner
+WORKDIR /app
+COPY package*.json ./
+RUN npm install --omit=dev --legacy-peer-deps
+COPY --from=builder /app/dist ./dist
+COPY server.mjs ./server.mjs
 EXPOSE 8080
+CMD ["node", "server.mjs"]
