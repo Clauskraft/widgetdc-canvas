@@ -13,7 +13,14 @@ const backendTarget = process.env.BACKEND_URL || 'https://backend-production-d3d
 const rlmTarget = process.env.RLM_URL || 'https://rlm-engine-production.up.railway.app';
 
 app.get('/health', (_req, res) => {
-  res.status(200).json({ status: 'healthy' });
+  res.status(200).json({
+    status: 'healthy',
+    runtime_fingerprint: {
+      deployment_id: process.env.RAILWAY_DEPLOYMENT_ID ?? null,
+      service_name: process.env.RAILWAY_SERVICE_NAME ?? null,
+      git_commit_sha: process.env.RAILWAY_GIT_COMMIT_SHA ?? null,
+    },
+  });
 });
 
 app.use(
