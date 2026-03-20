@@ -89,6 +89,17 @@ function resetStore() {
             oodaRunEvents: 5,
             oodaFallbackRate: 0,
             oodaAverageDurationMs: 1765,
+            failureMemoryClassCount: 2,
+            recurringFailureClassCount: 1,
+            failureMemoryBacklogStatus: 'red',
+            failureMemoryBacklogTop: [
+              {
+                sourceName: 'legofactory:quality_gate',
+                totalFailures: 4,
+                isRecurring: true,
+                recommendedAction: 'raise_quality_floor',
+              },
+            ],
           },
           legoFactorySummary: {
             blocked: 1,
@@ -201,5 +212,19 @@ describe('NodeInspector', () => {
     expect(view.getByText('Arbitration backlog')).toBeTruthy();
     expect(view.getByText((_content: string, element: Element | null) => element?.textContent === 'Divergent: 0')).toBeTruthy();
     expect(view.getByText((_content: string, element: Element | null) => element?.textContent === 'Unreviewed: 2')).toBeTruthy();
+  });
+
+  it('renders failure-memory remediation signals for governance nodes', async () => {
+    const view = render(<NodeInspector />);
+
+    await act(async () => {
+      useCanvasStore.setState({ selectedNodeId: 'governance-1' });
+    });
+
+    expect(view.getByText('Failure memory')).toBeTruthy();
+    expect(view.getByText((_content: string, element: Element | null) => element?.textContent === 'Status: red')).toBeTruthy();
+    expect(view.getByText((_content: string, element: Element | null) => element?.textContent === 'Classes: 2')).toBeTruthy();
+    expect(view.getByText((_content: string, element: Element | null) => element?.textContent === 'Recurring: 1')).toBeTruthy();
+    expect(view.getByText('raise_quality_floor')).toBeTruthy();
   });
 });

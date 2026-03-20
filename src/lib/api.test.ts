@@ -216,6 +216,31 @@ describe('Canvas API: governance eval snapshot', () => {
             verifiedUnreviewedCriticalCount: 0,
             oldestVerifiedUnreviewedAgeMinutes: 71.07,
             operatorReviewBacklogStatus: 'yellow',
+            failureMemoryClassCount: 2,
+            recurringFailureClassCount: 1,
+            failureMemoryBacklogStatus: 'red',
+            failureMemoryBacklogTop: [
+              {
+                sourceName: 'legofactory:quality_gate',
+                totalFailures: 4,
+                uniqueErrorTypes: 2,
+                recoverySuccessRate: 0.25,
+                averageRecoveryTime: 7200,
+                isRecurring: true,
+                lastFailureAt: '2026-03-19T10:00:00.000Z',
+                recommendedAction: 'raise_quality_floor',
+              },
+              {
+                sourceName: 'legofactory:source_verification',
+                totalFailures: 2,
+                uniqueErrorTypes: 1,
+                recoverySuccessRate: 0.5,
+                averageRecoveryTime: 1800,
+                isRecurring: false,
+                lastFailureAt: '2026-03-18T08:00:00.000Z',
+                recommendedAction: 'restore_source_verification',
+              },
+            ],
             reviewBacklogTop: [
               {
                 decisionId: 'ra-evidence-packet-poll-7-1773884999',
@@ -351,6 +376,10 @@ describe('Canvas API: governance eval snapshot', () => {
     expect(result.readOnly).toBe(true);
     expect(result.legoFactory.queueSummary.blocked).toBe(2);
     expect(result.memory.memoryConnectionCoverage).toBe(0.022);
+    expect(result.scorecard.failureMemoryClassCount).toBe(2);
+    expect(result.scorecard.recurringFailureClassCount).toBe(1);
+    expect(result.scorecard.failureMemoryBacklogStatus).toBe('red');
+    expect(result.scorecard.failureMemoryBacklogTop?.[0]?.sourceName).toBe('legofactory:quality_gate');
     expect(result.reviewBacklog.queueSummary.status).toBe('yellow');
     expect(result.reviewBacklog.items[0]?.decisionId).toBe('ra-evidence-packet-poll-7-1773884999');
     expect(result.arbitrationBacklog.queueSummary.status).toBe('green');

@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { X, GitBranch, Search, Trash2, BrainCircuit, Shield, Link2, FileCheck, Sparkles, AlertCircle } from 'lucide-react';
 import { useCanvasStore } from '../store/canvasStore';
+import type { GovernanceScorecardSummary, LegoFactoryFailureClassSummary } from '../lib/api';
 import type { ActionRecommendation } from '../store/canvasStore';
 import type { CanvasNodeData, ProvenanceData } from '../types/canvas';
 
@@ -65,7 +66,7 @@ export function NodeInspector() {
   const routingDecision = d.routingDecision as Record<string, unknown> | undefined;
   const workflowEnvelope = d.workflowEnvelope as Record<string, unknown> | undefined;
   const trustProfiles = d.trustProfiles as Array<Record<string, unknown>> | undefined;
-  const governanceScorecard = d.governanceScorecard as Record<string, unknown> | undefined;
+  const governanceScorecard = d.governanceScorecard as GovernanceScorecardSummary | undefined;
   const legoFactorySummary = d.legoFactorySummary as Record<string, unknown> | undefined;
   const memoryGovernance = d.memoryGovernance as Record<string, unknown> | undefined;
   const reviewBacklog = d.reviewBacklog as Record<string, unknown> | undefined;
@@ -74,6 +75,9 @@ export function NodeInspector() {
   const reviewBacklogItems = Array.isArray(reviewBacklog?.items) ? reviewBacklog.items as Array<Record<string, unknown>> : [];
   const arbitrationBacklogSummary = arbitrationBacklog?.queueSummary as Record<string, unknown> | undefined;
   const arbitrationBacklogItems = Array.isArray(arbitrationBacklog?.items) ? arbitrationBacklog.items as Array<Record<string, unknown>> : [];
+  const failureMemoryBacklogTop = Array.isArray(governanceScorecard?.failureMemoryBacklogTop)
+    ? governanceScorecard.failureMemoryBacklogTop as LegoFactoryFailureClassSummary[]
+    : [];
   const coverageGaps = d.coverageGaps as Array<Record<string, unknown>> | undefined;
   const governedOutputs = d.governedOutputs as Array<Record<string, unknown>> | undefined;
   const verificationStatus = typeof metadata.verificationStatus === 'string' ? metadata.verificationStatus : undefined;
@@ -229,6 +233,14 @@ export function NodeInspector() {
                   <div><span className="text-gray-500">Learning obs</span>: {String(memoryGovernance.learningObservations ?? '0')}</div>
                 </>
               )}
+              {governanceScorecard && (
+                <>
+                  <div className="pt-1 text-gray-500">Failure memory</div>
+                  <div><span className="text-gray-500">Status</span>: {String(governanceScorecard.failureMemoryBacklogStatus ?? 'green')}</div>
+                  <div><span className="text-gray-500">Classes</span>: {String(governanceScorecard.failureMemoryClassCount ?? '0')}</div>
+                  <div><span className="text-gray-500">Recurring</span>: {String(governanceScorecard.recurringFailureClassCount ?? '0')}</div>
+                </>
+              )}
               {/* Keep review backlog visible in the canonical governance eval node. */}
               {reviewBacklog && (
                 <>
@@ -268,6 +280,26 @@ export function NodeInspector() {
                       <div key={`${String(item.decisionId ?? 'review')}-${index}`} className="flex items-center justify-between gap-2 text-[10px]">
                         <span className="text-gray-200 truncate">{String(item.decisionId ?? 'unknown')}</span>
                         <span className="text-gray-500">{typeof item.ageMinutes === 'number' ? `${Number(item.ageMinutes).toFixed(1)}m` : 'n/a'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {failureMemoryBacklogTop.length > 0 && (
+                <div className="pt-1">
+                  <div className="text-gray-500 mb-1">Failure classes</div>
+                  <div className="space-y-1">
+                    {failureMemoryBacklogTop.slice(0, 3).map((failureClass, index) => (
+                      <div key={`${failureClass.sourceName}-${index}`} className="rounded-lg border border-neural-border/40 bg-neural-panel/20 px-2 py-1.5 text-[10px]">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-gray-200 truncate">{failureClass.sourceName}</span>
+                          <span className={failureClass.isRecurring ? 'text-amber-300' : 'text-gray-500'}>
+                            {failureClass.totalFailures} fail
+                          </span>
+                        </div>
+                        {failureClass.recommendedAction && (
+                          <div className="mt-0.5 text-emerald-300">{failureClass.recommendedAction}</div>
+                        )}
                       </div>
                     ))}
                   </div>
