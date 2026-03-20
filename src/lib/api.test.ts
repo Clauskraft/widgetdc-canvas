@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   fetchGovernanceEvalSnapshot,
   fetchLibreChatRuntimeIntelligence,
+  mcpCall,
   fetchOrchestratorRoutingSnapshot,
   graphSearch,
   graphWindow,
@@ -12,9 +13,11 @@ import {
 describe('Canvas API: LibreChat runtime intelligence', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it('posts the canonical request body to the LibreChat runtime endpoint', async () => {
+    vi.stubEnv('VITE_RLM_URL', 'https://rlm.example');
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -57,7 +60,7 @@ describe('Canvas API: LibreChat runtime intelligence', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      '/intelligence/librechat/runtime-intelligence',
+      'https://rlm.example/intelligence/librechat/runtime-intelligence',
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -150,6 +153,30 @@ describe('Canvas API: orchestrator routing snapshot', () => {
     expect(result.recentDecisions[0]?.selected_agent_id).toBe('nexus');
     expect(result.latestWorkflow?.workflow_id).toBe('wf-1');
     expect(result.latestChainExecutionId).toBe('exec-1');
+  });
+});
+
+describe('Canvas API: MCP route', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it('uses the canonical backend base URL when configured', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://backend.example');
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true }),
+    } as Response);
+
+    await mcpCall('ping');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://backend.example/api/mcp/route',
+      expect.objectContaining({
+        method: 'POST',
+      }),
+    );
   });
 });
 
@@ -421,9 +448,11 @@ describe('Canvas API: canonical graph routes', () => {
 describe('Canvas API: reason route', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it('posts the canonical reason payload shape', async () => {
+    vi.stubEnv('VITE_RLM_URL', 'https://rlm.example');
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -438,7 +467,7 @@ describe('Canvas API: reason route', () => {
     const result = await reasonCall(longPrompt, { domain: 'consulting' });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      '/reason',
+      'https://rlm.example/reason',
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
