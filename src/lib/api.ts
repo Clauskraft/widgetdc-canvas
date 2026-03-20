@@ -424,6 +424,17 @@ export interface GovernanceScorecardEvent {
   route?: string | null;
 }
 
+export interface LegoFactoryFailureClassSummary {
+  sourceName: string;
+  totalFailures: number;
+  uniqueErrorTypes: number;
+  recoverySuccessRate: number;
+  averageRecoveryTime: number;
+  isRecurring: boolean;
+  lastFailureAt: string | null;
+  recommendedAction: string | null;
+}
+
 export interface GovernanceScorecardSummary {
   windowDays: number;
   verifiedDecisions: number;
@@ -470,6 +481,10 @@ export interface GovernanceScorecardSummary {
   groundedEvidenceCoverage?: number | null;
   verificationPacketCoverage?: number | null;
   rolloutEvidencePacketCoverage?: number | null;
+  failureMemoryClassCount?: number;
+  recurringFailureClassCount?: number;
+  failureMemoryBacklogStatus?: 'green' | 'yellow' | 'red';
+  failureMemoryBacklogTop?: LegoFactoryFailureClassSummary[];
   coverageGaps: GovernanceCoverageGap[];
   recentEvents: GovernanceScorecardEvent[];
 }
