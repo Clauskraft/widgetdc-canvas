@@ -1,8 +1,12 @@
 import type { ArtifactSurfacePayload, LibreChatRuntimeIntelligencePayload } from './artifactSurface';
 
-// Both dev (Vite proxy) and prod (Caddy reverse_proxy) handle /api → backend.
-// Always use relative URLs — no CORS issues, same-origin requests.
-const API_URL = '';
+function resolveBaseUrl(value?: string): string {
+  return (value ?? '').trim().replace(/\/$/, '');
+}
+
+function getApiUrl(): string {
+  return resolveBaseUrl(import.meta.env.VITE_API_URL);
+}
 const API_KEY = import.meta.env.VITE_API_KEY ?? '';
 
 function getOrchestratorUrl(): string {
@@ -10,7 +14,7 @@ function getOrchestratorUrl(): string {
 }
 
 export async function mcpCall<T = unknown>(tool: string, payload: Record<string, unknown> = {}): Promise<T> {
-  const res = await fetch(`${API_URL}/api/mcp/route`, {
+  const res = await fetch(`${getApiUrl()}/api/mcp/route`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -251,7 +255,9 @@ export async function graphTextSearch(text: string, limit = 20): Promise<unknown
 
 // --- Canvas 5X Phase 2: RLM Reasoning ---
 
-const RLM_URL = '';
+function getRlmUrl(): string {
+  return resolveBaseUrl(import.meta.env.VITE_RLM_URL);
+}
 
 export interface ReasonResponse {
   recommendation: string;
@@ -276,7 +282,7 @@ export async function reasonCall(query: string, context?: Record<string, unknown
     ...(context ?? {}),
     ...(query.length > 200 ? { enriched_prompt: query } : {}),
   };
-  const res = await fetch(`${RLM_URL}/reason`, {
+  const res = await fetch(`${getRlmUrl()}/reason`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -296,7 +302,7 @@ export async function reasonCall(query: string, context?: Record<string, unknown
 }
 
 export async function getComplianceGaps(frameworkId?: string): Promise<ComplianceGapRecord[]> {
-  const url = new URL(`${RLM_URL}/intelligence/compliance-gaps`);
+  const url = new URL(`${getRlmUrl()}/intelligence/compliance-gaps`);
   if (frameworkId) url.searchParams.set('framework_id', frameworkId);
   const res = await fetch(url.toString(), {
     headers: { 'Content-Type': 'application/json' },
@@ -308,7 +314,7 @@ export async function getComplianceGaps(frameworkId?: string): Promise<Complianc
 }
 
 export async function fetchArtifactSurface(artifactId: string): Promise<ArtifactSurfacePayload> {
-  const res = await fetch(`${API_URL}/api/artifacts/surfaces/${encodeURIComponent(artifactId)}`, {
+  const res = await fetch(`${getApiUrl()}/api/artifacts/surfaces/${encodeURIComponent(artifactId)}`, {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${API_KEY}`,
@@ -329,7 +335,7 @@ export async function applyArtifactSurfaceAction(
   artifactId: string,
   action: string,
 ): Promise<ArtifactSurfacePayload> {
-  const res = await fetch(`${API_URL}/api/artifacts/surfaces/${encodeURIComponent(artifactId)}/actions`, {
+  const res = await fetch(`${getApiUrl()}/api/artifacts/surfaces/${encodeURIComponent(artifactId)}/actions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -573,7 +579,7 @@ export interface GovernanceEvalSnapshotPayload {
 export async function fetchLibreChatRuntimeIntelligence(
   payload: LibreChatRuntimeIntelligenceRequest,
 ): Promise<LibreChatRuntimeIntelligencePayload> {
-  const res = await fetch(`${RLM_URL}/intelligence/librechat/runtime-intelligence`, {
+  const res = await fetch(`${getRlmUrl()}/intelligence/librechat/runtime-intelligence`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -632,23 +638,23 @@ export async function fetchOrchestratorRoutingSnapshot(): Promise<OrchestratorRo
 
 export async function fetchGovernanceEvalSnapshot(days = 30, limit = 5): Promise<GovernanceEvalSnapshotPayload> {
   const [scorecardRes, legoFactoryRes, memoryRes, reviewBacklogRes, arbitrationBacklogRes] = await Promise.all([
-    fetch(`${API_URL}/api/governance/scorecard?days=${encodeURIComponent(String(days))}`, {
+    fetch(`${getApiUrl()}/api/governance/scorecard?days=${encodeURIComponent(String(days))}`, {
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(20_000),
     }),
-    fetch(`${API_URL}/api/governance/legofactory?limit=${encodeURIComponent(String(limit))}`, {
+    fetch(`${getApiUrl()}/api/governance/legofactory?limit=${encodeURIComponent(String(limit))}`, {
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(20_000),
     }),
-    fetch(`${API_URL}/api/governance/memory?days=${encodeURIComponent(String(days))}`, {
+    fetch(`${getApiUrl()}/api/governance/memory?days=${encodeURIComponent(String(days))}`, {
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(20_000),
     }),
-    fetch(`${API_URL}/api/governance/review-backlog?days=${encodeURIComponent(String(days))}&limit=${encodeURIComponent(String(limit))}`, {
+    fetch(`${getApiUrl()}/api/governance/review-backlog?days=${encodeURIComponent(String(days))}&limit=${encodeURIComponent(String(limit))}`, {
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(20_000),
     }),
-    fetch(`${API_URL}/api/governance/arbitration-backlog?days=${encodeURIComponent(String(days))}&limit=${encodeURIComponent(String(limit))}`, {
+    fetch(`${getApiUrl()}/api/governance/arbitration-backlog?days=${encodeURIComponent(String(days))}&limit=${encodeURIComponent(String(limit))}`, {
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(20_000),
     }),
@@ -769,7 +775,7 @@ export interface ToolDefinition {
 }
 
 export async function listMcpTools(): Promise<ToolDefinition[]> {
-  const res = await fetch(`${API_URL}/api/mcp/tools`, {
+  const res = await fetch(`${getApiUrl()}/api/mcp/tools`, {
     headers: {
       'Authorization': `Bearer ${API_KEY}`,
       'X-API-Key': API_KEY,
