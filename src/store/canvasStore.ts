@@ -76,6 +76,8 @@ interface ExpandState {
   hasMore: boolean;
 }
 
+export type CanvasSurface = 'canvas' | 'knowledge' | 'journal';
+
 interface CanvasState {
   nodes: Node[];
   edges: Edge[];
@@ -85,6 +87,7 @@ interface CanvasState {
   pendingOps: number;
   aiPanelOpen: boolean;
   toolPaletteOpen: boolean;
+  activeSurface: CanvasSurface;
   selectedNodeId: string | null;
   knowledgeExplorerMode: boolean;
   gapOverlayMode: boolean;
@@ -125,6 +128,7 @@ interface CanvasState {
   setLayoutMode: (mode: 'mindmap' | 'freeform') => void;
   toggleAiPanel: () => void;
   toggleToolPalette: () => void;
+  setActiveSurface: (surface: CanvasSurface) => void;
   toggleKnowledgeExplorer: () => void;
   toggleGapOverlay: (frameworkId?: string) => Promise<void>;
   selectNode: (id: string | null) => void;
@@ -387,6 +391,7 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
       pendingOps: 0,
       aiPanelOpen: false,
       toolPaletteOpen: false,
+      activeSurface: 'canvas',
       selectedNodeId: null,
       knowledgeExplorerMode: false,
       gapOverlayMode: false,
@@ -691,7 +696,18 @@ export const useCanvasStore = create<CanvasState>()((set, get) => {
 
       toggleAiPanel: () => set({ aiPanelOpen: !get().aiPanelOpen }),
       toggleToolPalette: () => set({ toolPaletteOpen: !get().toolPaletteOpen }),
-      toggleKnowledgeExplorer: () => set({ knowledgeExplorerMode: !get().knowledgeExplorerMode }),
+      setActiveSurface: (surface) =>
+        set({
+          activeSurface: surface,
+          knowledgeExplorerMode: surface === 'knowledge',
+        }),
+      toggleKnowledgeExplorer: () => {
+        const nextSurface = get().activeSurface === 'knowledge' ? 'canvas' : 'knowledge';
+        set({
+          activeSurface: nextSurface,
+          knowledgeExplorerMode: nextSurface === 'knowledge',
+        });
+      },
       toggleGapOverlay: async (frameworkId) => {
         const { gapOverlayMode, nodes, edges } = get();
         if (gapOverlayMode) {

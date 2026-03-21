@@ -52,6 +52,7 @@ function resetStore() {
     isLoading: false,
     aiPanelOpen: false,
     toolPaletteOpen: false,
+    activeSurface: 'canvas',
     knowledgeExplorerMode: false,
     gapOverlayMode: false,
     expandStates: new Map(),
@@ -567,6 +568,20 @@ describe('Core Operations', () => {
     expect(useCanvasStore.getState().knowledgeExplorerMode).toBe(false);
     useCanvasStore.getState().toggleKnowledgeExplorer();
     expect(useCanvasStore.getState().knowledgeExplorerMode).toBe(true);
+  });
+
+  it('setActiveSurface keeps the knowledge surface and compatibility shim aligned', () => {
+    expect(useCanvasStore.getState().activeSurface).toBe('canvas');
+
+    useCanvasStore.getState().setActiveSurface('knowledge');
+
+    expect(useCanvasStore.getState().activeSurface).toBe('knowledge');
+    expect(useCanvasStore.getState().knowledgeExplorerMode).toBe(true);
+
+    useCanvasStore.getState().setActiveSurface('journal');
+
+    expect(useCanvasStore.getState().activeSurface).toBe('journal');
+    expect(useCanvasStore.getState().knowledgeExplorerMode).toBe(false);
   });
 });
 

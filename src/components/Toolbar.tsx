@@ -68,7 +68,7 @@ export function Toolbar() {
     saveToGraph, loadFromGraph,
     clearCanvas, isLoading, selectedNodeId,
     undo, redo, undoStack, redoStack,
-    groupSelected, knowledgeExplorerMode, gapOverlayMode,
+    groupSelected, activeSurface, knowledgeExplorerMode, gapOverlayMode,
     generateBriefing,
   } = useCanvasStore();
 
@@ -329,13 +329,13 @@ export function Toolbar() {
       <button
         onClick={toggleKnowledgeExplorer}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
-          knowledgeExplorerMode
+          activeSurface === 'knowledge'
             ? 'bg-purple-600 text-white'
             : 'bg-neural-panel hover:bg-neural-border text-gray-200'
         }`}
-        title="Knowledge Explorer — show only thoughts, insights, evidence"
+        title="Knowledge Surface — switch between canvas and knowledge shells"
       >
-        <BookOpen size={14} /> {knowledgeExplorerMode ? 'Explorer ON' : 'Explorer'}
+        <BookOpen size={14} /> {activeSurface === 'knowledge' || knowledgeExplorerMode ? 'Viden' : 'Explorer'}
       </button>
 
       <button

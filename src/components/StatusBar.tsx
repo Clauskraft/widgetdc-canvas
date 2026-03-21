@@ -1,7 +1,7 @@
 import { useCanvasStore } from '../store/canvasStore';
 
 export function StatusBar() {
-  const { nodes, edges, canvasId, layoutMode, knowledgeExplorerMode, gapOverlayMode, routingSnapshot } = useCanvasStore();
+  const { nodes, edges, canvasId, layoutMode, activeSurface, knowledgeExplorerMode, gapOverlayMode, routingSnapshot } = useCanvasStore();
 
   const typeCounts = nodes.reduce<Record<string, number>>((acc, n) => {
     const t = n.type ?? 'Entity';
@@ -21,6 +21,7 @@ export function StatusBar() {
       <span>{edges.length} edges</span>
       {topTypes && <span className="text-gray-600">{topTypes}</span>}
       <div className="flex-1" />
+      <span className="uppercase">{activeSurface}</span>
       {knowledgeExplorerMode && <span className="text-purple-400">EXPLORER</span>}
       {gapOverlayMode && <span className="text-amber-400">GAP OVERLAY</span>}
       <span className="uppercase">{layoutMode}</span>
