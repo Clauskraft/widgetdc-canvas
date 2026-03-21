@@ -41,6 +41,10 @@ export function CommandPalette() {
   }, [open]);
 
   const items: PaletteItem[] = [
+    // Views
+    { id: 'open-canvas', label: 'Open Canvas Surface', description: 'Switch to the main canvas shell', category: 'view', icon: Search, action: () => store.setActiveSurface('canvas') },
+    { id: 'open-knowledge', label: 'Open Knowledge Surface', description: 'Expose the knowledge-focused canvas shell', category: 'view', icon: BookOpen, action: () => store.setActiveSurface('knowledge') },
+    { id: 'open-journal', label: 'Open Journal Surface', description: 'Switch to the notes surface', category: 'view', icon: BookOpen, action: () => store.setActiveSurface('journal') },
     // Actions
     { id: 'save', label: 'Save to Neo4j', description: 'Persist canvas state', category: 'action', icon: Save, action: () => store.saveToGraph() },
     { id: 'load', label: 'Load from Neo4j', description: 'Restore saved canvas', category: 'action', icon: Upload, action: () => store.loadFromGraph() },
@@ -49,7 +53,7 @@ export function CommandPalette() {
     { id: 'layout-lr', label: 'Layout Left-Right', description: 'Auto-arrange horizontally', category: 'action', icon: LayoutGrid, action: () => store.applyLayout('LR') },
     { id: 'toggle-ai', label: 'Toggle AI Panel', description: 'Open/close assistant', category: 'action', icon: Sparkles, action: () => store.toggleAiPanel() },
     { id: 'toggle-tools', label: 'Toggle Tool Palette', description: 'Show MCP tools', category: 'action', icon: Wrench, action: () => store.toggleToolPalette() },
-    { id: 'toggle-explorer', label: 'Knowledge Explorer', description: 'Filter to thoughts/insights/evidence', category: 'action', icon: BookOpen, action: () => store.toggleKnowledgeExplorer() },
+    { id: 'toggle-explorer', label: 'Toggle Knowledge Surface', description: 'Switch between canvas and knowledge surfaces', category: 'action', icon: BookOpen, action: () => store.toggleKnowledgeExplorer() },
     { id: 'gap-overlay', label: 'Compliance Gap Overlay', description: 'Show compliance gaps from RLM', category: 'action', icon: Lightbulb, action: () => store.toggleGapOverlay() },
     { id: 'undo', label: 'Undo', description: 'Ctrl+Z', category: 'action', icon: Layers, action: () => store.undo() },
     { id: 'redo', label: 'Redo', description: 'Ctrl+Y', category: 'action', icon: Layers, action: () => store.redo() },
