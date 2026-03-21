@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -105,6 +105,12 @@ function resetStore() {
   } as any);
 }
 
+async function flushEffects() {
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
 describe('AppShell', () => {
   beforeEach(() => {
     loadTemplateMock.mockClear();
@@ -115,37 +121,36 @@ describe('AppShell', () => {
   it('hydrates the knowledge surface from the query string', async () => {
     window.history.replaceState({}, '', '/?view=knowledge');
 
-    render(<AppShell />);
+    const view = render(<AppShell />);
 
-    await waitFor(() => {
-      expect(useCanvasStore.getState().activeSurface).toBe('knowledge');
-    });
+    await flushEffects();
 
+    expect(useCanvasStore.getState().activeSurface).toBe('knowledge');
     expect(useCanvasStore.getState().knowledgeExplorerMode).toBe(true);
     expect(window.location.search).toBe('?view=knowledge');
     expect(loadTemplateMock).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Viden' })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'Viden' })).toBeTruthy();
   });
 
   it('updates the URL when the shell switches to journal and back to knowledge', async () => {
-    render(<AppShell />);
+    const view = render(<AppShell />);
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Notesblok' }));
+      view.getByRole('button', { name: 'Notesblok' }).click();
     });
 
-    await waitFor(() => {
-      expect(useCanvasStore.getState().activeSurface).toBe('journal');
-    });
+    await flushEffects();
+
+    expect(useCanvasStore.getState().activeSurface).toBe('journal');
     expect(window.location.search).toBe('?view=journal');
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Viden' }));
+      view.getByRole('button', { name: 'Viden' }).click();
     });
 
-    await waitFor(() => {
-      expect(useCanvasStore.getState().activeSurface).toBe('knowledge');
-    });
+    await flushEffects();
+
+    expect(useCanvasStore.getState().activeSurface).toBe('knowledge');
     expect(window.location.search).toBe('?view=knowledge');
     expect(useCanvasStore.getState().knowledgeExplorerMode).toBe(true);
   });
