@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppShell } from './AppShell';
+import { resolveCockpitUrl } from './AppShell';
 import { useCanvasStore } from './store/canvasStore';
 
 vi.mock('./components/Canvas', () => ({
@@ -115,7 +116,20 @@ describe('AppShell', () => {
   beforeEach(() => {
     loadTemplateMock.mockClear();
     resetStore();
+    vi.unstubAllEnvs();
     window.history.replaceState({}, '', '/');
+  });
+
+  it('resolves the cockpit URL from env when configured', () => {
+    vi.stubEnv('VITE_COCKPIT_URL', 'https://cockpit.example/path/');
+
+    expect(resolveCockpitUrl()).toBe('https://cockpit.example/path');
+  });
+
+  it('falls back to the proxied consulting cockpit stats route', () => {
+    vi.stubEnv('VITE_COCKPIT_URL', '');
+
+    expect(resolveCockpitUrl()).toBe('/api/consulting-cockpit/stats');
   });
 
   it('hydrates the knowledge surface from the query string', async () => {
@@ -153,5 +167,16 @@ describe('AppShell', () => {
     expect(useCanvasStore.getState().activeSurface).toBe('knowledge');
     expect(window.location.search).toBe('?view=knowledge');
     expect(useCanvasStore.getState().knowledgeExplorerMode).toBe(true);
+  });
+
+  it('renders the cockpit entry as a real external link', async () => {
+    const view = render(<AppShell />);
+
+    await flushEffects();
+
+    const link = view.getByRole('link', { name: 'Se Cockpit-version' });
+    expect(link.getAttribute('href')).toBe('/api/consulting-cockpit/stats');
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toContain('noreferrer');
   });
 });

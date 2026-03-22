@@ -13,7 +13,7 @@ interface JournalProps {
 }
 
 export function Journal({ isVisible, onFlip }: JournalProps) {
-  const { addNodeWithData } = useCanvasStore();
+  const { addNodeWithData, _toast } = useCanvasStore();
   const [isSyncing, setIsSyncing] = useState(false);
 
   const editor = useEditor({
@@ -46,23 +46,26 @@ export function Journal({ isVisible, onFlip }: JournalProps) {
   const sendToCanvas = () => {
     if (!editor) return;
     const { from, to } = editor.state.selection;
-    const selectedText = editor.state.doc.textBetween(from, to, ' ');
+    const selectedText = editor.state.doc.textBetween(from, to, ' ').trim();
 
-    if (selectedText && selectedText.length > 3) {
-      addNodeWithData('insight', {
-        label: selectedText.slice(0, 60) + (selectedText.length > 60 ? '...' : ''),
-        subtitle: selectedText,
-        nodeType: 'Insight',
-        provenance: {
-          createdBy: 'manual',
-          createdAt: new Date().toISOString(),
-          source: 'Journal Extraction'
-        }
-      });
-
-      editor.commands.setBold();
-      onFlip();
+    if (!selectedText || selectedText.length <= 3) {
+      _toast?.('info', 'Select text in the journal before sending it to Canvas.');
+      return;
     }
+
+    addNodeWithData('insight', {
+      label: selectedText.slice(0, 60) + (selectedText.length > 60 ? '...' : ''),
+      subtitle: selectedText,
+      nodeType: 'Insight',
+      provenance: {
+        createdBy: 'manual',
+        createdAt: new Date().toISOString(),
+        source: 'Journal Extraction'
+      }
+    });
+
+    editor.commands.setBold();
+    onFlip();
   };
 
   return (
@@ -112,6 +115,10 @@ export function Journal({ isVisible, onFlip }: JournalProps) {
             </button>
           </div>
         </div>
+
+        <p className="mb-8 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">
+          Select text to send it to Canvas.
+        </p>
 
         {/* Editor Area */}
         <div className="relative">
