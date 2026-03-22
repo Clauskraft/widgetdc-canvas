@@ -18,6 +18,6 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --omit=dev --legacy-peer-deps
 COPY --from=builder /app/dist ./dist
-COPY server.mjs ./server.mjs
+COPY server.mjs serverRuntime.mjs ./
 EXPOSE 8080
 CMD ["node", "server.mjs"]
