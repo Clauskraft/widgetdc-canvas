@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { createMountAwarePathRewrite, resolveProxyAuthHeaders } from './serverRuntime.mjs';
+import {
+  createMountAwarePathRewrite,
+  resolveProxyAuthHeaders,
+  resolveRuntimeGitCommitSha,
+} from './serverRuntime.mjs';
 
 describe('canvas runtime proxy path preservation', () => {
   it('restores the /api prefix stripped by Express mount paths', () => {
@@ -42,5 +46,30 @@ describe('canvas runtime proxy path preservation', () => {
     );
 
     expect(headers).toEqual({});
+  });
+
+  it('uses build metadata when Railway does not expose a commit SHA env var', () => {
+    expect(
+      resolveRuntimeGitCommitSha(
+        {
+          RAILWAY_GIT_COMMIT_SHA: '',
+          SOURCE_COMMIT: '',
+          GIT_COMMIT_SHA: '',
+        },
+        { git_commit_sha: '664d8820e9c0942b0ad7c94ba436996b810a4015' },
+      ),
+    ).toBe('664d8820e9c0942b0ad7c94ba436996b810a4015');
+  });
+
+  it('prefers the runtime env commit when one is available', () => {
+    expect(
+      resolveRuntimeGitCommitSha(
+        {
+          RAILWAY_GIT_COMMIT_SHA: '7278bc6cb01b4f8ce610067ae6300121454e8c83',
+          SOURCE_COMMIT: '664d8820e9c0942b0ad7c94ba436996b810a4015',
+        },
+        { git_commit_sha: 'fallback-commit' },
+      ),
+    ).toBe('7278bc6cb01b4f8ce610067ae6300121454e8c83');
   });
 });
