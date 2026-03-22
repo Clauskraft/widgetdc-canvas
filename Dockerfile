@@ -3,6 +3,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --legacy-peer-deps
 COPY . .
+RUN node scripts/write-build-metadata.mjs
 ARG VITE_API_KEY
 ARG VITE_API_URL
 ARG VITE_RLM_URL
@@ -18,6 +19,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --omit=dev --legacy-peer-deps
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/build-metadata.json ./build-metadata.json
 COPY server.mjs serverRuntime.mjs ./
 EXPOSE 8080
 CMD ["node", "server.mjs"]

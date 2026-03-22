@@ -50,3 +50,23 @@ export function resolveProxyAuthHeaders(env = process.env, incomingHeaders = {})
     ...(String(apiKeyHeader || '').trim() ? {} : { 'x-api-key': configuredApiKey }),
   };
 }
+
+function firstNonEmpty(values) {
+  for (const value of values) {
+    const trimmed = String(value ?? '').trim();
+    if (trimmed) {
+      return trimmed;
+    }
+  }
+  return null;
+}
+
+export function resolveRuntimeGitCommitSha(env = process.env, buildMetadata = {}) {
+  return firstNonEmpty([
+    env?.RAILWAY_GIT_COMMIT_SHA,
+    env?.SOURCE_COMMIT,
+    env?.GIT_COMMIT_SHA,
+    env?.GITHUB_SHA,
+    buildMetadata?.git_commit_sha,
+  ]);
+}
