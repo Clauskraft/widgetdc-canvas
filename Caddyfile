@@ -11,12 +11,12 @@ route {
         header_up X-Forwarded-Host {host}
     }
 
-    reverse_proxy /reason https://rlm-engine-production.up.railway.app {
+    reverse_proxy /reason* https://rlm-engine-production.up.railway.app {
         header_up Host rlm-engine-production.up.railway.app
         header_up X-Forwarded-Host {host}
     }
 
-    reverse_proxy /intelligence/* https://rlm-engine-production.up.railway.app {
+    reverse_proxy /intelligence* https://rlm-engine-production.up.railway.app {
         header_up Host rlm-engine-production.up.railway.app
         header_up X-Forwarded-Host {host}
     }
