@@ -18,6 +18,11 @@ import { useCanvasStore, type CanvasSurface } from './store/canvasStore';
 
 export const DEBUG_BUILD_STAMP = 'OMNI-MERGE-VERIFY-2026-03-19T03:17Z';
 
+export function resolveCockpitUrl(): string {
+  const configured = String(import.meta.env.VITE_COCKPIT_URL ?? '').trim().replace(/\/$/, '');
+  return configured || '/api/consulting-cockpit/stats';
+}
+
 function hasPersistedCanvasState(): boolean {
   const { nodes, edges } = useCanvasStore.getState();
   return nodes.length > 0 || edges.length > 0;
@@ -94,6 +99,7 @@ export function AppShell() {
   const activeSurface = useCanvasStore((state) => state.activeSurface);
   const setActiveSurface = useCanvasStore((state) => state.setActiveSurface);
   const [surfaceHydrated, setSurfaceHydrated] = useState(false);
+  const cockpitUrl = resolveCockpitUrl();
 
   useEffect(() => {
     setActiveSurface(readSurfaceFromUrl());
@@ -133,7 +139,14 @@ export function AppShell() {
                   <div className="flex items-center gap-3 bg-neural-surface/80 backdrop-blur-md px-4 py-2 rounded-full border border-neural-border shadow-lg pointer-events-auto">
                     <span className="text-xl">🧠</span>
                     <h1 className="text-sm font-bold text-gray-100 tracking-wide">WidgeTDC Canvas</h1>
-                    <button className="text-xs text-gray-500 border-l border-neural-border pl-3 hover:text-gray-300">Se Cockpit-version</button>
+                    <a
+                      href={cockpitUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="text-xs text-gray-500 border-l border-neural-border pl-3 hover:text-gray-300"
+                    >
+                      Se Cockpit-version
+                    </a>
                     <span className="text-[10px] font-black text-lime-300 border-l border-lime-500/30 pl-3 tracking-widest">
                       {DEBUG_BUILD_STAMP}
                     </span>
