@@ -7,19 +7,27 @@ function resolveBaseUrl(value?: string): string {
 function getApiUrl(): string {
   return resolveBaseUrl(import.meta.env.VITE_API_URL);
 }
-const API_KEY = import.meta.env.VITE_API_KEY ?? '';
+
+function getApiKey(): string {
+  return String(import.meta.env.VITE_API_KEY ?? '').trim();
+}
 
 function getOrchestratorUrl(): string {
   return import.meta.env.VITE_ORCHESTRATOR_URL ?? '';
 }
 
 export async function mcpCall<T = unknown>(tool: string, payload: Record<string, unknown> = {}): Promise<T> {
+  const apiKey = getApiKey();
   const res = await fetch(`${getApiUrl()}/api/mcp/route`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${API_KEY}`,
-      'X-API-Key': API_KEY,
+      ...(apiKey
+        ? {
+            'Authorization': `Bearer ${apiKey}`,
+            'X-API-Key': apiKey,
+          }
+        : {}),
     },
     body: JSON.stringify({ tool, payload }),
     signal: AbortSignal.timeout(30_000),
@@ -314,10 +322,11 @@ export async function getComplianceGaps(frameworkId?: string): Promise<Complianc
 }
 
 export async function fetchArtifactSurface(artifactId: string): Promise<ArtifactSurfacePayload> {
+  const apiKey = getApiKey();
   const res = await fetch(`${getApiUrl()}/api/artifacts/surfaces/${encodeURIComponent(artifactId)}`, {
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${API_KEY}`,
+      ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
     },
     signal: AbortSignal.timeout(15_000),
   });
@@ -335,11 +344,12 @@ export async function applyArtifactSurfaceAction(
   artifactId: string,
   action: string,
 ): Promise<ArtifactSurfacePayload> {
+  const apiKey = getApiKey();
   const res = await fetch(`${getApiUrl()}/api/artifacts/surfaces/${encodeURIComponent(artifactId)}/actions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${API_KEY}`,
+      ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
     },
     body: JSON.stringify({ action }),
     signal: AbortSignal.timeout(15_000),
@@ -790,10 +800,15 @@ export interface ToolDefinition {
 }
 
 export async function listMcpTools(): Promise<ToolDefinition[]> {
+  const apiKey = getApiKey();
   const res = await fetch(`${getApiUrl()}/api/mcp/tools`, {
     headers: {
-      'Authorization': `Bearer ${API_KEY}`,
-      'X-API-Key': API_KEY,
+      ...(apiKey
+        ? {
+            'Authorization': `Bearer ${apiKey}`,
+            'X-API-Key': apiKey,
+          }
+        : {}),
     },
     signal: AbortSignal.timeout(10_000),
   });
