@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createMountAwarePathRewrite } from './serverRuntime.mjs';
+import { createMountAwarePathRewrite, resolveProxyAuthHeaders } from './serverRuntime.mjs';
 
 describe('canvas runtime proxy path preservation', () => {
   it('restores the /api prefix stripped by Express mount paths', () => {
@@ -21,5 +21,26 @@ describe('canvas runtime proxy path preservation', () => {
     const rewrite = createMountAwarePathRewrite('/intelligence');
 
     expect(rewrite('/intelligence/runtime')).toBe('/intelligence/runtime');
+  });
+
+  it('injects backend auth headers when a runtime API key is configured', () => {
+    const headers = resolveProxyAuthHeaders(
+      { BACKEND_API_KEY: 'secret-key' },
+      { authorization: '', 'x-api-key': '' },
+    );
+
+    expect(headers).toEqual({
+      authorization: 'Bearer secret-key',
+      'x-api-key': 'secret-key',
+    });
+  });
+
+  it('preserves existing auth headers when the caller already supplied them', () => {
+    const headers = resolveProxyAuthHeaders(
+      { BACKEND_API_KEY: 'secret-key' },
+      { authorization: 'Bearer caller-token', 'x-api-key': 'caller-token' },
+    );
+
+    expect(headers).toEqual({});
   });
 });

@@ -178,6 +178,26 @@ describe('Canvas API: MCP route', () => {
       }),
     );
   });
+
+  it('omits auth headers when no API key is configured in the browser build', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://backend.example');
+    vi.stubEnv('VITE_API_KEY', '');
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true }),
+    } as Response);
+
+    await mcpCall('ping');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://backend.example/api/mcp/route',
+      expect.objectContaining({
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }),
+    );
+  });
 });
 
 describe('Canvas API: governance eval snapshot', () => {
