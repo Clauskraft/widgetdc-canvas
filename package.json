@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite --port 5174",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy:railway": "node scripts/deploy-railway.mjs",
+    "deploy:railway:dry": "node scripts/deploy-railway.mjs --dry-run"
   },
   "dependencies": {
     "@dagrejs/dagre": "^2.0.4",

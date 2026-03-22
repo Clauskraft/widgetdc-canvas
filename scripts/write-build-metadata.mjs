@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const repoRoot = process.cwd();
 
@@ -50,7 +51,7 @@ function resolvePackedRef(gitDir, refName) {
   return null;
 }
 
-function resolveGitCommitSha(rootDir) {
+export function resolveGitCommitSha(rootDir) {
   const envCommit = String(
     process.env.RAILWAY_GIT_COMMIT_SHA
     || process.env.SOURCE_COMMIT
@@ -90,10 +91,19 @@ function resolveGitCommitSha(rootDir) {
   return resolvePackedRef(gitDir, refName);
 }
 
-const outputPath = path.join(repoRoot, 'build-metadata.json');
-const metadata = {
-  git_commit_sha: resolveGitCommitSha(repoRoot),
-};
+export function writeBuildMetadata(rootDir = repoRoot) {
+  const outputPath = path.join(rootDir, 'build-metadata.json');
+  const metadata = {
+    git_commit_sha: resolveGitCommitSha(rootDir),
+  };
 
-fs.writeFileSync(outputPath, JSON.stringify(metadata, null, 2));
-console.log(`wrote build metadata to ${outputPath}`);
+  fs.writeFileSync(outputPath, JSON.stringify(metadata, null, 2));
+  return { outputPath, metadata };
+}
+
+const isMainModule = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isMainModule) {
+  const { outputPath } = writeBuildMetadata(repoRoot);
+  console.log(`wrote build metadata to ${outputPath}`);
+}
