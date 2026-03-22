@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
 import { render } from '@testing-library/react';
-import { fireEvent } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Journal } from './Journal';
@@ -57,7 +56,7 @@ describe('Journal', () => {
     const onFlip = vi.fn();
     const view = render(<Journal isVisible={true} onFlip={onFlip} />);
 
-    fireEvent.click(view.getByRole('button', { name: /Send to Canvas/i }));
+    view.getByRole('button', { name: /Send to Canvas/i }).click();
 
     expect(addNodeWithDataMock).not.toHaveBeenCalled();
     expect(onFlip).not.toHaveBeenCalled();
@@ -69,7 +68,7 @@ describe('Journal', () => {
     const onFlip = vi.fn();
     const view = render(<Journal isVisible={true} onFlip={onFlip} />);
 
-    fireEvent.click(view.getByRole('button', { name: /Send to Canvas/i }));
+    view.getByRole('button', { name: /Send to Canvas/i }).click();
 
     expect(addNodeWithDataMock).toHaveBeenCalledTimes(1);
     expect(addNodeWithDataMock).toHaveBeenCalledWith(
