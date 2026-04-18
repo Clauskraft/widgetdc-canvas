@@ -1,0 +1,209 @@
+/**
+ * Substrate Cartography — CSS custom properties
+ * Derived from docs/canvas/theme-substrate-cartography.json
+ * Consumed by widgetdc-canvas UC5 pane components + host iframe CSS.
+ *
+ * Philosophy: one surface, seven tracks, emergent rules.
+ * See docs/canvas/DESIGN_PHILOSOPHY.md
+ */
+
+:root {
+  /* ── Paper & ink ─────────────────────────────────────────────────── */
+  --sc-paper:         #f2ede1;
+  --sc-paper-deep:    #e8e1d0;
+  --sc-paper-whisper: #d6cfc0;
+
+  --sc-ink-graphite:  #18181b;
+  --sc-ink-stone:     #57534e;
+  --sc-ink-fog:       #a8a29e;
+
+  /* ── Seven builder-track hues ────────────────────────────────────── */
+  --sc-track-textual:      #3a4c6b;
+  --sc-track-slide-flow:   #a85c3e;
+  --sc-track-diagram:      #4a6a4b;
+  --sc-track-architecture: #3e3c63;
+  --sc-track-graphical:    #6e3a4f;
+  --sc-track-code:         #2f3b38;
+  --sc-track-experiment:   #766039;
+
+  /* ── Semantic surface tokens ─────────────────────────────────────── */
+  --sc-surface-bg:       var(--sc-paper);
+  --sc-surface-muted:    var(--sc-paper-deep);
+  --sc-surface-elevated: #fdfcf7;
+
+  --sc-divider:         var(--sc-paper-whisper);
+  --sc-divider-subtle:  var(--sc-paper-deep);
+
+  --sc-text-primary:    var(--sc-ink-graphite);
+  --sc-text-secondary:  var(--sc-ink-stone);
+  --sc-text-tertiary:   var(--sc-ink-fog);
+  --sc-text-inverted:   var(--sc-paper);
+
+  --sc-focus-ring:      var(--sc-track-textual);
+
+  /* ── Typography (IBM Plex per prototype spec) ────────────────────── */
+  --sc-font-sans: "IBM Plex Sans", "Inter", "Helvetica Neue", Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
+  --sc-font-mono: "IBM Plex Mono", "JetBrains Mono", "SF Mono", "Menlo", ui-monospace, monospace;
+
+  --sc-size-xs:      0.6875rem;  /* 11 px */
+  --sc-size-sm:      0.75rem;    /* 12 px */
+  --sc-size-base:    0.875rem;   /* 14 px */
+  --sc-size-md:      1rem;       /* 16 px */
+  --sc-size-lg:      1.125rem;   /* 18 px */
+  --sc-size-xl:      1.5rem;     /* 24 px */
+  --sc-size-xxl:     2.25rem;    /* 36 px */
+  --sc-size-display: 3.5rem;     /* 56 px */
+
+  --sc-tracking-display: 0.12em;
+  --sc-tracking-label:   0.22em;
+  --sc-tracking-body:    0.01em;
+
+  --sc-leading-tight:   1.2;
+  --sc-leading-snug:    1.4;
+  --sc-leading-normal:  1.6;
+  --sc-leading-relaxed: 1.75;
+
+  /* ── Space ───────────────────────────────────────────────────────── */
+  --sc-rule-thin: 0.5px;
+  --sc-rule-base: 1px;
+  --sc-gutter:    24px;
+  --sc-section:   64px;
+  --sc-pane-pad:  40px;
+  --sc-canvas-outer: 80px;
+  --sc-canvas-inner: 40px;
+  --sc-isoline-gap:  38px;
+
+  --sc-radius-none: 0;
+  --sc-radius-sm:   2px;
+  --sc-radius-md:   4px;
+  --sc-radius-lg:   8px;
+
+  /* ── Motion — sparse, state-change only ──────────────────────────── */
+  --sc-duration-instant: 0ms;
+  --sc-duration-quick:   120ms;
+  --sc-duration-settle:  240ms;
+  --sc-ease-emphasized:  cubic-bezier(0.4, 0, 0.2, 1);
+  --sc-ease-standard:    cubic-bezier(0.4, 0, 0.6, 1);
+
+  /* ── Elevation ───────────────────────────────────────────────────── */
+  --sc-elev-flat:    none;
+  --sc-elev-resting: 0 1px 0 0 rgba(24, 24, 27, 0.05);
+  --sc-elev-hover:   0 2px 4px 0 rgba(24, 24, 27, 0.06);
+  --sc-elev-raised:  0 6px 18px -4px rgba(24, 24, 27, 0.08);
+}
+
+/* ── Reduced motion: honour system preference ───────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --sc-duration-quick:  0ms;
+    --sc-duration-settle: 0ms;
+  }
+}
+
+/* ── Base anchor — apply to the canvas root element ────────────────── */
+.sc-canvas,
+.sc-root {
+  background: var(--sc-surface-bg);
+  color: var(--sc-text-primary);
+  font-family: var(--sc-font-sans);
+  font-feature-settings: "tnum" on, "ss01" on;
+  font-size: var(--sc-size-base);
+  line-height: var(--sc-leading-normal);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Track chip utility (legend swatch + label) ────────────────────── */
+.sc-track-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--sc-font-mono);
+  font-size: var(--sc-size-sm);
+  letter-spacing: var(--sc-tracking-label);
+  text-transform: uppercase;
+  color: var(--sc-text-secondary);
+}
+.sc-track-chip::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--sc-radius-sm);
+  background: currentColor;
+  opacity: 0.85;
+}
+
+.sc-track--textual      { color: var(--sc-track-textual); }
+.sc-track--slide_flow   { color: var(--sc-track-slide-flow); }
+.sc-track--diagram      { color: var(--sc-track-diagram); }
+.sc-track--architecture { color: var(--sc-track-architecture); }
+.sc-track--graphical    { color: var(--sc-track-graphical); }
+.sc-track--code         { color: var(--sc-track-code); }
+.sc-track--experiment   { color: var(--sc-track-experiment); }
+
+/* ── Thin-rule divider ──────────────────────────────────────────────── */
+.sc-rule {
+  border: 0;
+  border-top: var(--sc-rule-thin) solid var(--sc-divider);
+  margin: var(--sc-section) 0;
+}
+
+/* ── Focus ring (accessibility) ─────────────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid var(--sc-focus-ring);
+  outline-offset: 2px;
+}
+
+/* ── Paper grain overlay ─────────────────────────────────────────────── */
+.sc-paper-grain::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.55;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(24,24,27,.018) 0 0.5px, transparent 1px),
+    radial-gradient(circle at 70% 65%, rgba(24,24,27,.015) 0 0.5px, transparent 1px),
+    radial-gradient(circle at 45% 85%, rgba(24,24,27,.012) 0 0.5px, transparent 1px);
+  background-size: 7px 7px, 11px 11px, 13px 13px;
+}
+
+/* ── Pane header ─────────────────────────────────────────────────────── */
+.sc-pane-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 14px;
+  margin-bottom: 24px;
+  border-bottom: var(--sc-rule-thin) solid var(--sc-paper-whisper);
+}
+.sc-pane-label {
+  font-family: var(--sc-font-mono);
+  font-size: 10px;
+  letter-spacing: var(--sc-tracking-label);
+  text-transform: uppercase;
+  color: var(--sc-ink-stone);
+}
+.sc-pane-meta {
+  font-family: var(--sc-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: var(--sc-ink-fog);
+}
+
+/* ── Bridge status dot pulse ─────────────────────────────────────────── */
+@keyframes sc-pulse {
+  0%, 100% { opacity: 0.35; }
+  50%       { opacity: 1; }
+}
+.sc-bridge-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sc-track-diagram);
+  margin-right: 6px;
+  vertical-align: 1px;
+  animation: sc-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
