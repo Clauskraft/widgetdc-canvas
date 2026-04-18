@@ -4,6 +4,8 @@ import { createRoot } from 'react-dom/client';
 import { AppShell, DEBUG_BUILD_STAMP } from './AppShell';
 import { useCanvasStore } from './store/canvasStore';
 import './index.css';
+// UC5: substrate-cartography theme tokens (CSS custom properties)
+import './theme/substrate-cartography.css';
 
 const container = document.getElementById('root');
 
