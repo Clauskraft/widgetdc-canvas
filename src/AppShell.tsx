@@ -24,8 +24,11 @@ import type { BuilderTrack, PaneId } from './types/session';
 import { BriefBar } from './components/BriefBar';
 import { RationaleStrip } from './components/RationaleStrip';
 import { HostMessageToast } from './components/HostMessageToast';
+// M5 panes
+import { PhantomBOMPane } from './panes/PhantomBOMPane';
+import { ArchitectureSpecPane } from './panes/ArchitectureSpecPane';
 
-export const DEBUG_BUILD_STAMP = 'UC5-2026-04-18';
+export const DEBUG_BUILD_STAMP = 'M5-2026-04-19';
 
 export function resolveCockpitUrl(): string {
   const configured = String(import.meta.env.VITE_COCKPIT_URL ?? '').trim().replace(/\/$/, '');
@@ -44,7 +47,7 @@ const VALID_TRACKS: ReadonlySet<string> = new Set([
   'textual', 'slide_flow', 'diagram', 'architecture', 'graphical', 'code', 'experiment',
 ]);
 const VALID_PANES: ReadonlySet<string> = new Set([
-  'canvas', 'markdown', 'slides', 'drawio', 'split',
+  'canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec',
 ]);
 
 function readUC5Params(): UC5Params {
@@ -100,6 +103,11 @@ function UC5PaneRouter() {
           right={<TextPane />}
         />
       );
+    // M5 panes
+    case 'phantom_bom':
+      return <PhantomBOMPane />;
+    case 'architecture_spec':
+      return <ArchitectureSpecPane />;
     case 'canvas':
     default:
       return <ArchitecturePane track={track} />;
@@ -233,8 +241,8 @@ function TrackLegend() {
       })}
 
       {/* Pane switcher pills */}
-      <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
-        {(['canvas', 'markdown', 'slides', 'drawio', 'split'] as PaneId[]).map((pane) => {
+      <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+        {(['canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec'] as PaneId[]).map((pane) => {
           const isActive = pane === activePane;
           return (
             <button
@@ -379,6 +387,22 @@ function UC5Shell() {
 
       {/* UC5 intelligence: inbound host message toast (LibreChat/WebUI/Office) */}
       <HostMessageToast />
+
+      {/* M5: Accessibility global focus-visible ring + responsive 900px breakpoint */}
+      <style>{`
+        .sc-root button:focus-visible,
+        .sc-root a:focus-visible {
+          outline: 2px solid var(--sc-focus-ring);
+          outline-offset: 2px;
+          border-radius: var(--sc-radius-sm);
+        }
+        @media (max-width: 900px) {
+          .sc-root nav[aria-label="Builder tracks"] {
+            gap: 12px;
+            padding: 10px var(--sc-gutter) 14px;
+          }
+        }
+      `}</style>
     </div>
   );
 }

@@ -10,6 +10,8 @@ import type {
   PaneId,
   CanvasResolutionWire,
   PreSeededNode,
+  MultiModalOrder,
+  ModalityArtifact,
 } from '../types/session';
 
 const SESSION_HYDRATE_BASE =
@@ -90,7 +92,7 @@ function createPaneState(): PaneState {
   };
 }
 
-const PANE_IDS: PaneId[] = ['canvas', 'markdown', 'slides', 'drawio', 'split'];
+const PANE_IDS: PaneId[] = ['canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec'];
 
 function createInitialPanes(): Record<PaneId, PaneState> {
   return Object.fromEntries(
@@ -120,6 +122,9 @@ export interface CanvasSessionState {
   rewardStatus: RewardStatus;
   isSubmittingBrief: boolean;
 
+  // M5: multi-modal order state (T4.5)
+  materializingOrder: MultiModalOrder | null;
+
   // Actions
   hydrate(args: {
     sessionId: string;
@@ -142,6 +147,11 @@ export interface CanvasSessionState {
   submitBrief(brief: string): Promise<void>;
   recordReward(reward: 0 | 1): Promise<void>;
   appendHostMessage(origin: string, payload: unknown): void;
+
+  // M5: multi-modal actions (T4.5)
+  startMultiModal(brief: string, canvasResolution: CanvasResolutionWire): Promise<void>;
+  updateArtifactFromSSE(modality: string, update: Partial<ModalityArtifact>): void;
+  closeSSE(): void;
 }
 
 // ── Selectors (memoisation helpers) ─────────────────────────────────────────
@@ -167,6 +177,7 @@ export const useCanvasSession = create<CanvasSessionState>()((set, get) => ({
   ruleIdFired: null,
   briefHistory: [],
   hostMessages: [],
+  materializingOrder: null,
   rewardStatus: 'idle',
   isSubmittingBrief: false,
 
@@ -399,6 +410,10 @@ export const useCanvasSession = create<CanvasSessionState>()((set, get) => ({
           },
         ].slice(-20),
       }));
+
+      // M5 T4.5: kick off multi-modal produce after resolution — fire-and-forget
+      void get().startMultiModal(trimmed, resolution);
+
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn('[canvasSession] submitBrief failed:', message);
@@ -462,5 +477,150 @@ export const useCanvasSession = create<CanvasSessionState>()((set, get) => ({
         { origin, payload, receivedAt: new Date().toISOString() },
       ].slice(-10),
     }));
+  },
+
+  // ── M5: Multi-modal produce (T4.5) ─────────────────────────────────────────
+
+  /**
+   * After canvas_builder resolution, call the multi-modal produce endpoint.
+   * Opens an SSE EventSource, progressively filling per-pane artifacts as
+   * each modality stream event arrives. Soft-fails if endpoint returns 404
+   * (backend route may not be live yet).
+   */
+  async startMultiModal(brief, canvasResolution) {
+    const state = get();
+    const backendBase = resolveBackendBase();
+    const apiKey = resolveBackendApiKey();
+
+    // Initialise the order with all modalities in 'pending' state
+    const initialOrder: MultiModalOrder = {
+      order_id: '',
+      sse_url: '',
+      sse_connected: false,
+      artifacts: {
+        architecture: { status: 'pending' },
+        text: { status: 'pending' },
+        diagram: { status: 'pending' },
+        slides: { status: 'pending' },
+      },
+    };
+    set({ materializingOrder: initialOrder });
+
+    try {
+      const res = await fetch(`${backendBase}/api/mrp/produce/multi-modal`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey
+            ? { 'Authorization': `Bearer ${apiKey}`, 'X-API-Key': apiKey }
+            : {}),
+        },
+        body: JSON.stringify({
+          canvas_resolution: canvasResolution,
+          brief,
+          session_id: state.canvasSessionId,
+        }),
+      });
+
+      if (!res.ok) {
+        // Soft-fail: route may be pending backend deploy
+        console.warn(`[canvasSession] multi-modal produce HTTP ${res.status} — skipping SSE`);
+        set({ materializingOrder: null });
+        return;
+      }
+
+      const envelope = (await res.json()) as {
+        order_id?: string;
+        sse_url?: string;
+        modalities?: string[];
+      };
+
+      const orderId = envelope.order_id ?? '';
+      const sseUrl = envelope.sse_url ?? '';
+      const modalities = Array.isArray(envelope.modalities) ? envelope.modalities : Object.keys(initialOrder.artifacts);
+
+      // Build initial artifact map from declared modalities
+      const artifacts: Record<string, ModalityArtifact> = {};
+      for (const mod of modalities) {
+        artifacts[mod] = { status: 'pending' };
+      }
+
+      set({
+        materializingOrder: {
+          order_id: orderId,
+          sse_url: sseUrl,
+          sse_connected: false,
+          artifacts,
+        },
+      });
+
+      if (!sseUrl) return;
+
+      // Open SSE connection
+      const eventSource = new EventSource(sseUrl);
+
+      set((s) => ({
+        materializingOrder: s.materializingOrder
+          ? { ...s.materializingOrder, sse_connected: true }
+          : null,
+      }));
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data as string) as {
+            modality?: string;
+            status?: string;
+            uri?: string;
+            content_hash?: string;
+            content?: unknown;
+          };
+          if (data.modality) {
+            get().updateArtifactFromSSE(data.modality, {
+              status: (data.status as ModalityArtifact['status']) ?? 'streaming',
+              uri: data.uri,
+              content_hash: data.content_hash,
+              content: data.content,
+            });
+          }
+        } catch {
+          // malformed event — ignore
+        }
+      };
+
+      eventSource.onerror = () => {
+        eventSource.close();
+        set((s) => ({
+          materializingOrder: s.materializingOrder
+            ? { ...s.materializingOrder, sse_connected: false }
+            : null,
+        }));
+      };
+
+    } catch (err) {
+      console.warn('[canvasSession] startMultiModal soft-fail:', err);
+      set({ materializingOrder: null });
+    }
+  },
+
+  updateArtifactFromSSE(modality, update) {
+    set((state) => {
+      if (!state.materializingOrder) return {};
+      return {
+        materializingOrder: {
+          ...state.materializingOrder,
+          artifacts: {
+            ...state.materializingOrder.artifacts,
+            [modality]: {
+              ...(state.materializingOrder.artifacts[modality] ?? { status: 'pending' }),
+              ...update,
+            },
+          },
+        },
+      };
+    });
+  },
+
+  closeSSE() {
+    set({ materializingOrder: null });
   },
 }));
