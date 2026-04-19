@@ -93,10 +93,26 @@ export const useCanvasSession = create<CanvasSessionState>()((set, get) => ({
   hydrateError: null,
 
   async hydrate({ sessionId, track, initialPane }) {
-    set({ isHydrating: true, hydrateError: null });
+    // Collapse optimistic sets into a single update — two back-to-back set()
+    // calls triggered double re-render and, combined with object-ref selectors
+    // in pane components, contributed to infinite update loops.
+    set({
+      canvasSessionId: sessionId,
+      track,
+      activePane: initialPane,
+      isHydrating: false,
+      hydrateError: null,
+    });
 
-    // Optimistic — set track & pane from URL params immediately
-    set({ canvasSessionId: sessionId, track, activePane: initialPane });
+    // FIX: client-bootstrapped sessions (prefix `local-`) have no backend
+    // counterpart. Attempting to hydrate them triggers CORS errors from
+    // canvas-production-4bd4.up.railway.app AND pollutes the console. Skip
+    // the HTTP roundtrip entirely for local-* sessions.
+    if (sessionId.startsWith('local-')) {
+      return;
+    }
+
+    set({ isHydrating: true });
 
     try {
       const res = await fetch(`${SESSION_HYDRATE_BASE}/${sessionId}/hydrate`, {
