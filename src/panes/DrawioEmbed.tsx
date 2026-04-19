@@ -56,12 +56,14 @@ function StatusDot({ connected }: StatusDotProps) {
 // ── DrawioEmbed ───────────────────────────────────────────────────────────────
 
 export function DrawioEmbed() {
-  const { canvasSessionId, track, panes, mutatePane } = useCanvasSession((s) => ({
-    canvasSessionId: s.canvasSessionId,
-    track: s.track,
-    panes: s.panes,
-    mutatePane: s.mutatePane,
-  }));
+  // FIX (P1): Select only stable scalar values from the store.
+  // Selecting `panes` directly would cause this component to re-render on every
+  // mutatePane call (which spreads panes into a new object), which would in turn
+  // re-create loadSavedXml and re-register the message handler on every diagram
+  // save — O(n^2) listeners accumulating per session. Instead, read panes and
+  // mutatePane via getState() inside callbacks where stable references are needed.
+  const canvasSessionId = useCanvasSession((s) => s.canvasSessionId);
+  const track = useCanvasSession((s) => s.track);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [connected, setConnected] = useState(false);
@@ -78,13 +80,17 @@ export function DrawioEmbed() {
     }
   }, []);
 
-  // Load saved XML from Y.Doc on connect
+  // Load saved XML from Y.Doc on connect.
+  // Read crdtDoc via getState() so this callback is stable across pane mutations.
   const loadSavedXml = useCallback(() => {
-    const doc = panes.drawio.crdtDoc;
+    const doc = useCanvasSession.getState().panes.drawio.crdtDoc;
     const map = doc.getMap<string>('diagram');
     const saved = map.get('xml');
-    sendToDrawio({ action: 'load', xml: saved ?? '<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel>' });
-  }, [panes.drawio.crdtDoc, sendToDrawio]);
+    sendToDrawio({
+      action: 'load',
+      xml: saved ?? '<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel>',
+    });
+  }, [sendToDrawio]);
 
   // Handle messages from diagrams.net
   useEffect(() => {
@@ -97,6 +103,10 @@ export function DrawioEmbed() {
       } catch {
         return;
       }
+
+      // Read mutatePane via getState() — avoids capturing a stale closure and
+      // prevents handler re-registration on each store mutation.
+      const { mutatePane } = useCanvasSession.getState();
 
       switch (parsed.event) {
         case 'init': {
@@ -132,7 +142,7 @@ export function DrawioEmbed() {
 
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [loadSavedXml, mutatePane]);
+  }, [loadSavedXml]);
 
   const trackHue = track ? `var(--sc-track-${track.replace('_', '-')})` : 'var(--sc-ink-graphite)';
 
@@ -182,7 +192,11 @@ export function DrawioEmbed() {
             border: 'none',
             display: 'block',
           }}
-          // Minimal sandbox: allow scripts + same-origin + popups for save dialogs
+          // Sandbox note: allow-same-origin + allow-scripts together technically
+          // weakens the sandbox (a script can remove the sandbox attribute).
+          // This is a known requirement of the diagrams.net embed protocol.
+          // Mitigation: origin is pinned to DRAWIO_ORIGIN in all postMessage
+          // handlers; do not expand the sandbox further (no allow-top-navigation).
           sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals"
           allow="clipboard-read; clipboard-write"
           aria-label="Diagrams.net diagram editor"

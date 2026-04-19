@@ -130,17 +130,33 @@ export function TextPane() {
     },
   });
 
-  // Sync pre-seeded content from Y.Doc on mount
+  // Sync pre-seeded content from Y.Doc on mount.
+  // FIX (P1 / SECURITY): label and data values from the wire must be HTML-escaped
+  // before being passed to setContent() — Tiptap parses the string as HTML, so
+  // raw label values containing "<script>" or onerror handlers would be executed
+  // immediately in the editor's document context (stored XSS).
   useEffect(() => {
     if (!editor) return;
     const doc = paneState.crdtDoc;
     const arr = doc.getArray<{ label?: string; data?: Record<string, unknown> }>('nodes');
     if (arr.length > 0) {
-      const md = arr
+      const escapeHtml = (s: string): string =>
+        s
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+
+      const html = arr
         .toArray()
-        .map((n) => `## ${n.label ?? 'Node'}\n\n${JSON.stringify(n.data ?? {}, null, 2)}`)
-        .join('\n\n---\n\n');
-      editor.commands.setContent(`<pre>${md}</pre>`);
+        .map((n) => {
+          const label = escapeHtml(n.label ?? 'Node');
+          const data = escapeHtml(JSON.stringify(n.data ?? {}, null, 2));
+          return `<h2>${label}</h2><pre>${data}</pre>`;
+        })
+        .join('<hr/>');
+      editor.commands.setContent(html);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);

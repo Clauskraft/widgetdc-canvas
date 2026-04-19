@@ -238,7 +238,10 @@ export function SlidePane() {
         minHeight: 0,
         padding: 'var(--sc-pane-pad)',
         background: 'var(--sc-surface-bg)',
-        outline: 'none',
+        // FIX (P2 / A11Y): Do NOT suppress outline here.
+        // The global :focus-visible rule in substrate-cartography.css provides
+        // a 2px focus ring for keyboard users only (WCAG 2.4.7). Setting
+        // outline:none here would suppress it for all input devices.
       }}
     >
       {/* Pane header */}

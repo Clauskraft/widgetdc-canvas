@@ -67,6 +67,9 @@ export interface CanvasSessionState {
   setHostOrigin(origin: string): void;
 
   setContent(pane: PaneId, content: unknown): void;
+
+  /** FIX (P1): Destroy all Y.Doc instances — call on component unmount to prevent memory leaks. */
+  destroyDocs(): void;
 }
 
 // ── Selectors (memoisation helpers) ─────────────────────────────────────────
@@ -178,5 +181,19 @@ export const useCanvasSession = create<CanvasSessionState>()((set, get) => ({
         },
       },
     });
+  },
+
+  destroyDocs() {
+    // FIX (P1): Y.Doc instances accumulate GC observers and Awareness objects.
+    // Without explicit destroy() they are never garbage-collected because yjs
+    // holds internal references. Call this in the UC5Shell unmount cleanup.
+    const { panes } = get();
+    for (const id of PANE_IDS) {
+      try {
+        panes[id].crdtDoc.destroy();
+      } catch {
+        // Already destroyed — safe to ignore
+      }
+    }
   },
 }));

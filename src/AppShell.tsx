@@ -307,27 +307,38 @@ function UC5StatusBar() {
 // ── UC5 Shell ─────────────────────────────────────────────────────────────────
 
 function UC5Shell() {
-  const hydrate = useCanvasSession((s) => s.hydrate);
+  // FIX (P1): Read actions via getState() inside the effect so we never need
+  // them as reactive deps. Pulling `hydrate` as a selector causes the effect
+  // to re-run on re-renders because Zustand action references — while stable —
+  // still register as deps and can trigger double-hydrate in development.
+  // Using getState() is the canonical Zustand pattern for imperative calls.
 
-  // On mount: read URL params, attach bridge, call hydrate
+  // On mount: read URL params, attach bridge, call hydrate; destroy docs on unmount
   useEffect(() => {
     const detach = attachBridge();
+    const store = useCanvasSession.getState();
     const { sessionId, track, pane } = readUC5Params();
 
     if (sessionId) {
-      hydrate({
-        sessionId,
-        track: track ?? 'textual',
-        initialPane: pane ?? 'canvas',
-      })
+      store
+        .hydrate({
+          sessionId,
+          track: track ?? 'textual',
+          initialPane: pane ?? 'canvas',
+        })
         .then(() => { emitSessionReady(); })
         .catch((err: unknown) => { console.error('[UC5Shell] hydrate failed:', err); });
     } else {
       emitSessionReady();
     }
 
-    return detach;
-  }, [hydrate]);
+    return () => {
+      detach();
+      // FIX (P1): destroy all Y.Doc instances on unmount to prevent memory leaks.
+      useCanvasSession.getState().destroyDocs();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div
