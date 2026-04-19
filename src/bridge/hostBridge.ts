@@ -98,6 +98,10 @@ function handleInbound(event: MessageEvent): void {
   // Record the verified host origin for subsequent outbound messages
   store.setHostOrigin(event.origin);
 
+  // UC5 intelligence layer: surface verified inbound messages to the toast UI.
+  // Only called AFTER allowlist check + shape validation, so XSS surface is narrow.
+  store.appendHostMessage(event.origin, msg);
+
   switch (msg.type) {
     case 'hydrate': {
       if (msg.sessionId && msg.track && msg.pane) {

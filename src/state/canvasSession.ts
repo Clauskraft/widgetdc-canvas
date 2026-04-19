@@ -15,6 +15,65 @@ import type {
 const SESSION_HYDRATE_BASE =
   'https://canvas-production-4bd4.up.railway.app/api/session';
 
+// UC5 intelligence layer — orchestrator canvas_builder + backend reward endpoint.
+// URLs resolve from env with a production-safe fallback so the canvas works
+// out-of-the-box when embedded in a host that hasn't configured VITE_* vars.
+function resolveOrchestratorBase(): string {
+  const env = (import.meta.env.VITE_ORCHESTRATOR_URL ?? '').trim().replace(/\/$/, '');
+  return env || 'https://orchestrator-production-c27e.up.railway.app';
+}
+function resolveBackendBase(): string {
+  const env = (import.meta.env.VITE_API_URL ?? '').trim().replace(/\/$/, '');
+  return env || 'https://backend-production-d3da.up.railway.app';
+}
+function resolveOrchestratorApiKey(): string {
+  return String(
+    import.meta.env.VITE_ORCHESTRATOR_API_KEY ?? import.meta.env.VITE_API_KEY ?? '',
+  ).trim();
+}
+function resolveBackendApiKey(): string {
+  return String(import.meta.env.VITE_API_KEY ?? '').trim();
+}
+
+/** Brief submission history entry — used by BriefBar for recall + context accretion. */
+export interface BriefHistoryEntry {
+  brief: string;
+  resolvedAt: string;
+  track: BuilderTrack;
+  ruleId: string | null;
+}
+
+/** Incoming host message — displayed as transient toast by HostMessageToast. */
+export interface HostMessageEntry {
+  origin: string;
+  payload: unknown;
+  receivedAt: string;
+}
+
+export type RewardStatus = 'idle' | 'submitting' | 'sent' | 'failed';
+
+/**
+ * Extract a rule_id_fired heuristic from a rationale string list.
+ * Orchestrator stub emits strings like `heuristic_track:textual` or
+ * `rule:doc-intent`. We prefer explicit rule: prefixes, fall back to
+ * heuristic_track prefix, then the first rationale entry verbatim.
+ */
+function extractRuleIdFromRationale(rationale: string[]): string | null {
+  if (!Array.isArray(rationale) || rationale.length === 0) return null;
+  for (const line of rationale) {
+    if (typeof line !== 'string') continue;
+    const ruleMatch = line.match(/^rule:([\w.-]+)/i);
+    if (ruleMatch) return ruleMatch[1];
+  }
+  for (const line of rationale) {
+    if (typeof line !== 'string') continue;
+    const heurMatch = line.match(/^heuristic_track:([\w-]+)/i);
+    if (heurMatch) return `heuristic:${heurMatch[1]}`;
+  }
+  const first = rationale.find((r) => typeof r === 'string');
+  return typeof first === 'string' ? first : null;
+}
+
 // ── Per-pane state ──────────────────────────────────────────────────────────
 
 export interface PaneState {
@@ -53,6 +112,14 @@ export interface CanvasSessionState {
   isHydrating: boolean;
   hydrateError: string | null;
 
+  // UC5 intelligence layer state
+  lastResolution: CanvasResolutionWire | null;
+  ruleIdFired: string | null;
+  briefHistory: BriefHistoryEntry[];
+  hostMessages: HostMessageEntry[];
+  rewardStatus: RewardStatus;
+  isSubmittingBrief: boolean;
+
   // Actions
   hydrate(args: {
     sessionId: string;
@@ -70,6 +137,11 @@ export interface CanvasSessionState {
 
   /** FIX (P1): Destroy all Y.Doc instances — call on component unmount to prevent memory leaks. */
   destroyDocs(): void;
+
+  // UC5 intelligence layer actions
+  submitBrief(brief: string): Promise<void>;
+  recordReward(reward: 0 | 1): Promise<void>;
+  appendHostMessage(origin: string, payload: unknown): void;
 }
 
 // ── Selectors (memoisation helpers) ─────────────────────────────────────────
@@ -91,6 +163,12 @@ export const useCanvasSession = create<CanvasSessionState>()((set, get) => ({
   preSeededNodes: [],
   isHydrating: false,
   hydrateError: null,
+  lastResolution: null,
+  ruleIdFired: null,
+  briefHistory: [],
+  hostMessages: [],
+  rewardStatus: 'idle',
+  isSubmittingBrief: false,
 
   async hydrate({ sessionId, track, initialPane }) {
     // Collapse optimistic sets into a single update — two back-to-back set()
@@ -211,5 +289,178 @@ export const useCanvasSession = create<CanvasSessionState>()((set, get) => ({
         // Already destroyed — safe to ignore
       }
     }
+  },
+
+  // ── UC5 intelligence layer ─────────────────────────────────────────────────
+
+  async submitBrief(brief) {
+    const trimmed = brief.trim();
+    if (!trimmed) return;
+
+    const prevTrack = get().track;
+    const sequenceStep = get().briefHistory.length;
+    set({ isSubmittingBrief: true, hydrateError: null });
+
+    try {
+      const apiKey = resolveOrchestratorApiKey();
+      const res = await fetch(`${resolveOrchestratorBase()}/api/tools/canvas_builder`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey
+            ? { 'Authorization': `Bearer ${apiKey}`, 'X-API-Key': apiKey }
+            : {}),
+        },
+        body: JSON.stringify({
+          brief: trimmed,
+          host_origin: 'widgetdc-canvas',
+          surface_hint: 'full',
+          prior_track: prevTrack ?? undefined,
+          sequence_step: sequenceStep,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`canvas_builder HTTP ${res.status}`);
+      }
+
+      const envelope = (await res.json()) as {
+        success?: boolean;
+        data?: {
+          result?: string | { success?: boolean; resolution?: CanvasResolutionWire };
+        };
+      };
+
+      // Envelope.data.result may be stringified JSON or already an object
+      const rawResult = envelope?.data?.result;
+      let parsed: { success?: boolean; resolution?: CanvasResolutionWire } | null = null;
+      if (typeof rawResult === 'string') {
+        try {
+          parsed = JSON.parse(rawResult);
+        } catch {
+          parsed = null;
+        }
+      } else if (rawResult && typeof rawResult === 'object') {
+        parsed = rawResult;
+      }
+
+      const resolution = parsed?.resolution;
+      if (!resolution) {
+        throw new Error('canvas_builder returned no resolution');
+      }
+
+      const rationale = Array.isArray(resolution.rationale) ? resolution.rationale : [];
+      const ruleIdFired = extractRuleIdFromRationale(rationale);
+      const nodes = Array.isArray(resolution.pre_seeded_nodes)
+        ? resolution.pre_seeded_nodes
+        : [];
+
+      // Seed the markdown pane's Y.Doc with pre_seeded_nodes if present.
+      // Use transact() — TextPane's useEffect re-renders when crdtDoc observes updates.
+      if (nodes.length > 0) {
+        const { panes } = get();
+        const markdownDoc = panes.markdown.crdtDoc;
+        markdownDoc.transact(() => {
+          const arr = markdownDoc.getArray<PreSeededNode>('nodes');
+          arr.delete(0, arr.length);
+          arr.insert(0, nodes);
+        }, 'submit-brief');
+      }
+
+      const resolvedAt = resolution.resolved_at ?? new Date().toISOString();
+
+      set((state) => ({
+        canvasSessionId: resolution.canvas_session_id ?? state.canvasSessionId,
+        track: resolution.track ?? state.track,
+        activePane: resolution.initial_pane ?? state.activePane,
+        embedUrl: resolution.embed_url ?? state.embedUrl,
+        rationale,
+        preSeededNodes: nodes,
+        lastResolution: resolution,
+        ruleIdFired,
+        isSubmittingBrief: false,
+        // Force markdown pane re-render via lastMutatedAt bump when nodes arrived
+        panes: nodes.length > 0
+          ? {
+              ...state.panes,
+              markdown: {
+                ...state.panes.markdown,
+                lastMutatedAt: resolvedAt,
+              },
+            }
+          : state.panes,
+        briefHistory: [
+          ...state.briefHistory,
+          {
+            brief: trimmed,
+            resolvedAt,
+            track: resolution.track,
+            ruleId: ruleIdFired,
+          },
+        ].slice(-20),
+      }));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn('[canvasSession] submitBrief failed:', message);
+      set({ hydrateError: message, isSubmittingBrief: false });
+    }
+  },
+
+  async recordReward(reward) {
+    const state = get();
+    if (!state.canvasSessionId || !state.ruleIdFired || !state.track) return;
+    if (state.rewardStatus === 'submitting') return;
+
+    set({ rewardStatus: 'submitting' });
+
+    try {
+      const apiKey = resolveBackendApiKey();
+      const res = await fetch(`${resolveBackendBase()}/api/mrp/canvas-outcome`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey
+            ? { 'Authorization': `Bearer ${apiKey}`, 'X-API-Key': apiKey }
+            : {}),
+        },
+        body: JSON.stringify({
+          session_id: state.canvasSessionId,
+          rule_id_fired: state.ruleIdFired,
+          track_selected: state.track,
+          reward,
+          bom_version: '2.0',
+        }),
+      });
+
+      if (!res.ok) {
+        // Soft fail: backend route may not exist yet (UC3 aggregator reads
+        // :CanvasTrackOutcome nodes which the backend needs to MERGE).
+        set({ rewardStatus: 'failed' });
+        setTimeout(() => {
+          if (get().rewardStatus === 'failed') set({ rewardStatus: 'idle' });
+        }, 3000);
+        return;
+      }
+
+      set({ rewardStatus: 'sent' });
+      setTimeout(() => {
+        if (get().rewardStatus === 'sent') set({ rewardStatus: 'idle' });
+      }, 2000);
+    } catch (err) {
+      console.warn('[canvasSession] recordReward soft-fail:', err);
+      set({ rewardStatus: 'failed' });
+      setTimeout(() => {
+        if (get().rewardStatus === 'failed') set({ rewardStatus: 'idle' });
+      }, 3000);
+    }
+  },
+
+  appendHostMessage(origin, payload) {
+    set((state) => ({
+      hostMessages: [
+        ...state.hostMessages,
+        { origin, payload, receivedAt: new Date().toISOString() },
+      ].slice(-10),
+    }));
   },
 }));
