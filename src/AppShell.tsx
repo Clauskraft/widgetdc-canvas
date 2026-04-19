@@ -18,6 +18,7 @@ import { attachBridge, emitSessionReady } from './bridge/hostBridge';
 import { TextPane } from './panes/TextPane';
 import { SlidePane } from './panes/SlidePane';
 import { DrawioEmbed } from './panes/DrawioEmbed';
+import { ArchitectureCanvas } from './panes/ArchitectureCanvas';
 import { SplitPaneLayout } from './layouts/SplitPaneLayout';
 import type { BuilderTrack, PaneId } from './types/session';
 
@@ -82,8 +83,6 @@ function UC5PaneRouter() {
   const activePane = useCanvasSession((s) => s.activePane);
   const track = useCanvasSession((s) => s.track);
 
-  // The canvas pane re-uses the legacy ReactFlow Canvas — it is already
-  // mounted in the UC5 shell below. This router only governs the non-canvas panes.
   switch (activePane) {
     case 'markdown':
       return <TextPane />;
@@ -94,19 +93,28 @@ function UC5PaneRouter() {
     case 'split':
       return (
         <SplitPaneLayout
-          left={<LegacyCanvas />}
+          left={<ArchitecturePane track={track} />}
           right={<TextPane />}
         />
       );
     case 'canvas':
     default:
-      return <LegacyCanvas track={track} />;
+      return <ArchitecturePane track={track} />;
   }
 }
 
-// ── Thin wrapper around legacy ReactFlow canvas ───────────────────────────────
+// ── UC5 Architecture pane — substrate-cartography isoline surface ─────────────
 
-function LegacyCanvas({ track }: { track?: BuilderTrack | null }) {
+/**
+ * Frames `ArchitectureCanvas` with the canonical pane header
+ * ("CANVAS · ARCHITECTURE" + "isolines · 7 tracks · 18 ticks/ring"). This
+ * replaces the pre-UC5 ReactFlow shell that used to render strategic-template
+ * chips (VISION / PILLARS / MARKET / GAPS) on a dark background — those chips
+ * clashed with the substrate-cartography light theme and are off-scope for
+ * the UC5 canvas pane. The legacy ReactFlow surface is still reachable via
+ * `?legacy=1` for rollback.
+ */
+function ArchitecturePane({ track }: { track?: BuilderTrack | null }) {
   const trackHue = track
     ? `var(--sc-track-${track.replace('_', '-')})`
     : 'var(--sc-ink-graphite)';
@@ -123,11 +131,7 @@ function LegacyCanvas({ track }: { track?: BuilderTrack | null }) {
         position: 'relative',
       }}
     >
-      <div
-        style={{
-          padding: 'var(--sc-pane-pad) var(--sc-pane-pad) 0',
-        }}
-      >
+      <div style={{ padding: 'var(--sc-pane-pad) var(--sc-pane-pad) 0' }}>
         <div className="sc-pane-head">
           <span className="sc-pane-label" style={{ color: trackHue }}>
             Canvas · Architecture
@@ -135,14 +139,7 @@ function LegacyCanvas({ track }: { track?: BuilderTrack | null }) {
           <span className="sc-pane-meta">isolines · 7 tracks · 18 ticks/ring</span>
         </div>
       </div>
-      {/* ReactFlow canvas fills the remaining space */}
-      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-        <ToolPalette />
-        <Canvas />
-        <NodeInspector />
-        <CanvasCollaboration />
-        <SnoutObserver />
-      </div>
+      <ArchitectureCanvas track={track} />
     </div>
   );
 }
