@@ -56,10 +56,24 @@ function readUC5Params(): UC5Params {
   };
 }
 
-/** Returns true if the app was launched with UC5 session params */
+/** Returns true if the user explicitly opted into the legacy ReactFlow shell via ?legacy=1. */
+function isLegacyOptIn(): boolean {
+  try {
+    return new URL(window.location.href).searchParams.get('legacy') === '1';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Returns true if the app should render UC5 as the default shell. UC5 is the
+ * canonical canvas — the legacy ReactFlow shell is only reachable via the
+ * `?legacy=1` query-param escape hatch for rollback scenarios. Explicit UC5
+ * session params (`?session=...`) are also supported for embed URLs returned
+ * by the orchestrator `canvas_builder` tool.
+ */
 function isUC5Mode(): boolean {
-  const { sessionId } = readUC5Params();
-  return sessionId !== null;
+  return !isLegacyOptIn();
 }
 
 // ── UC5 Pane router ───────────────────────────────────────────────────────────
@@ -319,18 +333,27 @@ function UC5Shell() {
     const store = useCanvasSession.getState();
     const { sessionId, track, pane } = readUC5Params();
 
-    if (sessionId) {
-      store
-        .hydrate({
-          sessionId,
-          track: track ?? 'textual',
-          initialPane: pane ?? 'canvas',
-        })
-        .then(() => { emitSessionReady(); })
-        .catch((err: unknown) => { console.error('[UC5Shell] hydrate failed:', err); });
-    } else {
-      emitSessionReady();
-    }
+    // Default entry (no session param) → auto-bootstrap a local session so
+    // the canvas is immediately usable from the root URL. Uses the same UUID
+    // scheme the orchestrator's canvas_builder would return.
+    const effectiveSessionId =
+      sessionId ??
+      (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? `local-${crypto.randomUUID()}`
+        : `local-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+
+    store
+      .hydrate({
+        sessionId: effectiveSessionId,
+        track: track ?? 'textual',
+        initialPane: pane ?? 'markdown',
+      })
+      .then(() => { emitSessionReady(); })
+      .catch((err: unknown) => {
+        // Backend hydrate endpoint may 404 until UC3+backend wiring lands; non-fatal.
+        console.warn('[UC5Shell] hydrate soft-fail (backend endpoint may not be live yet):', err);
+        emitSessionReady();
+      });
 
     return () => {
       detach();
