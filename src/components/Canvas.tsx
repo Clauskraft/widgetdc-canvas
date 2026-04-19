@@ -15,7 +15,6 @@ import {
 import { motion } from 'framer-motion';
 import { useCanvasStore } from '../store/canvasStore';
 import { nodeTypes } from './nodes';
-import { ENGAGEMENT_COLUMNS } from '../templates';
 import type { CanvasNodeType } from '../types/canvas';
 
 const NODE_COLORS: Record<string, string> = {
@@ -215,32 +214,15 @@ export function Canvas() {
 
   return (
     <div className="flex-1 h-full relative" data-testid="main-canvas">
-      {/* Strategic Column Headers Overlay (Vision Edition) */}
-      {!knowledgeExplorerMode && (
-        <div className="absolute top-[10px] left-0 right-0 h-14 z-10 pointer-events-none overflow-hidden select-none">
-          <div className="flex px-10 gap-0">
-            {Object.entries(ENGAGEMENT_COLUMNS).slice(0, 10).map(([name, col]) => (
-              <div 
-                key={name} 
-                className="flex flex-col items-center border-l border-neural-border/20 first:border-none pt-2"
-                style={{ width: 280, minWidth: 280 }}
-              >
-                <div 
-                  className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.25em] mb-2 shadow-sm border border-transparent transition-all"
-                  style={{ 
-                    color: col.color, 
-                    backgroundColor: `${col.color}15`,
-                    borderColor: `${col.color}25` 
-                  }}
-                >
-                  {name.replace('_', ' ')}
-                </div>
-                <div className="w-full h-[2px] bg-gradient-to-r from-transparent via-neural-border/30 to-transparent" />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/*
+       * Strategic Column Headers Overlay (VISION/PILLARS/MARKET/GAPS/H5 MIDPOINT…)
+       * was a pre-UC5 Vision-Edition artefact styled in a language that clashes
+       * with substrate-cartography. Removed — the Architecture canvas is being
+       * rebuilt as SVG isolines per docs/canvas/prototype.html. If the strategic
+       * template columns are ever needed again, build a dedicated, opt-in
+       * TemplateColumns component mounted only when a template is explicitly
+       * selected.
+       */}
 
       <ReactFlow
         nodes={displayNodes}
