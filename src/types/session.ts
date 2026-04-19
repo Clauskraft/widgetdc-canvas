@@ -12,7 +12,26 @@ export type BuilderTrack =
   | 'code'
   | 'experiment';
 
-export type PaneId = 'canvas' | 'markdown' | 'slides' | 'drawio' | 'split';
+export type PaneId = 'canvas' | 'markdown' | 'slides' | 'drawio' | 'split' | 'phantom_bom' | 'architecture_spec';
+
+/** Modality artifact status from multi-modal SSE stream */
+export type ModalityStatus = 'pending' | 'streaming' | 'ready' | 'error';
+
+/** Single modality artifact produced by multi-modal endpoint */
+export interface ModalityArtifact {
+  status: ModalityStatus;
+  uri?: string;
+  content_hash?: string;
+  content?: unknown;
+}
+
+/** Multi-modal order state from POST /api/mrp/produce/multi-modal */
+export interface MultiModalOrder {
+  order_id: string;
+  sse_url: string;
+  sse_connected: boolean;
+  artifacts: Record<string, ModalityArtifact>;
+}
 
 /** Wire shape returned by /api/session/:id/hydrate */
 export interface CanvasResolutionWire {
@@ -24,6 +43,10 @@ export interface CanvasResolutionWire {
   rationale?: string[];
   bom_version: '2.0';
   resolved_at: string;
+  /** M5: framework and blueprint IDs for RationaleExpander drill */
+  framework_id?: string;
+  blueprint_id?: string;
+  patterns_applied?: string[];
 }
 
 export interface PreSeededNode {
