@@ -20,6 +20,9 @@ import { SlidePane } from './panes/SlidePane';
 import { DrawioEmbed } from './panes/DrawioEmbed';
 import { SplitPaneLayout } from './layouts/SplitPaneLayout';
 import type { BuilderTrack, PaneId } from './types/session';
+import { BriefBar } from './components/BriefBar';
+import { RationaleStrip } from './components/RationaleStrip';
+import { HostMessageToast } from './components/HostMessageToast';
 
 export const DEBUG_BUILD_STAMP = 'UC5-2026-04-18';
 
@@ -266,56 +269,8 @@ function TrackLegend() {
   );
 }
 
-// ── UC5 status bar (bottom) ───────────────────────────────────────────────────
-
-function UC5StatusBar() {
-  // FIX (P0): individual selectors to avoid infinite re-render loop.
-  const canvasSessionId = useCanvasSession((s) => s.canvasSessionId);
-  const hostOrigin = useCanvasSession((s) => s.hostOrigin);
-  const isHydrating = useCanvasSession((s) => s.isHydrating);
-
-  return (
-    <footer
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '16px',
-        padding: '10px var(--sc-pane-pad)',
-        borderTop: '0.5px solid var(--sc-paper-whisper)',
-        background: 'var(--sc-surface-bg)',
-        flexShrink: 0,
-      }}
-    >
-      <span
-        style={{
-          fontFamily: 'var(--sc-font-mono)',
-          fontSize: '9px',
-          letterSpacing: '0.18em',
-          textTransform: 'uppercase',
-          color: 'var(--sc-ink-fog)',
-          display: 'flex',
-          alignItems: 'center',
-        }}
-      >
-        <span className="sc-bridge-dot" aria-hidden="true" />
-        Bridge · postMessage
-        {hostOrigin ? ` · ${new URL(hostOrigin).hostname}` : ' · unattached'}
-      </span>
-      <span
-        style={{
-          fontFamily: 'var(--sc-font-mono)',
-          fontSize: '9px',
-          letterSpacing: '0.15em',
-          color: 'var(--sc-ink-fog)',
-          marginLeft: 'auto',
-        }}
-      >
-        {isHydrating ? 'hydrating…' : canvasSessionId ? `session ${canvasSessionId.slice(0, 8)}` : 'no session'}
-        {' · one surface · many windows'}
-      </span>
-    </footer>
-  );
-}
+// UC5StatusBar has been replaced by RationaleStrip (src/components/RationaleStrip.tsx).
+// Session + host-bridge info is merged into the strip's left column.
 
 // ── UC5 Shell ─────────────────────────────────────────────────────────────────
 
@@ -408,6 +363,10 @@ function UC5Shell() {
         </span>
       </header>
 
+      {/* UC5 intelligence: brief input — user describes what they want,
+          canvas calls orchestrator canvas_builder, auto-switches track+pane */}
+      <BriefBar />
+
       {/* Track legend + pane switcher */}
       <TrackLegend />
 
@@ -418,8 +377,11 @@ function UC5Shell() {
         </ReactFlowProvider>
       </main>
 
-      {/* Status bar */}
-      <UC5StatusBar />
+      {/* UC5 intelligence: rationale + reward loop (replaces former status bar) */}
+      <RationaleStrip />
+
+      {/* UC5 intelligence: inbound host message toast (LibreChat/WebUI/Office) */}
+      <HostMessageToast />
     </div>
   );
 }
