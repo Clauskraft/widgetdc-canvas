@@ -177,13 +177,11 @@ function NavBar({ index, total, onPrev, onNext }: NavBarProps) {
 // ── SlidePane ─────────────────────────────────────────────────────────────────
 
 export function SlidePane() {
-  const { canvasSessionId, track, panes } = useCanvasSession((s) => ({
-    canvasSessionId: s.canvasSessionId,
-    track: s.track,
-    panes: s.panes,
-  }));
-
-  const paneState = panes.slides;
+  // FIX (P0): individual selectors to avoid infinite re-render loop from
+  // object-returning selectors (new object ref each render → re-subscribe).
+  const canvasSessionId = useCanvasSession((s) => s.canvasSessionId);
+  const track = useCanvasSession((s) => s.track);
+  const paneState = useCanvasSession((s) => s.panes.slides);
   const [slides, setSlides] = useState<SlideItem[]>(DEFAULT_SLIDES);
   const [activeIndex, setActiveIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);

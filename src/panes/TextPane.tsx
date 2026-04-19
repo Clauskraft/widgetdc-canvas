@@ -75,14 +75,14 @@ function TextToolbar({ onBold, onItalic, onHeading, onCode, isBold, isItalic, is
 // ── TextPane ─────────────────────────────────────────────────────────────────
 
 export function TextPane() {
-  const { canvasSessionId, track, panes, setContent } = useCanvasSession((s) => ({
-    canvasSessionId: s.canvasSessionId,
-    track: s.track,
-    panes: s.panes,
-    setContent: s.setContent,
-  }));
+  // FIX (P0): individual selectors — a single object selector returns a new
+  // object reference on every store update, which Zustand's default equality
+  // check treats as a change → infinite re-render loop (Maximum update depth).
+  const canvasSessionId = useCanvasSession((s) => s.canvasSessionId);
+  const track = useCanvasSession((s) => s.track);
+  const paneState = useCanvasSession((s) => s.panes.markdown);
+  const setContent = useCanvasSession((s) => s.setContent);
 
-  const paneState = panes.markdown;
   const emitRef = useRef(false);
 
   // Mirror content changes into the Y.Doc via store

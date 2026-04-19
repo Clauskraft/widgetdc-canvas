@@ -269,11 +269,10 @@ function TrackLegend() {
 // ── UC5 status bar (bottom) ───────────────────────────────────────────────────
 
 function UC5StatusBar() {
-  const { canvasSessionId, hostOrigin, isHydrating } = useCanvasSession((s) => ({
-    canvasSessionId: s.canvasSessionId,
-    hostOrigin: s.hostOrigin,
-    isHydrating: s.isHydrating,
-  }));
+  // FIX (P0): individual selectors to avoid infinite re-render loop.
+  const canvasSessionId = useCanvasSession((s) => s.canvasSessionId);
+  const hostOrigin = useCanvasSession((s) => s.hostOrigin);
+  const isHydrating = useCanvasSession((s) => s.isHydrating);
 
   return (
     <footer
