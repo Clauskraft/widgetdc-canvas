@@ -130,7 +130,7 @@ export function TextPane() {
     },
   });
 
-  // Sync pre-seeded content from Y.Doc on mount.
+  // Sync pre-seeded content from Y.Doc on mount and when brief is resolved.
   // FIX (P1 / SECURITY): label and data values from the wire must be HTML-escaped
   // before being passed to setContent() — Tiptap parses the string as HTML, so
   // raw label values containing "<script>" or onerror handlers would be executed
@@ -158,8 +158,7 @@ export function TextPane() {
         .join('<hr/>');
       editor.commands.setContent(html);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor]);
+  }, [editor, paneState.lastMutatedAt]);
 
   const trackHue = track ? `var(--sc-track-${track.replace('_', '-')})` : 'var(--sc-ink-graphite)';
 
