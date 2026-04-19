@@ -11,8 +11,12 @@ const container = document.getElementById('root');
 
 if (container) {
   if (import.meta.env.DEV) {
-    (window as any).useCanvasStore = useCanvasStore;
-    (window as any).__WIDGETDC_CANVAS_BUILD__ = DEBUG_BUILD_STAMP;
+    // FIX (P2): Use a typed Window extension rather than (window as any) to
+    // eliminate implicit any. These assignments are tree-shaken from production
+    // builds by Vite because import.meta.env.DEV is statically false.
+    type DevWindow = Window & { __WDC_STORE__?: unknown; __WDC_BUILD__?: string };
+    (window as DevWindow).__WDC_STORE__ = useCanvasStore;
+    (window as DevWindow).__WDC_BUILD__ = DEBUG_BUILD_STAMP;
     document.title = `WidgeTDC Canvas ${DEBUG_BUILD_STAMP}`;
   }
 

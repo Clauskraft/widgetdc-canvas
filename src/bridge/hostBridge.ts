@@ -55,7 +55,16 @@ export function emitToHost(data: BridgeMessageOutbound, targetOrigin?: string): 
     return;
   }
 
-  const origin = targetOrigin ?? useCanvasSession.getState().hostOrigin ?? '*';
+  // SECURITY FIX (P0): never use '*' as targetOrigin — it broadcasts session
+  // IDs to every frame on the page. If no verified hostOrigin is available,
+  // suppress the emit rather than leaking the message to unknown recipients.
+  const origin = targetOrigin ?? useCanvasSession.getState().hostOrigin;
+  if (!origin) {
+    console.warn(
+      '[hostBridge] emitToHost: no verified hostOrigin — message suppressed to prevent open broadcast',
+    );
+    return;
+  }
 
   try {
     if (window.parent && window.parent !== window) {
@@ -150,19 +159,16 @@ function handleInbound(event: MessageEvent): void {
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
-let attached = false;
-
+// FIX (P0): Do NOT use a module-level boolean guard.
+// React StrictMode double-mounts: first mount registers, cleanup runs, second
+// mount registers again. A module-level flag would make the second call a no-op
+// so the second mount registers no listener, then the second cleanup removes
+// nothing, leaving the app permanently deaf to host messages after StrictMode
+// finishes the double-mount cycle.
+// Each attachBridge() call independently owns its listener registration.
 export function attachBridge(): () => void {
-  if (attached) {
-    return () => {
-      /* noop if already detached by prior caller */
-    };
-  }
-  attached = true;
   window.addEventListener('message', handleInbound);
-
   return () => {
-    attached = false;
     window.removeEventListener('message', handleInbound);
   };
 }
