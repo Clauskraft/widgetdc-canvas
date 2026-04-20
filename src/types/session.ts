@@ -22,7 +22,11 @@ export type PaneId =
   | 'architecture_spec'
   | 'innovation_backlog'
   | 'research'
-  | 'telemetry';
+  | 'telemetry'
+  | 'pattern_palette'
+  | 'evidence'
+  | 'timeline'
+  | 'diff';
 
 /** Modality artifact status from multi-modal SSE stream */
 export type ModalityStatus = 'pending' | 'streaming' | 'ready' | 'error';
