@@ -1,15 +1,39 @@
 @import '@xyflow/react/dist/style.css';
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --sc-font-mono: "IBM Plex Mono", "JetBrains Mono", monospace;
+  --sc-font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --sc-surface-bg: #0c0c0c;
+  --sc-surface-elevated: #111111;
+  --sc-ink-graphite: #e6e6e6;
+  --sc-ink-stone: #c7c7c7;
+  --sc-ink-fog: #7a7a7a;
+  --sc-paper-whisper: #333333;
+  --sc-paper-deep: #1e1e1e;
+  --sc-focus-ring: #7db4ff;
+  --sc-track-textual: #9f9f9f;
+  --sc-track-slide-flow: #d4a44a;
+  --sc-track-architecture: #7db4ff;
+  --sc-track-code: #b9b9b9;
+  --sc-radius-sm: 6px;
+  --sc-pane-pad: 18px;
+  --sc-gutter: 18px;
+  --sc-tracking-label: 0.18em;
+  --sc-duration-quick: 140ms;
+  --sc-ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+}
+
 body {
   margin: 0;
   padding: 0;
-  background: #050b14;
-  color: #e2e8f0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--sc-surface-bg);
+  color: var(--sc-ink-graphite);
+  font-family: var(--sc-font-sans);
   overflow: hidden;
 }
 
@@ -23,44 +47,44 @@ body {
   width: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0a1628;
+  background: #111111;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1a2d4a;
+  background: #333333;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2db3a6;
+  background: #7a7a7a;
 }
 
-/* ReactFlow overrides for dark theme */
+/* ReactFlow overrides for structural shell */
 .react-flow__background {
-  background: #050b14 !important;
+  background: var(--sc-surface-bg) !important;
 }
 .react-flow__minimap {
-  background: #0a1628 !important;
-  border: 1px solid #1a2d4a !important;
-  border-radius: 8px !important;
+  background: #111111 !important;
+  border: 1px solid var(--sc-paper-whisper) !important;
+  border-radius: 6px !important;
 }
 .react-flow__controls {
-  background: #0f1d32 !important;
-  border: 1px solid #1a2d4a !important;
-  border-radius: 8px !important;
+  background: #111111 !important;
+  border: 1px solid var(--sc-paper-whisper) !important;
+  border-radius: 6px !important;
 }
 .react-flow__controls button {
-  background: #0f1d32 !important;
-  color: #e2e8f0 !important;
-  border-color: #1a2d4a !important;
+  background: #111111 !important;
+  color: var(--sc-ink-graphite) !important;
+  border-color: var(--sc-paper-whisper) !important;
 }
 .react-flow__controls button:hover {
-  background: #1a2d4a !important;
+  background: var(--sc-paper-deep) !important;
 }
 .react-flow__edge-path {
-  stroke: #1a2d4a !important;
-  stroke-width: 2 !important;
+  stroke: var(--sc-paper-whisper) !important;
+  stroke-width: 1.5 !important;
 }
 .react-flow__connection-line {
-  stroke: #2db3a6 !important;
+  stroke: var(--sc-focus-ring) !important;
 }
 
 /* Toast slide-up animation */

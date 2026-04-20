@@ -29,6 +29,8 @@ import { ComposeOpsDock } from './components/ComposeOpsDock';
 import { PhantomBOMPane } from './panes/PhantomBOMPane';
 import { ArchitectureSpecPane } from './panes/ArchitectureSpecPane';
 import { InnovationBacklogPane } from './panes/InnovationBacklogPane';
+import { ResearchPane } from './panes/ResearchPane';
+import { GraphTelemetryPane } from './panes/GraphTelemetryPane';
 
 export const DEBUG_BUILD_STAMP = 'M5-2026-04-19';
 
@@ -49,7 +51,7 @@ const VALID_TRACKS: ReadonlySet<string> = new Set([
   'textual', 'slide_flow', 'diagram', 'architecture', 'graphical', 'code', 'experiment',
 ]);
 const VALID_PANES: ReadonlySet<string> = new Set([
-  'canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec', 'innovation_backlog',
+  'canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec', 'innovation_backlog', 'research', 'telemetry',
 ]);
 
 function readUC5Params(): UC5Params {
@@ -112,6 +114,10 @@ function UC5PaneRouter() {
       return <ArchitectureSpecPane />;
     case 'innovation_backlog':
       return <InnovationBacklogPane />;
+    case 'research':
+      return <ResearchPane />;
+    case 'telemetry':
+      return <GraphTelemetryPane />;
     case 'canvas':
     default:
       return <ArchitecturePane track={track} />;
@@ -246,7 +252,7 @@ function TrackLegend() {
 
       {/* Pane switcher pills */}
       <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-        {(['canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec', 'innovation_backlog'] as PaneId[]).map((pane) => {
+        {(['canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec', 'innovation_backlog', 'research', 'telemetry'] as PaneId[]).map((pane) => {
           const isActive = pane === activePane;
           return (
             <button
@@ -351,14 +357,14 @@ function UC5Shell() {
       >
         <span
           style={{
-            fontFamily: 'var(--sc-font-mono)',
-            fontSize: '11px',
+            fontFamily: 'var(--sc-font-sans)',
+            fontSize: '14px',
             letterSpacing: 'var(--sc-tracking-label)',
             textTransform: 'uppercase',
             color: 'var(--sc-ink-graphite)',
           }}
         >
-          WidgeTDC · Unified Canvas · Substrate Cartography
+          WidgeTDC · Canvas Power-Lift
         </span>
         <span
           style={{
@@ -368,7 +374,7 @@ function UC5Shell() {
             color: 'var(--sc-ink-fog)',
           }}
         >
-          55°40&prime;N · 12°34&prime;E · Plate I
+          command authority · evidence first · graph native
         </span>
       </header>
 
@@ -381,6 +387,8 @@ function UC5Shell() {
 
       {/* Wave G1: real-time composition telemetry + provenance + pattern palette */}
       <ComposeOpsDock />
+
+      <CommandPalette mode="uc5" />
 
       {/* Pane content */}
       <main style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
