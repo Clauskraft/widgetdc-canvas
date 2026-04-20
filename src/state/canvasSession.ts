@@ -77,6 +77,14 @@ interface ComposeTelemetryEvent {
 }
 
 const OPERATOR_ORDER: ComposeOperator[] = ['CT', 'tensorAB', 'projectConstraint', 'assemble', 'materialize'];
+const COMPOSE_TOPICS: ComposeTopic[] = [
+  'composition.started',
+  'composition.arbitration_triggered',
+  'composition.artifact_ready',
+  'composition.fitness_scored',
+  'composition.completed',
+  'composition.failed',
+];
 
 function idleOperators(): Record<ComposeOperator, OperatorStatus> {
   return {
@@ -734,16 +742,15 @@ export const useCanvasSession = create<CanvasSessionState>()((set, get) => ({
       lineageEdges: [],
     });
 
-    source.onmessage = (event) => {
+    const handleComposeEvent = (eventTopic: string, rawData: string) => {
       let parsed: Record<string, unknown> = {};
       try {
-        parsed = JSON.parse(String(event.data ?? '{}')) as Record<string, unknown>;
+        parsed = JSON.parse(rawData || '{}') as Record<string, unknown>;
       } catch {
         parsed = {};
       }
 
-      const topicRaw = String(parsed.topic ?? '');
-      const topic = (topicRaw || String((event as MessageEvent).type || '')) as ComposeTopic;
+      const topic = (eventTopic || String(parsed.topic ?? 'composition.started')) as ComposeTopic;
       const explicitOperator = String(parsed.operator ?? parsed.stage ?? '').trim();
 
       set((state) => {
@@ -751,11 +758,19 @@ export const useCanvasSession = create<CanvasSessionState>()((set, get) => ({
 
         if (topic === 'composition.started') {
           next.CT = 'running';
+        } else if (topic === 'composition.arbitration_triggered') {
+          next.CT = next.CT === 'failed' ? 'failed' : 'done';
+          next.tensorAB = next.tensorAB === 'failed' ? 'failed' : 'done';
+          next.projectConstraint = 'running';
         } else if (explicitOperator && OPERATOR_ORDER.includes(explicitOperator as ComposeOperator)) {
           const key = explicitOperator as ComposeOperator;
           next[key] = topic === 'composition.failed' ? 'failed' : 'running';
         } else if (topic === 'composition.artifact_ready') {
-          next.materialize = next.materialize === 'done' ? 'done' : 'running';
+          next.CT = next.CT === 'failed' ? 'failed' : 'done';
+          next.tensorAB = next.tensorAB === 'failed' ? 'failed' : 'done';
+          next.projectConstraint = next.projectConstraint === 'failed' ? 'failed' : 'done';
+          next.assemble = next.assemble === 'failed' ? 'failed' : 'done';
+          next.materialize = next.materialize === 'failed' ? 'failed' : 'running';
         } else if (topic === 'composition.fitness_scored') {
           next.materialize = 'done';
         } else if (topic === 'composition.completed') {
@@ -764,7 +779,11 @@ export const useCanvasSession = create<CanvasSessionState>()((set, get) => ({
           }
         } else if (topic === 'composition.failed') {
           const running = OPERATOR_ORDER.find((op) => next[op] === 'running');
-          if (running) next[running] = 'failed';
+          if (running) {
+            next[running] = 'failed';
+          } else {
+            next.projectConstraint = 'failed';
+          }
         }
 
         return {
@@ -772,13 +791,30 @@ export const useCanvasSession = create<CanvasSessionState>()((set, get) => ({
           composeEvents: [
             ...state.composeEvents,
             {
-              topic: topic || 'composition.started',
+              topic,
               payload: parsed,
               receivedAt: new Date().toISOString(),
             },
           ].slice(-40),
         };
       });
+
+      if (topic === 'composition.completed' || topic === 'composition.failed') {
+        source.close();
+        set({ composeSseConnected: false });
+      }
+    };
+
+    // Backend SSE uses named `event:` frames, so bind explicit listeners for
+    // the canonical composition topics and keep `onmessage` as fallback only.
+    for (const topic of COMPOSE_TOPICS) {
+      source.addEventListener(topic, (event) => {
+        handleComposeEvent(topic, String((event as MessageEvent).data ?? '{}'));
+      });
+    }
+
+    source.onmessage = (event) => {
+      handleComposeEvent(String((event as MessageEvent).type || ''), String(event.data ?? '{}'));
     };
 
     source.onerror = () => {

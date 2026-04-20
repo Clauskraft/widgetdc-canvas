@@ -21,6 +21,7 @@ export function ComposeOpsDock() {
   const composeAcceptedAt = useCanvasSession((s) => s.composeAcceptedAt);
   const composeSseConnected = useCanvasSession((s) => s.composeSseConnected);
   const composeOperatorStatus = useCanvasSession((s) => s.composeOperatorStatus);
+  const composeEvents = useCanvasSession((s) => s.composeEvents);
   const patternPalette = useCanvasSession((s) => s.patternPalette);
   const selectedPatternIds = useCanvasSession((s) => s.selectedPatternIds);
   const preSeededNodes = useCanvasSession((s) => s.preSeededNodes);
@@ -42,6 +43,26 @@ export function ComposeOpsDock() {
   }, [fetchPatternPalette, refreshInnovationBacklog]);
 
   const selectedSet = useMemo(() => new Set(selectedPatternIds), [selectedPatternIds]);
+  const latestArbitrationEvent = useMemo(
+    () => [...composeEvents].reverse().find((event) => event.topic === 'composition.arbitration_triggered') ?? null,
+    [composeEvents],
+  );
+  const arbitrationMode = typeof latestArbitrationEvent?.payload?.arbitration_mode === 'string'
+    ? latestArbitrationEvent.payload.arbitration_mode
+    : typeof latestArbitrationEvent?.payload?.mode === 'string'
+      ? latestArbitrationEvent.payload.mode
+      : 'triggered';
+  const rawDivergence = latestArbitrationEvent?.payload?.divergence_index;
+  const divergenceIndex = typeof rawDivergence === 'number'
+    ? rawDivergence
+    : typeof rawDivergence === 'string'
+      ? Number(rawDivergence)
+      : Number.NaN;
+  const arbitrationHint = typeof latestArbitrationEvent?.payload?.rationale === 'string'
+    ? latestArbitrationEvent.payload.rationale
+    : typeof latestArbitrationEvent?.payload?.reason === 'string'
+      ? latestArbitrationEvent.payload.reason
+      : 'Tri-source arbitration fired inside projectConstraint.';
 
   return (
     <section
@@ -77,6 +98,33 @@ export function ComposeOpsDock() {
             </span>
           ))}
         </div>
+        {latestArbitrationEvent && (
+          <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span
+              style={{
+                border: '0.5px solid var(--sc-paper-whisper)',
+                borderRadius: '999px',
+                padding: '3px 8px',
+                fontFamily: 'var(--sc-font-mono)',
+                fontSize: '8px',
+                color: 'var(--sc-track-architecture)',
+              }}
+              title={arbitrationHint}
+            >
+              arbitration triggered
+            </span>
+            <span
+              style={{
+                fontFamily: 'var(--sc-font-mono)',
+                fontSize: '8px',
+                color: 'var(--sc-ink-fog)',
+              }}
+            >
+              {arbitrationMode}
+              {Number.isFinite(divergenceIndex) ? ` · ${(divergenceIndex * 100).toFixed(0)}%` : ''}
+            </span>
+          </div>
+        )}
         <div style={{ marginTop: '6px', fontFamily: 'var(--sc-font-mono)', fontSize: '8px', color: 'var(--sc-ink-fog)' }}>
           {composeBomrunId ? `bomrun ${composeBomrunId}` : 'no active bomrun'}
           {composeAcceptedAt ? ` · accepted ${new Date(composeAcceptedAt).toLocaleTimeString()}` : ''}

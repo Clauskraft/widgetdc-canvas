@@ -88,6 +88,7 @@ export async function graphWrite(query: string, params: Record<string, unknown> 
 
 export type ComposeTopic =
   | 'composition.started'
+  | 'composition.arbitration_triggered'
   | 'composition.artifact_ready'
   | 'composition.fitness_scored'
   | 'composition.completed'
