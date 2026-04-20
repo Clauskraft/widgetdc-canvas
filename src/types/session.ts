@@ -20,7 +20,9 @@ export type PaneId =
   | 'split'
   | 'phantom_bom'
   | 'architecture_spec'
-  | 'innovation_backlog';
+  | 'innovation_backlog'
+  | 'research'
+  | 'telemetry';
 
 /** Modality artifact status from multi-modal SSE stream */
 export type ModalityStatus = 'pending' | 'streaming' | 'ready' | 'error';

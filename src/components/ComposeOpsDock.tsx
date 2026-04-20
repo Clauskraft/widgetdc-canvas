@@ -30,6 +30,7 @@ export function ComposeOpsDock() {
   const fetchPatternPalette = useCanvasSession((s) => s.fetchPatternPalette);
   const togglePatternSelection = useCanvasSession((s) => s.togglePatternSelection);
   const fetchProvenanceForCurrentRun = useCanvasSession((s) => s.fetchProvenanceForCurrentRun);
+  const switchPane = useCanvasSession((s) => s.switchPane);
   const innovationTickets = useCanvasSession((s) => s.innovationTickets);
   const innovationLoading = useCanvasSession((s) => s.innovationLoading);
   const innovationActionPendingId = useCanvasSession((s) => s.innovationActionPendingId);
@@ -63,6 +64,15 @@ export function ComposeOpsDock() {
     : typeof latestArbitrationEvent?.payload?.reason === 'string'
       ? latestArbitrationEvent.payload.reason
       : 'Tri-source arbitration fired inside projectConstraint.';
+  const latestFailedEvent = useMemo(
+    () => [...composeEvents].reverse().find((event) => event.topic === 'composition.failed') ?? null,
+    [composeEvents],
+  );
+  const failureReason = typeof latestFailedEvent?.payload?.rejection_reason === 'string'
+    ? latestFailedEvent.payload.rejection_reason
+    : typeof latestFailedEvent?.payload?.reason === 'string'
+      ? latestFailedEvent.payload.reason
+      : null;
 
   return (
     <section
@@ -123,6 +133,38 @@ export function ComposeOpsDock() {
               {arbitrationMode}
               {Number.isFinite(divergenceIndex) ? ` · ${(divergenceIndex * 100).toFixed(0)}%` : ''}
             </span>
+          </div>
+        )}
+        {failureReason && (
+          <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span
+              style={{
+                border: '0.5px solid var(--sc-paper-whisper)',
+                borderRadius: '999px',
+                padding: '3px 8px',
+                fontFamily: 'var(--sc-font-mono)',
+                fontSize: '8px',
+                color: 'var(--sc-track-slide-flow)',
+              }}
+            >
+              failed · {failureReason}
+            </span>
+            <button
+              type="button"
+              onClick={() => switchPane('telemetry')}
+              style={{
+                border: '0.5px solid var(--sc-paper-whisper)',
+                borderRadius: '999px',
+                padding: '3px 8px',
+                fontFamily: 'var(--sc-font-mono)',
+                fontSize: '8px',
+                background: 'transparent',
+                color: 'var(--sc-ink-stone)',
+                cursor: 'pointer',
+              }}
+            >
+              inspect telemetry
+            </button>
           </div>
         )}
         <div style={{ marginTop: '6px', fontFamily: 'var(--sc-font-mono)', fontSize: '8px', color: 'var(--sc-ink-fog)' }}>
