@@ -63,6 +63,16 @@ export function DiffViewPane() {
 
   const left = useMemo(() => runs.find((run) => run.id === leftId) ?? null, [leftId, runs]);
   const right = useMemo(() => runs.find((run) => run.id === rightId) ?? null, [rightId, runs]);
+  const deltaFitness =
+    left?.fitness_average !== null && left?.fitness_average !== undefined &&
+    right?.fitness_average !== null && right?.fitness_average !== undefined
+      ? left.fitness_average - right.fitness_average
+      : null;
+  const deltaDuration =
+    left?.duration_ms !== null && left?.duration_ms !== undefined &&
+    right?.duration_ms !== null && right?.duration_ms !== undefined
+      ? left.duration_ms - right.duration_ms
+      : null;
 
   return (
     <div
@@ -76,42 +86,24 @@ export function DiffViewPane() {
         color: '#e6e6e6',
         padding: '12px',
       }}
-    >
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-        <select
-          value={leftId}
-          onChange={(event) => setLeftId(event.target.value)}
-          style={{
-            flex: 1,
-            background: '#111111',
-            border: '1px solid #333333',
-            color: '#e6e6e6',
-            fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace',
-            fontSize: '12px',
-            padding: '8px',
-          }}
-        >
+      >
+      <div className="sc-grid-three" style={{ marginBottom: '12px' }}>
+        <select value={leftId} onChange={(event) => setLeftId(event.target.value)} className="sc-select">
           {runs.map((run) => (
             <option key={run.id} value={run.id}>{run.id}</option>
           ))}
         </select>
-        <select
-          value={rightId}
-          onChange={(event) => setRightId(event.target.value)}
-          style={{
-            flex: 1,
-            background: '#111111',
-            border: '1px solid #333333',
-            color: '#e6e6e6',
-            fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace',
-            fontSize: '12px',
-            padding: '8px',
-          }}
-        >
+        <select value={rightId} onChange={(event) => setRightId(event.target.value)} className="sc-select">
           {runs.map((run) => (
             <option key={run.id} value={run.id}>{run.id}</option>
           ))}
         </select>
+        <div className="sc-panel" style={{ padding: '10px 12px', fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace' }}>
+          <div style={{ fontSize: '10px', color: '#7a7a7a', textTransform: 'uppercase', marginBottom: '4px' }}>delta summary</div>
+          <div style={{ fontSize: '12px', color: '#e6e6e6' }}>
+            fitness {deltaFitness === null ? 'n/a' : deltaFitness.toFixed(2)} · duration {deltaDuration === null ? 'n/a' : `${deltaDuration} ms`}
+          </div>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', minHeight: 0 }}>

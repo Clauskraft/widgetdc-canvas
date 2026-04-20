@@ -68,10 +68,22 @@ export function ComposeOpsDock() {
     () => [...composeEvents].reverse().find((event) => event.topic === 'composition.failed') ?? null,
     [composeEvents],
   );
+  const latestCompletedEvent = useMemo(
+    () => [...composeEvents].reverse().find((event) => event.topic === 'composition.completed') ?? null,
+    [composeEvents],
+  );
   const failureReason = typeof latestFailedEvent?.payload?.rejection_reason === 'string'
     ? latestFailedEvent.payload.rejection_reason
     : typeof latestFailedEvent?.payload?.reason === 'string'
       ? latestFailedEvent.payload.reason
+      : null;
+  const operatorDoneCount = OPERATOR_LABELS.filter((operator) => composeOperatorStatus[operator.key] === 'done').length;
+  const operatorRunning = OPERATOR_LABELS.find((operator) => composeOperatorStatus[operator.key] === 'running')?.label ?? null;
+  const artifactCount = composeEvents.filter((event) => event.topic === 'composition.artifact_ready').length;
+  const latestDuration = typeof latestCompletedEvent?.payload?.total_duration_ms === 'number'
+    ? latestCompletedEvent.payload.total_duration_ms
+    : typeof latestCompletedEvent?.payload?.duration_ms === 'number'
+      ? latestCompletedEvent.payload.duration_ms
       : null;
 
   return (
@@ -82,7 +94,7 @@ export function ComposeOpsDock() {
         borderBottom: '0.5px solid var(--sc-paper-whisper)',
         padding: '10px var(--sc-pane-pad)',
         display: 'grid',
-        gridTemplateColumns: '1.2fr 1fr 1fr 1fr',
+        gridTemplateColumns: '1.4fr 1fr 1fr 1fr',
         gap: '14px',
         background: 'var(--sc-surface-elevated)',
       }}
@@ -108,6 +120,12 @@ export function ComposeOpsDock() {
             </span>
           ))}
         </div>
+        <div style={{ marginTop: '8px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          <span className="sc-chip">progress {operatorDoneCount}/5</span>
+          <span className="sc-chip">artifacts {artifactCount}</span>
+          <span className="sc-chip">{operatorRunning ? `live ${operatorRunning}` : 'awaiting next step'}</span>
+          {latestDuration !== null && <span className="sc-chip">{latestDuration} ms</span>}
+        </div>
         {latestArbitrationEvent && (
           <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
             <span
@@ -123,6 +141,9 @@ export function ComposeOpsDock() {
             >
               arbitration triggered
             </span>
+            <button type="button" className="sc-button" data-tone="accent" onClick={() => switchPane('telemetry')}>
+              open telemetry
+            </button>
             <span
               style={{
                 fontFamily: 'var(--sc-font-mono)',
@@ -225,16 +246,8 @@ export function ComposeOpsDock() {
             type="button"
             onClick={() => void fetchProvenanceForCurrentRun()}
             disabled={!composeBomrunId || lineageLoading}
-            style={{
-              fontFamily: 'var(--sc-font-mono)',
-              fontSize: '8px',
-              border: '0.5px solid var(--sc-paper-whisper)',
-              borderRadius: 'var(--sc-radius-sm)',
-              background: 'transparent',
-              color: 'var(--sc-ink-stone)',
-              padding: '3px 6px',
-              cursor: composeBomrunId ? 'pointer' : 'not-allowed',
-            }}
+            className="sc-button"
+            style={{ cursor: composeBomrunId ? 'pointer' : 'not-allowed' }}
           >
             {lineageLoading ? 'loading...' : 'load lineage'}
           </button>
@@ -267,11 +280,19 @@ export function ComposeOpsDock() {
               No lineage loaded
             </span>
           ) : (
-            lineageEdges.map((edge, index) => (
-              <div key={`${edge.rel_type}-${index}`} style={{ fontFamily: 'var(--sc-font-mono)', fontSize: '8px', color: 'var(--sc-ink-stone)', marginBottom: '3px' }}>
-                {edge.rel_type}: {edge.to_label} · {edge.to_name}
+            <>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                <span className="sc-chip">{lineageEdges.length} edges</span>
+                <button type="button" className="sc-button" onClick={() => switchPane('evidence')}>
+                  open evidence
+                </button>
               </div>
-            ))
+              {lineageEdges.slice(0, 8).map((edge, index) => (
+                <div key={`${edge.rel_type}-${index}`} style={{ fontFamily: 'var(--sc-font-mono)', fontSize: '8px', color: 'var(--sc-ink-stone)', marginBottom: '3px' }}>
+                  {edge.rel_type}: {edge.to_label} · {edge.to_name}
+                </div>
+              ))}
+            </>
           )}
         </div>
       </div>
@@ -326,16 +347,8 @@ export function ComposeOpsDock() {
                     type="button"
                     disabled={innovationActionPendingId === ticket.id}
                     onClick={() => void approveInnovationBacklogItem(ticket.id)}
-                    style={{
-                      fontFamily: 'var(--sc-font-mono)',
-                      fontSize: '8px',
-                      border: '0.5px solid var(--sc-paper-whisper)',
-                      borderRadius: 'var(--sc-radius-sm)',
-                      background: 'transparent',
-                      color: 'var(--sc-track-textual)',
-                      padding: '3px 6px',
-                      cursor: innovationActionPendingId === ticket.id ? 'wait' : 'pointer',
-                    }}
+                    className="sc-button"
+                    style={{ cursor: innovationActionPendingId === ticket.id ? 'wait' : 'pointer' }}
                   >
                     approve
                   </button>
@@ -343,16 +356,9 @@ export function ComposeOpsDock() {
                     type="button"
                     disabled={innovationActionPendingId === ticket.id}
                     onClick={() => void rejectInnovationBacklogItem(ticket.id)}
-                    style={{
-                      fontFamily: 'var(--sc-font-mono)',
-                      fontSize: '8px',
-                      border: '0.5px solid var(--sc-paper-whisper)',
-                      borderRadius: 'var(--sc-radius-sm)',
-                      background: 'transparent',
-                      color: 'var(--sc-track-slide-flow)',
-                      padding: '3px 6px',
-                      cursor: innovationActionPendingId === ticket.id ? 'wait' : 'pointer',
-                    }}
+                    className="sc-button"
+                    data-tone="danger"
+                    style={{ cursor: innovationActionPendingId === ticket.id ? 'wait' : 'pointer' }}
                   >
                     reject
                   </button>

@@ -34,6 +34,7 @@ export function PatternPalettePane() {
   const [selected, setSelected] = useState<PatternRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
 
   useEffect(() => {
     let cancelled = false;
@@ -72,9 +73,13 @@ export function PatternPalettePane() {
     };
   }, []);
 
-  const filtered = rows.filter((row) =>
-    `${row.name} ${row.summary ?? ''} ${row.source ?? ''}`.toLowerCase().includes(query.toLowerCase()),
-  );
+  const sources = ['all', ...new Set(rows.map((row) => row.source ?? 'unknown'))];
+  const filtered = rows.filter((row) => {
+    const haystack = `${row.name} ${row.summary ?? ''} ${row.source ?? ''}`.toLowerCase();
+    const queryMatch = haystack.includes(query.toLowerCase());
+    const sourceMatch = sourceFilter === 'all' || (row.source ?? 'unknown') === sourceFilter;
+    return queryMatch && sourceMatch;
+  });
 
   return (
     <div
@@ -92,43 +97,49 @@ export function PatternPalettePane() {
         <div style={{ fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace', fontSize: '11px', color: '#7a7a7a', textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: '10px' }}>
           Sources
         </div>
-        {['handover-retrospective', 'Gulli', 'Qwen', 'domain_seed_v4', 'seed_v4', 'unknown'].map((source) => (
-          <div
+        {sources.map((source) => (
+          <button
             key={source}
+            type="button"
+            onClick={() => setSourceFilter(source)}
             style={{
+              width: '100%',
+              textAlign: 'left',
               padding: '8px 0',
               borderBottom: '1px solid #333333',
               fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace',
               fontSize: '12px',
+              background: 'transparent',
+              color: sourceFilter === source ? '#7db4ff' : '#e6e6e6',
+              cursor: 'pointer',
+              borderTop: 'none',
+              borderLeft: 'none',
+              borderRight: 'none',
             }}
           >
             {source}
-          </div>
+          </button>
         ))}
       </div>
 
       <div style={{ borderRight: '1px solid #333333', display: 'grid', gridTemplateRows: 'auto 1fr', minHeight: 0 }}>
         <div style={{ padding: '12px', borderBottom: '1px solid #333333' }}>
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="P · filter patterns"
-            style={{
-              width: '100%',
-              background: 'transparent',
-              border: '1px solid #333333',
-              color: '#e6e6e6',
-              fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace',
-              fontSize: '13px',
-              padding: '8px 10px',
-              outline: 'none',
-            }}
-          />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="P · filter patterns" className="sc-input" />
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }}>
+            <span className="sc-chip">{rows.length} total</span>
+            <span className="sc-chip">{filtered.length} visible</span>
+            <span className="sc-chip">{sourceFilter}</span>
+          </div>
         </div>
         <div style={{ overflowY: 'auto' }}>
           {loading ? (
             <div style={{ padding: '12px', fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace', fontSize: '11px', color: '#7a7a7a' }}>
               loading…
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="sc-empty" style={{ margin: '12px' }}>
+              <div>No patterns match the current slice.</div>
+              <div>Broaden the source filter or search text.</div>
             </div>
           ) : (
             filtered.map((row) => (
@@ -166,19 +177,28 @@ export function PatternPalettePane() {
         </div>
         {selected ? (
           <>
-            <div style={{ fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace', fontSize: '14px', marginBottom: '8px' }}>
+            <div className="sc-panel" style={{ padding: '12px', marginBottom: '12px' }}>
+              <div style={{ fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace', fontSize: '14px', marginBottom: '8px' }}>
+                {selected.name}
+              </div>
+              <div className="sc-grid-two">
+                <div className="sc-kpi"><span className="sc-kpi-label">source</span><span className="sc-kpi-value" style={{ fontSize: '12px' }}>{selected.source ?? 'unknown'}</span></div>
+                <div className="sc-kpi"><span className="sc-kpi-label">observed</span><span className="sc-kpi-value" style={{ fontSize: '12px' }}>{selected.observed_count ?? 0}</span></div>
+                <div className="sc-kpi"><span className="sc-kpi-label">fitness avg</span><span className="sc-kpi-value" style={{ fontSize: '12px' }}>{selected.fitness_avg ?? 'n/a'}</span></div>
+                <div className="sc-kpi"><span className="sc-kpi-label">last audited</span><span className="sc-kpi-value" style={{ fontSize: '12px' }}>{selected.last_audited ?? 'n/a'}</span></div>
+              </div>
+            </div>
+            <div style={{ fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace', fontSize: '12px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
               {selected.name}
             </div>
-            <div style={{ fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace', fontSize: '11px', color: '#7a7a7a', marginBottom: '12px' }}>
-              {selected.source ?? 'unknown'} · last audited {selected.last_audited ?? 'n/a'}
-            </div>
-            <div style={{ fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace', fontSize: '12px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+            <div style={{ fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace', fontSize: '12px', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: '#c7c7c7' }}>
               {selected.summary ?? 'No summary available.'}
             </div>
           </>
         ) : (
-          <div style={{ fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace', fontSize: '11px', color: '#7a7a7a' }}>
-            no pattern selected
+          <div className="sc-empty">
+            <div>No pattern selected.</div>
+            <div>Use the palette to lock the next run onto a more intentional route.</div>
           </div>
         )}
       </div>

@@ -113,6 +113,8 @@ export function GraphTelemetryPane() {
     }
     return counts;
   }, [composeEvents]);
+  const sortedTopicTail = [...eventCounts.entries()].sort((a, b) => b[1] - a[1]);
+  const riskTone = runState?.rejection_reason ? 'var(--sc-danger)' : 'var(--sc-success)';
 
   return (
     <div
@@ -128,36 +130,21 @@ export function GraphTelemetryPane() {
         gap: '12px',
       }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: '8px' }}>
+      <div className="sc-grid-three">
         {(['CT', 'tensorAB', 'projectConstraint', 'assemble', 'materialize'] as const).map((operator) => (
-          <div
-            key={operator}
-            style={{
-              border: '1px solid #333333',
-              padding: '8px',
-              fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace',
-              fontSize: '11px',
-            }}
-          >
-            <div style={{ color: '#7a7a7a', textTransform: 'uppercase', marginBottom: '4px' }}>{operator}</div>
-            <div>{composeOperatorStatus[operator]}</div>
+          <div key={operator} className="sc-kpi">
+            <div className="sc-kpi-label">{operator}</div>
+            <div className="sc-kpi-value" style={{ fontSize: '12px' }}>{composeOperatorStatus[operator]}</div>
           </div>
         ))}
-        <div
-          style={{
-            border: '1px solid #333333',
-            padding: '8px',
-            fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace',
-            fontSize: '11px',
-          }}
-        >
-          <div style={{ color: '#7a7a7a', textTransform: 'uppercase', marginBottom: '4px' }}>events</div>
-          <div>{composeEvents.length}</div>
+        <div className="sc-kpi">
+          <div className="sc-kpi-label">events</div>
+          <div className="sc-kpi-value">{composeEvents.length}</div>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: '12px' }}>
-        <div style={{ border: '1px solid #333333', padding: '10px', fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace' }}>
+      <div className="sc-grid-two">
+        <div className="sc-panel" style={{ padding: '12px', fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace' }}>
           <div style={{ color: '#7a7a7a', textTransform: 'uppercase', fontSize: '11px', marginBottom: '6px' }}>
             Tri-source arbitration
           </div>
@@ -178,13 +165,13 @@ export function GraphTelemetryPane() {
           )}
         </div>
 
-        <div style={{ border: '1px solid #333333', padding: '10px', fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace' }}>
+        <div className="sc-panel" style={{ padding: '12px', fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace' }}>
           <div style={{ color: '#7a7a7a', textTransform: 'uppercase', fontSize: '11px', marginBottom: '6px' }}>
             Run failure
           </div>
           {runState ? (
             <>
-              <div style={{ fontSize: '13px', marginBottom: '4px' }}>{runState.status}</div>
+              <div style={{ fontSize: '13px', marginBottom: '4px', color: riskTone }}>{runState.status}</div>
               <div style={{ fontSize: '11px', color: '#d4a44a', marginBottom: '4px' }}>
                 {runState.rejection_reason ?? 'no rejection reason'}
               </div>
@@ -198,12 +185,12 @@ export function GraphTelemetryPane() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '0.8fr 1.2fr', gap: '12px', minHeight: 0 }}>
-        <div style={{ border: '1px solid #333333', overflowY: 'auto', padding: '10px' }}>
+      <div className="sc-grid-two" style={{ minHeight: 0 }}>
+        <div className="sc-panel" style={{ overflowY: 'auto', padding: '10px' }}>
           <div style={{ color: '#7a7a7a', textTransform: 'uppercase', fontSize: '11px', marginBottom: '8px', fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace' }}>
             Topic tail
           </div>
-          {[...eventCounts.entries()].map(([topic, count]) => (
+          {sortedTopicTail.map(([topic, count]) => (
             <div
               key={topic}
               style={{
@@ -221,13 +208,14 @@ export function GraphTelemetryPane() {
           ))}
         </div>
 
-        <div style={{ border: '1px solid #333333', overflowY: 'auto', padding: '10px' }}>
+        <div className="sc-panel" style={{ overflowY: 'auto', padding: '10px' }}>
           <div style={{ color: '#7a7a7a', textTransform: 'uppercase', fontSize: '11px', marginBottom: '8px', fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace' }}>
             Moraine memory
           </div>
           {moraineRows.length === 0 ? (
-            <div style={{ fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace', fontSize: '11px', color: '#7a7a7a' }}>
-              no failure trace recall for current rejection
+            <div className="sc-empty" style={{ minHeight: '120px' }}>
+              <div>No failure trace recall for the current rejection.</div>
+              <div>Moraine memory becomes visible when a rejection reason maps to stored trace history.</div>
             </div>
           ) : (
             moraineRows.map((row, index) => (

@@ -28,6 +28,7 @@ function toNumber(value: unknown): number | null {
 export function TimelinePane() {
   const [rows, setRows] = useState<TimelineRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
   const switchPane = useCanvasSession((s) => s.switchPane);
 
   useEffect(() => {
@@ -61,6 +62,9 @@ export function TimelinePane() {
       cancelled = true;
     };
   }, []);
+  const filtered = rows.filter((row) =>
+    `${row.id} ${row.track ?? ''} ${row.rejection_reason ?? ''} ${row.status}`.toLowerCase().includes(query.toLowerCase()),
+  );
 
   return (
     <div
@@ -78,28 +82,26 @@ export function TimelinePane() {
         <div style={{ fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace', fontSize: '11px', color: '#7a7a7a', textTransform: 'uppercase', letterSpacing: '0.18em' }}>
           Timeline scrubber
         </div>
-        <button
-          type="button"
-          onClick={() => switchPane('diff')}
-          style={{
-            border: '1px solid #333333',
-            background: '#111111',
-            color: '#e6e6e6',
-            fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace',
-            fontSize: '11px',
-            padding: '6px 8px',
-            cursor: 'pointer',
-          }}
-        >
+        <button type="button" onClick={() => switchPane('diff')} className="sc-button">
           open diff
         </button>
+      </div>
+      <div className="sc-grid-three" style={{ marginBottom: '12px' }}>
+        <div className="sc-kpi"><span className="sc-kpi-label">runs</span><span className="sc-kpi-value">{rows.length}</span></div>
+        <div className="sc-kpi"><span className="sc-kpi-label">visible</span><span className="sc-kpi-value">{filtered.length}</span></div>
+        <div><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="filter id · track · failure" className="sc-input" /></div>
       </div>
       {loading ? (
         <div style={{ fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace', fontSize: '11px', color: '#7a7a7a' }}>
           loading…
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="sc-empty">
+          <div>No runs match the current filter.</div>
+          <div>Clear the query to bring the run stream back.</div>
+        </div>
       ) : (
-        rows.map((row) => (
+        filtered.map((row) => (
           <div
             key={row.id}
             style={{
