@@ -165,6 +165,11 @@ export function ResearchPane() {
     () => CHANNELS.filter((channel) => enabled[channel.id]),
     [enabled],
   );
+  const summary = useMemo(() => ({
+    channels: activeChannels.length,
+    results: results.length,
+    evidence: evidenceRows.length,
+  }), [activeChannels.length, evidenceRows.length, results.length]);
 
   async function runResearch(): Promise<void> {
     const trimmed = query.trim();
@@ -238,7 +243,7 @@ export function ResearchPane() {
         <div style={{ fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace', fontSize: '11px', letterSpacing: '0.18em', textTransform: 'uppercase', color: '#7a7a7a', marginBottom: '10px' }}>
           Research pane
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -260,21 +265,14 @@ export function ResearchPane() {
               outline: 'none',
             }}
           />
-          <button
-            type="button"
-            onClick={() => void runResearch()}
-            style={{
-              border: '1px solid #333333',
-              background: '#1e1e1e',
-              color: '#e6e6e6',
-              fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace',
-              fontSize: '11px',
-              padding: '8px 12px',
-              cursor: 'pointer',
-            }}
-          >
+          <button type="button" onClick={() => void runResearch()} className="sc-button">
             run
           </button>
+        </div>
+        <div className="sc-grid-three">
+          <div className="sc-kpi"><span className="sc-kpi-label">channels</span><span className="sc-kpi-value">{summary.channels}</span></div>
+          <div className="sc-kpi"><span className="sc-kpi-label">hits</span><span className="sc-kpi-value">{summary.results}</span></div>
+          <div className="sc-kpi"><span className="sc-kpi-label">evidence rows</span><span className="sc-kpi-value">{summary.evidence}</span></div>
         </div>
       </div>
 
@@ -317,30 +315,38 @@ export function ResearchPane() {
         </div>
 
         <div style={{ borderRight: '1px solid #333333', overflowY: 'auto' }}>
-          {results.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => void loadEvidence(item)}
-              style={{
-                width: '100%',
-                textAlign: 'left',
-                border: 'none',
-                borderBottom: '1px solid #333333',
-                background: selected?.id === item.id ? '#1e1e1e' : 'transparent',
-                color: '#e6e6e6',
-                padding: '10px 12px',
-                cursor: 'pointer',
-                fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace',
-              }}
-            >
-              <div style={{ fontSize: '11px', color: '#7db4ff', marginBottom: '4px' }}>
-                [{item.scope}]
-              </div>
-              <div style={{ fontSize: '13px', marginBottom: '4px' }}>{item.name}</div>
-              <div style={{ fontSize: '11px', color: '#7a7a7a' }}>{item.description}</div>
-            </button>
-          ))}
+          {results.length === 0 ? (
+            <div className="sc-empty" style={{ margin: '12px' }}>
+              <div>Research is armed but idle.</div>
+              <div>Run a query to compare adaptive RAG, graph search, KG and pattern palette evidence.</div>
+            </div>
+          ) : (
+            results.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => void loadEvidence(item)}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  border: 'none',
+                  borderBottom: '1px solid #333333',
+                  background: selected?.id === item.id ? '#1e1e1e' : 'transparent',
+                  color: '#e6e6e6',
+                  padding: '10px 12px',
+                  cursor: 'pointer',
+                  fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '4px' }}>
+                  <div style={{ fontSize: '11px', color: '#7db4ff' }}>[{item.scope}]</div>
+                  <div style={{ fontSize: '10px', color: '#7a7a7a' }}>{item.score?.toFixed(2) ?? 'n/a'}</div>
+                </div>
+                <div style={{ fontSize: '13px', marginBottom: '4px' }}>{item.name}</div>
+                <div style={{ fontSize: '11px', color: '#7a7a7a' }}>{item.description}</div>
+              </button>
+            ))
+          )}
         </div>
 
         <div style={{ overflowY: 'auto', padding: '12px' }}>
@@ -348,21 +354,21 @@ export function ResearchPane() {
             Evidence trail
           </div>
           {selected && (
-            <div style={{ marginBottom: '12px', fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace' }}>
+            <div className="sc-panel" style={{ marginBottom: '12px', padding: '12px', fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace' }}>
               <div style={{ fontSize: '13px', marginBottom: '4px' }}>{selected.name}</div>
               <div style={{ fontSize: '11px', color: '#7a7a7a' }}>{selected.source}</div>
             </div>
           )}
           {evidenceRows.length === 0 ? (
-            <div style={{ fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace', fontSize: '11px', color: '#7a7a7a' }}>
-              no evidence loaded
+            <div className="sc-empty">
+              <div>No evidence loaded.</div>
+              <div>Select a result to pull live graph neighbors or text hits.</div>
             </div>
           ) : (
             evidenceRows.slice(0, 12).map((row, index) => (
-              <pre
+              <div
                 key={`${selected?.id ?? 'evidence'}:${index}`}
                 style={{
-                  margin: 0,
                   marginBottom: '8px',
                   padding: '8px',
                   border: '1px solid #333333',
@@ -370,12 +376,13 @@ export function ResearchPane() {
                   color: '#e6e6e6',
                   fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace',
                   fontSize: '11px',
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
                 }}
               >
-                {JSON.stringify(row, null, 2)}
-              </pre>
+                <div style={{ fontSize: '10px', color: '#7db4ff', marginBottom: '6px' }}>neighbor {index + 1}</div>
+                <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  {JSON.stringify(row, null, 2)}
+                </pre>
+              </div>
             ))
           )}
         </div>
