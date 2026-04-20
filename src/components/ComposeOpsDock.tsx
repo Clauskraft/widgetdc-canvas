@@ -1,5 +1,6 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useCanvasSession } from '../state/canvasSession';
+import { graphRead } from '../lib/api';
 
 const OPERATOR_LABELS: Array<{ key: 'CT' | 'tensorAB' | 'projectConstraint' | 'assemble' | 'materialize'; label: string }> = [
   { key: 'CT', label: 'CT' },
@@ -9,10 +10,40 @@ const OPERATOR_LABELS: Array<{ key: 'CT' | 'tensorAB' | 'projectConstraint' | 'a
   { key: 'materialize', label: 'materialize' },
 ];
 
+type AdoptionState = 'shadow' | 'candidate' | 'graduated' | 'unknown';
+type OperatorKey = (typeof OPERATOR_LABELS)[number]['key'];
+
+interface OperatorBadgeMeta {
+  adoptionState: AdoptionState;
+  sourcePatternCount: number;
+}
+
+const DEFAULT_BADGE_META: OperatorBadgeMeta = {
+  adoptionState: 'unknown',
+  sourcePatternCount: 0,
+};
+
+function normalizeOperatorKey(value: string): OperatorKey | null {
+  const text = value.toLowerCase();
+  if (text.includes('ct')) return 'CT';
+  if (text.includes('tensorab') || text.includes('tensor_ab')) return 'tensorAB';
+  if (text.includes('projectconstraint') || text.includes('project_constraint')) return 'projectConstraint';
+  if (text.includes('assemble')) return 'assemble';
+  if (text.includes('materialize')) return 'materialize';
+  return null;
+}
+
 function statusColor(status: string): string {
   if (status === 'done') return 'var(--sc-track-textual)';
   if (status === 'running') return 'var(--sc-track-architecture)';
   if (status === 'failed') return 'var(--sc-track-slide-flow)';
+  return 'var(--sc-ink-fog)';
+}
+
+function adoptionColor(state: AdoptionState): string {
+  if (state === 'graduated') return '#2F9E44';
+  if (state === 'candidate') return '#F08C00';
+  if (state === 'shadow') return '#6C757D';
   return 'var(--sc-ink-fog)';
 }
 
@@ -29,10 +60,71 @@ export function ComposeOpsDock() {
   const fetchPatternPalette = useCanvasSession((s) => s.fetchPatternPalette);
   const togglePatternSelection = useCanvasSession((s) => s.togglePatternSelection);
   const fetchProvenanceForCurrentRun = useCanvasSession((s) => s.fetchProvenanceForCurrentRun);
+  const [operatorBadgeMeta, setOperatorBadgeMeta] = useState<Record<OperatorKey, OperatorBadgeMeta>>({
+    CT: DEFAULT_BADGE_META,
+    tensorAB: DEFAULT_BADGE_META,
+    projectConstraint: DEFAULT_BADGE_META,
+    assemble: DEFAULT_BADGE_META,
+    materialize: DEFAULT_BADGE_META,
+  });
 
   useEffect(() => {
     void fetchPatternPalette();
   }, [fetchPatternPalette]);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadOperatorAdoptionStates = async () => {
+      try {
+        const rows = await graphRead(
+          `MATCH (op:CompositionOperator)
+           RETURN coalesce(op.operator_id, op.name, op.id) AS operator_id,
+                  coalesce(op.adoption_state, 'candidate') AS adoption_state,
+                  size(coalesce(op.source_patterns, [])) AS source_pattern_count,
+                  coalesce(op.last_audited, datetime('1970-01-01T00:00:00Z')) AS last_audited
+           ORDER BY last_audited DESC
+           LIMIT 50`,
+        );
+        if (!mounted) return;
+
+        const next: Record<OperatorKey, OperatorBadgeMeta> = {
+          CT: DEFAULT_BADGE_META,
+          tensorAB: DEFAULT_BADGE_META,
+          projectConstraint: DEFAULT_BADGE_META,
+          assemble: DEFAULT_BADGE_META,
+          materialize: DEFAULT_BADGE_META,
+        };
+
+        for (const row of rows as Array<Record<string, unknown>>) {
+          const key = normalizeOperatorKey(String(row.operator_id ?? ''));
+          if (!key) continue;
+          const stateRaw = String(row.adoption_state ?? 'unknown').toLowerCase();
+          const adoptionState: AdoptionState =
+            stateRaw === 'shadow' || stateRaw === 'candidate' || stateRaw === 'graduated'
+              ? stateRaw
+              : 'unknown';
+          next[key] = {
+            adoptionState,
+            sourcePatternCount: Number(row.source_pattern_count ?? 0),
+          };
+        }
+
+        setOperatorBadgeMeta(next);
+      } catch {
+        // keep existing badges; dashboard remains read-only and fail-soft
+      }
+    };
+
+    void loadOperatorAdoptionStates();
+    const timer = setInterval(() => {
+      void loadOperatorAdoptionStates();
+    }, 30_000);
+
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, []);
 
   const selectedSet = useMemo(() => new Set(selectedPatternIds), [selectedPatternIds]);
 
@@ -65,8 +157,13 @@ export function ComposeOpsDock() {
                 fontSize: '9px',
                 color: statusColor(composeOperatorStatus[operator.key]),
               }}
+              title={`Adoption: ${operatorBadgeMeta[operator.key].adoptionState} · source patterns: ${operatorBadgeMeta[operator.key].sourcePatternCount}`}
             >
               {operator.label} · {composeOperatorStatus[operator.key]}
+              {' · '}
+              <span style={{ color: adoptionColor(operatorBadgeMeta[operator.key].adoptionState) }}>
+                {operatorBadgeMeta[operator.key].adoptionState}
+              </span>
             </span>
           ))}
         </div>
