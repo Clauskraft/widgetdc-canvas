@@ -134,7 +134,7 @@ function createPaneState(): PaneState {
   };
 }
 
-const PANE_IDS: PaneId[] = ['canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec', 'innovation_backlog', 'research', 'telemetry'];
+const PANE_IDS: PaneId[] = ['canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec', 'innovation_backlog', 'research', 'telemetry', 'pattern_palette', 'evidence', 'timeline', 'diff'];
 
 function createInitialPanes(): Record<PaneId, PaneState> {
   return Object.fromEntries(

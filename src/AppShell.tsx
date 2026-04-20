@@ -31,6 +31,10 @@ import { ArchitectureSpecPane } from './panes/ArchitectureSpecPane';
 import { InnovationBacklogPane } from './panes/InnovationBacklogPane';
 import { ResearchPane } from './panes/ResearchPane';
 import { GraphTelemetryPane } from './panes/GraphTelemetryPane';
+import { PatternPalettePane } from './panes/PatternPalettePane';
+import { EvidencePane } from './panes/EvidencePane';
+import { TimelinePane } from './panes/TimelinePane';
+import { DiffViewPane } from './panes/DiffViewPane';
 
 export const DEBUG_BUILD_STAMP = 'M5-2026-04-19';
 
@@ -51,7 +55,7 @@ const VALID_TRACKS: ReadonlySet<string> = new Set([
   'textual', 'slide_flow', 'diagram', 'architecture', 'graphical', 'code', 'experiment',
 ]);
 const VALID_PANES: ReadonlySet<string> = new Set([
-  'canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec', 'innovation_backlog', 'research', 'telemetry',
+  'canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec', 'innovation_backlog', 'research', 'telemetry', 'pattern_palette', 'evidence', 'timeline', 'diff',
 ]);
 
 function readUC5Params(): UC5Params {
@@ -118,6 +122,14 @@ function UC5PaneRouter() {
       return <ResearchPane />;
     case 'telemetry':
       return <GraphTelemetryPane />;
+    case 'pattern_palette':
+      return <PatternPalettePane />;
+    case 'evidence':
+      return <EvidencePane />;
+    case 'timeline':
+      return <TimelinePane />;
+    case 'diff':
+      return <DiffViewPane />;
     case 'canvas':
     default:
       return <ArchitecturePane track={track} />;
@@ -252,7 +264,7 @@ function TrackLegend() {
 
       {/* Pane switcher pills */}
       <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-        {(['canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec', 'innovation_backlog', 'research', 'telemetry'] as PaneId[]).map((pane) => {
+        {(['canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec', 'innovation_backlog', 'research', 'telemetry', 'pattern_palette', 'evidence', 'timeline', 'diff'] as PaneId[]).map((pane) => {
           const isActive = pane === activePane;
           return (
             <button
