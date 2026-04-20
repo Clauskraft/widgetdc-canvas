@@ -122,6 +122,22 @@ export interface PatternPaletteEntry {
   semantic_summary?: string | null;
 }
 
+export interface InnovationTicketEntry {
+  id: string;
+  title: string;
+  status: 'candidate' | 'approved' | 'rejected';
+  divergence_score: number;
+  severity: 'high' | 'medium' | 'low';
+  rationale: string[];
+  lifecycle: string;
+  updated_at: string | null;
+  component_id: string | null;
+  blueprint_id: string | null;
+  pattern_id: string | null;
+  arbitration_decision: string | null;
+  arbitration_rationale: string | null;
+}
+
 export async function composeRequest(body: ComposeRequest): Promise<ComposeAcceptedResponse> {
   const apiKey = getApiKey();
   const res = await fetch(`${getApiUrl()}/api/mrp/compose`, {
@@ -197,6 +213,80 @@ export async function fetchPatternPalette(limit = 200): Promise<PatternPaletteEn
       semantic_summary: row.semantic_summary ? String(row.semantic_summary) : null,
     }))
     .filter((row) => row.id.length > 0);
+}
+
+export async function fetchInnovationTickets(
+  options: { status?: 'candidate' | 'approved' | 'rejected'; severity?: 'high' | 'medium' | 'low'; limit?: number } = {},
+): Promise<InnovationTicketEntry[]> {
+  const apiKey = getApiKey();
+  const url = new URL(`${getApiUrl()}/api/mrp/innovation-tickets`);
+  if (options.status) url.searchParams.set('status', options.status);
+  if (options.severity) url.searchParams.set('severity', options.severity);
+  if (options.limit) url.searchParams.set('limit', String(options.limit));
+
+  const res = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(apiKey
+        ? {
+            'Authorization': `Bearer ${apiKey}`,
+            'X-API-Key': apiKey,
+          }
+        : {}),
+    },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`innovation tickets fetch failed: ${res.status} ${text || res.statusText}`);
+  }
+  const payload = (await res.json()) as { items?: InnovationTicketEntry[] };
+  return Array.isArray(payload.items) ? payload.items : [];
+}
+
+export async function approveInnovationTicket(id: string): Promise<void> {
+  const apiKey = getApiKey();
+  const res = await fetch(`${getApiUrl()}/api/mrp/innovation-tickets/${encodeURIComponent(id)}/approve`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(apiKey
+        ? {
+            'Authorization': `Bearer ${apiKey}`,
+            'X-API-Key': apiKey,
+          }
+        : {}),
+    },
+    body: JSON.stringify({}),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`innovation ticket approve failed: ${res.status} ${text || res.statusText}`);
+  }
+}
+
+export async function rejectInnovationTicket(id: string, reason = 'rejected-by-operator'): Promise<void> {
+  const apiKey = getApiKey();
+  const res = await fetch(`${getApiUrl()}/api/mrp/innovation-tickets/${encodeURIComponent(id)}/reject`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(apiKey
+        ? {
+            'Authorization': `Bearer ${apiKey}`,
+            'X-API-Key': apiKey,
+          }
+        : {}),
+    },
+    body: JSON.stringify({ reason }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`innovation ticket reject failed: ${res.status} ${text || res.statusText}`);
+  }
 }
 
 // --- Canvas 5X API additions ---
