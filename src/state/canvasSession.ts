@@ -395,10 +395,10 @@ export const useCanvasSession = create<CanvasSessionState>()((set, get) => ({
       };
 
       // Envelope.data.result may be stringified JSON OR a fold-marker preview
-      // when the orchestrator has context-folded the output (>1.5KB). In the folded
-      // case it contains a '📄 Full output … 
-<url>' pattern; resolveToolOutput
-      // de-references that URL automatically. See src/lib/toolOutputFold.ts.
+      // when the orchestrator has context-folded the output (>1.5KB). In the
+      // folded case it contains a "Full output ... <url>" pattern;
+      // resolveToolOutput de-references that URL automatically.
+      // See src/lib/toolOutputFold.ts.
       const rawResult = envelope?.data?.result;
       let parsed: { success?: boolean; resolution?: CanvasResolutionWire } | null = null;
       try {
