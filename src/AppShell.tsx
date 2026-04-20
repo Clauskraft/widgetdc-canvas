@@ -28,6 +28,7 @@ import { ComposeOpsDock } from './components/ComposeOpsDock';
 // M5 panes
 import { PhantomBOMPane } from './panes/PhantomBOMPane';
 import { ArchitectureSpecPane } from './panes/ArchitectureSpecPane';
+import { InnovationBacklogPane } from './panes/InnovationBacklogPane';
 
 export const DEBUG_BUILD_STAMP = 'M5-2026-04-19';
 
@@ -48,7 +49,7 @@ const VALID_TRACKS: ReadonlySet<string> = new Set([
   'textual', 'slide_flow', 'diagram', 'architecture', 'graphical', 'code', 'experiment',
 ]);
 const VALID_PANES: ReadonlySet<string> = new Set([
-  'canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec',
+  'canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec', 'innovation_backlog',
 ]);
 
 function readUC5Params(): UC5Params {
@@ -109,6 +110,8 @@ function UC5PaneRouter() {
       return <PhantomBOMPane />;
     case 'architecture_spec':
       return <ArchitectureSpecPane />;
+    case 'innovation_backlog':
+      return <InnovationBacklogPane />;
     case 'canvas':
     default:
       return <ArchitecturePane track={track} />;
@@ -243,7 +246,7 @@ function TrackLegend() {
 
       {/* Pane switcher pills */}
       <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-        {(['canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec'] as PaneId[]).map((pane) => {
+        {(['canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec', 'innovation_backlog'] as PaneId[]).map((pane) => {
           const isActive = pane === activePane;
           return (
             <button

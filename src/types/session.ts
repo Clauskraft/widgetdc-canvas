@@ -12,7 +12,15 @@ export type BuilderTrack =
   | 'code'
   | 'experiment';
 
-export type PaneId = 'canvas' | 'markdown' | 'slides' | 'drawio' | 'split' | 'phantom_bom' | 'architecture_spec';
+export type PaneId =
+  | 'canvas'
+  | 'markdown'
+  | 'slides'
+  | 'drawio'
+  | 'split'
+  | 'phantom_bom'
+  | 'architecture_spec'
+  | 'innovation_backlog';
 
 /** Modality artifact status from multi-modal SSE stream */
 export type ModalityStatus = 'pending' | 'streaming' | 'ready' | 'error';
