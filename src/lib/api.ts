@@ -86,6 +86,119 @@ export async function graphWrite(query: string, params: Record<string, unknown> 
   return mcpCall('graph.write_cypher', { query, params });
 }
 
+export type ComposeTopic =
+  | 'composition.started'
+  | 'composition.artifact_ready'
+  | 'composition.fitness_scored'
+  | 'composition.completed'
+  | 'composition.failed';
+
+export interface ComposeRequest {
+  brief: string;
+  modalities?: string[];
+  request_features_override?: Record<string, unknown>;
+}
+
+export interface ComposeAcceptedResponse {
+  bomrun_id: string;
+  status: 'accepted';
+  sse_url: string;
+  poll_url: string;
+  accepted_at: string;
+  timeout_ms: number;
+}
+
+export interface ComposeLineageEdge {
+  rel_type: string;
+  from_label: string;
+  from_name: string;
+  to_label: string;
+  to_name: string;
+}
+
+export interface PatternPaletteEntry {
+  id: string;
+  name: string;
+  semantic_summary?: string | null;
+}
+
+export async function composeRequest(body: ComposeRequest): Promise<ComposeAcceptedResponse> {
+  const apiKey = getApiKey();
+  const res = await fetch(`${getApiUrl()}/api/mrp/compose`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(apiKey
+        ? {
+            'Authorization': `Bearer ${apiKey}`,
+            'X-API-Key': apiKey,
+          }
+        : {}),
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`compose request failed: ${res.status} ${text || res.statusText}`);
+  }
+  return (await res.json()) as ComposeAcceptedResponse;
+}
+
+export function composeEventSourceUrl(ssePath: string): string {
+  const normalizedPath = ssePath.startsWith('http')
+    ? ssePath
+    : `${getApiUrl()}${ssePath.startsWith('/') ? '' : '/'}${ssePath}`;
+  const apiKey = getApiKey();
+  if (!apiKey) return normalizedPath;
+  const url = new URL(normalizedPath);
+  // EventSource cannot attach Authorization headers in browser runtime.
+  // Backend may ignore this param; when ignored, auth falls back to host-session/cookie.
+  url.searchParams.set('bearer', apiKey);
+  return url.toString();
+}
+
+export async function fetchComposeLineage(bomrunId: string): Promise<ComposeLineageEdge[]> {
+  const rows = await graphRead(
+    `MATCH (run:PhantomBOMRun {id: $bomrunId})-[r]->(n)
+     WITH run, r, n
+     RETURN type(r) AS rel_type,
+            labels(run)[0] AS from_label,
+            coalesce(run.id, run.name, run.run_id, 'run') AS from_name,
+            labels(n)[0] AS to_label,
+            coalesce(n.name, n.title, n.id, 'node') AS to_name
+     ORDER BY rel_type ASC
+     LIMIT 30`,
+    { bomrunId },
+  );
+  return (rows as Array<Record<string, unknown>>).map((row) => ({
+    rel_type: String(row.rel_type ?? ''),
+    from_label: String(row.from_label ?? ''),
+    from_name: String(row.from_name ?? ''),
+    to_label: String(row.to_label ?? ''),
+    to_name: String(row.to_name ?? ''),
+  }));
+}
+
+export async function fetchPatternPalette(limit = 200): Promise<PatternPaletteEntry[]> {
+  const rows = await graphRead(
+    `MATCH (p:Pattern)
+     RETURN p.id AS id,
+            coalesce(p.name, p.title, p.id) AS name,
+            p.semantic_summary AS semantic_summary
+     ORDER BY coalesce(p.last_audited, datetime('1970-01-01T00:00:00Z')) DESC
+     LIMIT $limit`,
+    { limit },
+  );
+  return (rows as Array<Record<string, unknown>>)
+    .map((row) => ({
+      id: String(row.id ?? ''),
+      name: String(row.name ?? ''),
+      semantic_summary: row.semantic_summary ? String(row.semantic_summary) : null,
+    }))
+    .filter((row) => row.id.length > 0);
+}
+
 // --- Canvas 5X API additions ---
 
 export async function graphExpand(nodeLabel: string, options?: {

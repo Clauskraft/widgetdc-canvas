@@ -5,6 +5,15 @@
 
 import { create } from 'zustand';
 import * as Y from 'yjs';
+import {
+  composeEventSourceUrl,
+  composeRequest,
+  fetchComposeLineage,
+  fetchPatternPalette,
+  type ComposeLineageEdge,
+  type ComposeTopic,
+  type PatternPaletteEntry,
+} from '../lib/api';
 import type {
   BuilderTrack,
   PaneId,
@@ -53,6 +62,26 @@ export interface HostMessageEntry {
 }
 
 export type RewardStatus = 'idle' | 'submitting' | 'sent' | 'failed';
+export type OperatorStatus = 'idle' | 'running' | 'done' | 'failed';
+export type ComposeOperator = 'CT' | 'tensorAB' | 'projectConstraint' | 'assemble' | 'materialize';
+
+interface ComposeTelemetryEvent {
+  topic: ComposeTopic;
+  payload: Record<string, unknown>;
+  receivedAt: string;
+}
+
+const OPERATOR_ORDER: ComposeOperator[] = ['CT', 'tensorAB', 'projectConstraint', 'assemble', 'materialize'];
+
+function idleOperators(): Record<ComposeOperator, OperatorStatus> {
+  return {
+    CT: 'idle',
+    tensorAB: 'idle',
+    projectConstraint: 'idle',
+    assemble: 'idle',
+    materialize: 'idle',
+  };
+}
 
 /**
  * Extract a rule_id_fired heuristic from a rationale string list.
@@ -121,6 +150,15 @@ export interface CanvasSessionState {
   hostMessages: HostMessageEntry[];
   rewardStatus: RewardStatus;
   isSubmittingBrief: boolean;
+  composeBomrunId: string | null;
+  composeSseConnected: boolean;
+  composeAcceptedAt: string | null;
+  composeOperatorStatus: Record<ComposeOperator, OperatorStatus>;
+  composeEvents: ComposeTelemetryEvent[];
+  patternPalette: PatternPaletteEntry[];
+  selectedPatternIds: string[];
+  lineageEdges: ComposeLineageEdge[];
+  lineageLoading: boolean;
 
   // M5: multi-modal order state (T4.5)
   materializingOrder: MultiModalOrder | null;
@@ -152,6 +190,10 @@ export interface CanvasSessionState {
   startMultiModal(brief: string, canvasResolution: CanvasResolutionWire): Promise<void>;
   updateArtifactFromSSE(modality: string, update: Partial<ModalityArtifact>): void;
   closeSSE(): void;
+  fetchPatternPalette(): Promise<void>;
+  togglePatternSelection(patternId: string): void;
+  startComposeTelemetry(brief: string): Promise<void>;
+  fetchProvenanceForCurrentRun(): Promise<void>;
 }
 
 // ── Selectors (memoisation helpers) ─────────────────────────────────────────
@@ -180,6 +222,15 @@ export const useCanvasSession = create<CanvasSessionState>()((set, get) => ({
   materializingOrder: null,
   rewardStatus: 'idle',
   isSubmittingBrief: false,
+  composeBomrunId: null,
+  composeSseConnected: false,
+  composeAcceptedAt: null,
+  composeOperatorStatus: idleOperators(),
+  composeEvents: [],
+  patternPalette: [],
+  selectedPatternIds: [],
+  lineageEdges: [],
+  lineageLoading: false,
 
   async hydrate({ sessionId, track, initialPane }) {
     // Collapse optimistic sets into a single update — two back-to-back set()
@@ -622,5 +673,115 @@ export const useCanvasSession = create<CanvasSessionState>()((set, get) => ({
 
   closeSSE() {
     set({ materializingOrder: null });
+  },
+
+  async fetchPatternPalette() {
+    try {
+      const palette = await fetchPatternPalette(250);
+      set({ patternPalette: palette });
+    } catch (err) {
+      console.warn('[canvasSession] fetchPatternPalette failed:', err);
+      set({ patternPalette: [] });
+    }
+  },
+
+  togglePatternSelection(patternId) {
+    set((state) => {
+      const exists = state.selectedPatternIds.includes(patternId);
+      return {
+        selectedPatternIds: exists
+          ? state.selectedPatternIds.filter((id) => id !== patternId)
+          : [...state.selectedPatternIds, patternId],
+      };
+    });
+  },
+
+  async startComposeTelemetry(brief) {
+    const trimmed = brief.trim();
+    if (!trimmed) return;
+
+    const selectedPatterns = get().selectedPatternIds;
+    const accepted = await composeRequest({
+      brief: trimmed,
+      modalities: ['textual'],
+      request_features_override: selectedPatterns.length > 0
+        ? { patterns_applied: selectedPatterns }
+        : undefined,
+    });
+
+    const source = new EventSource(composeEventSourceUrl(accepted.sse_url));
+    set({
+      composeBomrunId: accepted.bomrun_id,
+      composeAcceptedAt: accepted.accepted_at,
+      composeSseConnected: true,
+      composeOperatorStatus: idleOperators(),
+      composeEvents: [],
+      lineageEdges: [],
+    });
+
+    source.onmessage = (event) => {
+      let parsed: Record<string, unknown> = {};
+      try {
+        parsed = JSON.parse(String(event.data ?? '{}')) as Record<string, unknown>;
+      } catch {
+        parsed = {};
+      }
+
+      const topicRaw = String(parsed.topic ?? '');
+      const topic = (topicRaw || String((event as MessageEvent).type || '')) as ComposeTopic;
+      const explicitOperator = String(parsed.operator ?? parsed.stage ?? '').trim();
+
+      set((state) => {
+        const next = { ...state.composeOperatorStatus };
+
+        if (topic === 'composition.started') {
+          next.CT = 'running';
+        } else if (explicitOperator && OPERATOR_ORDER.includes(explicitOperator as ComposeOperator)) {
+          const key = explicitOperator as ComposeOperator;
+          next[key] = topic === 'composition.failed' ? 'failed' : 'running';
+        } else if (topic === 'composition.artifact_ready') {
+          next.materialize = next.materialize === 'done' ? 'done' : 'running';
+        } else if (topic === 'composition.fitness_scored') {
+          next.materialize = 'done';
+        } else if (topic === 'composition.completed') {
+          for (const op of OPERATOR_ORDER) {
+            next[op] = next[op] === 'failed' ? 'failed' : 'done';
+          }
+        } else if (topic === 'composition.failed') {
+          const running = OPERATOR_ORDER.find((op) => next[op] === 'running');
+          if (running) next[running] = 'failed';
+        }
+
+        return {
+          composeOperatorStatus: next,
+          composeEvents: [
+            ...state.composeEvents,
+            {
+              topic: topic || 'composition.started',
+              payload: parsed,
+              receivedAt: new Date().toISOString(),
+            },
+          ].slice(-40),
+        };
+      });
+    };
+
+    source.onerror = () => {
+      source.close();
+      set({ composeSseConnected: false });
+    };
+  },
+
+  async fetchProvenanceForCurrentRun() {
+    const run = get().composeBomrunId;
+    if (!run) return;
+    set({ lineageLoading: true });
+    try {
+      const edges = await fetchComposeLineage(run);
+      set({ lineageEdges: edges, lineageLoading: false });
+    } catch (err) {
+      console.warn('[canvasSession] fetchProvenanceForCurrentRun failed:', err);
+      set({ lineageEdges: [], lineageLoading: false });
+    }
   },
 }));

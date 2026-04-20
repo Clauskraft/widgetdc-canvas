@@ -24,6 +24,7 @@ import type { BuilderTrack, PaneId } from './types/session';
 import { BriefBar } from './components/BriefBar';
 import { RationaleStrip } from './components/RationaleStrip';
 import { HostMessageToast } from './components/HostMessageToast';
+import { ComposeOpsDock } from './components/ComposeOpsDock';
 // M5 panes
 import { PhantomBOMPane } from './panes/PhantomBOMPane';
 import { ArchitectureSpecPane } from './panes/ArchitectureSpecPane';
@@ -374,6 +375,9 @@ function UC5Shell() {
 
       {/* Track legend + pane switcher */}
       <TrackLegend />
+
+      {/* Wave G1: real-time composition telemetry + provenance + pattern palette */}
+      <ComposeOpsDock />
 
       {/* Pane content */}
       <main style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>

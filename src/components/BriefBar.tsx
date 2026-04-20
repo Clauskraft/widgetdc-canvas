@@ -13,6 +13,7 @@ import { useCanvasSession } from '../state/canvasSession';
 
 export function BriefBar() {
   const submitBrief = useCanvasSession((s) => s.submitBrief);
+  const startComposeTelemetry = useCanvasSession((s) => s.startComposeTelemetry);
   const isSubmittingBrief = useCanvasSession((s) => s.isSubmittingBrief);
   const ruleIdFired = useCanvasSession((s) => s.ruleIdFired);
   const hydrateError = useCanvasSession((s) => s.hydrateError);
@@ -25,12 +26,19 @@ export function BriefBar() {
     const trimmed = value.trim();
     if (!trimmed || isSubmittingBrief) return;
     await submitBrief(trimmed);
+    if (!useCanvasSession.getState().hydrateError) {
+      try {
+        await startComposeTelemetry(trimmed);
+      } catch (err) {
+        console.warn('[BriefBar] compose telemetry bootstrap failed:', err);
+      }
+    }
     // On success, clear. `submitBrief` itself sets isSubmittingBrief=false.
     // If hydrateError was set, we keep the text so the user can retry.
     if (!useCanvasSession.getState().hydrateError) {
       setValue('');
     }
-  }, [value, isSubmittingBrief, submitBrief]);
+  }, [value, isSubmittingBrief, submitBrief, startComposeTelemetry]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
