@@ -7,12 +7,16 @@ import { resolveToolOutput } from '../lib/toolOutputFold';
 import { create } from 'zustand';
 import * as Y from 'yjs';
 import {
+  approveInnovationTicket,
   composeEventSourceUrl,
   composeRequest,
+  fetchInnovationTickets,
   fetchComposeLineage,
   fetchPatternPalette,
+  rejectInnovationTicket,
   type ComposeLineageEdge,
   type ComposeTopic,
+  type InnovationTicketEntry,
   type PatternPaletteEntry,
 } from '../lib/api';
 import type {
@@ -160,6 +164,9 @@ export interface CanvasSessionState {
   selectedPatternIds: string[];
   lineageEdges: ComposeLineageEdge[];
   lineageLoading: boolean;
+  innovationTickets: InnovationTicketEntry[];
+  innovationLoading: boolean;
+  innovationActionPendingId: string | null;
 
   // M5: multi-modal order state (T4.5)
   materializingOrder: MultiModalOrder | null;
@@ -195,6 +202,9 @@ export interface CanvasSessionState {
   togglePatternSelection(patternId: string): void;
   startComposeTelemetry(brief: string): Promise<void>;
   fetchProvenanceForCurrentRun(): Promise<void>;
+  refreshInnovationBacklog(): Promise<void>;
+  approveInnovationBacklogItem(id: string): Promise<void>;
+  rejectInnovationBacklogItem(id: string, reason?: string): Promise<void>;
 }
 
 // ── Selectors (memoisation helpers) ─────────────────────────────────────────
@@ -232,6 +242,9 @@ export const useCanvasSession = create<CanvasSessionState>()((set, get) => ({
   selectedPatternIds: [],
   lineageEdges: [],
   lineageLoading: false,
+  innovationTickets: [],
+  innovationLoading: false,
+  innovationActionPendingId: null,
 
   async hydrate({ sessionId, track, initialPane }) {
     // Collapse optimistic sets into a single update — two back-to-back set()
@@ -784,6 +797,45 @@ export const useCanvasSession = create<CanvasSessionState>()((set, get) => ({
     } catch (err) {
       console.warn('[canvasSession] fetchProvenanceForCurrentRun failed:', err);
       set({ lineageEdges: [], lineageLoading: false });
+    }
+  },
+
+  async refreshInnovationBacklog() {
+    set({ innovationLoading: true });
+    try {
+      const tickets = await fetchInnovationTickets({ status: 'candidate', limit: 80 });
+      set({ innovationTickets: tickets, innovationLoading: false });
+    } catch (err) {
+      console.warn('[canvasSession] refreshInnovationBacklog failed:', err);
+      set({ innovationTickets: [], innovationLoading: false });
+    }
+  },
+
+  async approveInnovationBacklogItem(id) {
+    set({ innovationActionPendingId: id });
+    try {
+      await approveInnovationTicket(id);
+      await get().refreshInnovationBacklog();
+    } catch (err) {
+      console.warn('[canvasSession] approveInnovationBacklogItem failed:', err);
+    } finally {
+      if (get().innovationActionPendingId === id) {
+        set({ innovationActionPendingId: null });
+      }
+    }
+  },
+
+  async rejectInnovationBacklogItem(id, reason = 'rejected-by-operator') {
+    set({ innovationActionPendingId: id });
+    try {
+      await rejectInnovationTicket(id, reason);
+      await get().refreshInnovationBacklog();
+    } catch (err) {
+      console.warn('[canvasSession] rejectInnovationBacklogItem failed:', err);
+    } finally {
+      if (get().innovationActionPendingId === id) {
+        set({ innovationActionPendingId: null });
+      }
     }
   },
 }));
