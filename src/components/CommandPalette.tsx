@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, type ComponentType } from 'react';
-import { Search, GitBranch, Terminal, Wrench, Bot, Database, Lightbulb, FileSearch, BrainCircuit, Layers, Sparkles, Save, Upload, Trash2, LayoutGrid, BookOpen, Link2, FileCheck } from 'lucide-react';
+import { Search, GitBranch, Terminal, Wrench, Bot, Database, Lightbulb, FileSearch, BrainCircuit, Layers, Sparkles, Save, Upload, Trash2, LayoutGrid, BookOpen, Link2, FileCheck, Clock3, SplitSquareVertical } from 'lucide-react';
 import { useCanvasStore } from '../store/canvasStore';
 import { useCanvasSession } from '../state/canvasSession';
 import type { PaneId } from '../types/session';
@@ -53,6 +53,10 @@ export function CommandPalette({ mode = 'legacy' }: CommandPaletteProps) {
     const openPane = (pane: PaneId) => () => switchPane(pane);
     return [
       { id: 'uc5-research', label: 'research', description: 'Open graph-native research pane', category: 'view', icon: Search, action: openPane('research') },
+      { id: 'uc5-pattern-palette', label: 'pattern palette', description: 'Browse ingested patterns and extraction pressure', category: 'view', icon: BookOpen, action: openPane('pattern_palette') },
+      { id: 'uc5-evidence', label: 'evidence inspector', description: 'Inspect live lineage around the current bomrun', category: 'view', icon: FileSearch, action: openPane('evidence') },
+      { id: 'uc5-timeline', label: 'timeline', description: 'Scan recent bomruns by fitness and rejection', category: 'view', icon: Clock3, action: openPane('timeline') },
+      { id: 'uc5-diff', label: 'diff view', description: 'Compare two recent runs side by side', category: 'view', icon: SplitSquareVertical, action: openPane('diff') },
       { id: 'uc5-telemetry', label: 'telemetry', description: 'Open graph telemetry and arbitration pane', category: 'view', icon: ActivityIcon, action: openPane('telemetry') },
       { id: 'uc5-innovation', label: 'innovation backlog', description: 'Open innovation backlog triage pane', category: 'view', icon: Lightbulb, action: openPane('innovation_backlog') },
       { id: 'uc5-architecture', label: 'architecture canvas', description: 'Return to canvas architecture pane', category: 'view', icon: LayoutGrid, action: openPane('canvas') },
