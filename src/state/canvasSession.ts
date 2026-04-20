@@ -2,6 +2,7 @@
  * UC5 — Canvas Session store
  * Multi-pane Zustand store with per-pane Y.Doc CRDT and session hydration.
  */
+import { resolveToolOutput } from '../lib/toolOutputFold';
 
 import { create } from 'zustand';
 import * as Y from 'yjs';
@@ -393,17 +394,18 @@ export const useCanvasSession = create<CanvasSessionState>()((set, get) => ({
         };
       };
 
-      // Envelope.data.result may be stringified JSON or already an object
+      // Envelope.data.result may be stringified JSON OR a fold-marker preview
+      // when the orchestrator has context-folded the output (>1.5KB). In the folded
+      // case it contains a '📄 Full output … 
+<url>' pattern; resolveToolOutput
+      // de-references that URL automatically. See src/lib/toolOutputFold.ts.
       const rawResult = envelope?.data?.result;
       let parsed: { success?: boolean; resolution?: CanvasResolutionWire } | null = null;
-      if (typeof rawResult === 'string') {
-        try {
-          parsed = JSON.parse(rawResult);
-        } catch {
-          parsed = null;
-        }
-      } else if (rawResult && typeof rawResult === 'object') {
-        parsed = rawResult;
+      try {
+        parsed = await resolveToolOutput<{ success?: boolean; resolution?: CanvasResolutionWire }>(rawResult);
+      } catch (parseErr) {
+        console.warn('[canvasSession] canvas_builder output unparseable:', parseErr);
+        parsed = null;
       }
 
       const resolution = parsed?.resolution;
