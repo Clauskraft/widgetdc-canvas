@@ -180,3 +180,4 @@ describe('AppShell', () => {
     expect(link.getAttribute('rel')).toContain('noreferrer');
   });
 });
+

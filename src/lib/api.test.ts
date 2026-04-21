@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  createPheromone,
   fetchGovernanceEvalSnapshot,
   fetchLibreChatRuntimeIntelligence,
   mcpCall,
@@ -576,5 +577,56 @@ describe('Canvas API: RLM reasoning route', () => {
     });
 
     expect(result.recommendation).toBe('Use the baseline /reason path.');
+  });
+});
+describe('Canvas API: operator-anchored pheromone placement', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it('posts pheromone placement payloads to the canonical backend route', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://backend.example');
+    vi.stubEnv('VITE_API_KEY', 'canvas-key');
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        status: 'accepted',
+        pheromone_id: 'pheromone-1',
+        anchor_id: 'anchor-1',
+        inspection_enqueued: true,
+        accepted_at: '2026-04-21T12:00:00Z',
+        directive_run_id: 'run-1',
+      }),
+    } as Response);
+
+    const result = await createPheromone({
+      anchor: {
+        anchor_kind: 'web-url',
+        resource_uri: 'https://canvas.widgetdc.test/session/123',
+        locator_json: {
+          pathname: '/session/123',
+          surface: 'canvas',
+        },
+      },
+      signal_type: 'risk',
+      rationale: 'Operator sees risk at this locus.',
+      created_by: 'canvas-operator',
+      client_surface: 'canvas',
+      strength: 0.72,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://backend.example/api/pheromones',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Authorization': 'Bearer canvas-key',
+          'X-API-Key': 'canvas-key',
+        }),
+      }),
+    );
+    expect(result.pheromone_id).toBe('pheromone-1');
   });
 });
