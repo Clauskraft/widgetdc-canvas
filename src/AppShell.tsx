@@ -25,6 +25,7 @@ import { BriefBar } from './components/BriefBar';
 import { RationaleStrip } from './components/RationaleStrip';
 import { HostMessageToast } from './components/HostMessageToast';
 import { ComposeOpsDock } from './components/ComposeOpsDock';
+import { PheromonePanel } from './components/PheromonePanel';
 // M5 panes
 import { PhantomBOMPane } from './panes/PhantomBOMPane';
 import { ArchitectureSpecPane } from './panes/ArchitectureSpecPane';
@@ -399,6 +400,7 @@ function UC5Shell() {
 
       {/* Wave G1: real-time composition telemetry + provenance + pattern palette */}
       <ComposeOpsDock />
+      <PheromonePanel />
 
       <CommandPalette mode="uc5" />
 
@@ -572,3 +574,4 @@ export function AppShell() {
   // Legacy mode: original dark-theme ReactFlow canvas
   return <LegacyShell />;
 }
+

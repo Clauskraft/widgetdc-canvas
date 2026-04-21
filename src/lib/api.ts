@@ -1020,3 +1020,169 @@ export async function listMcpTools(): Promise<ToolDefinition[]> {
   const data = await res.json();
   return (data?.data?.definitions ?? data?.definitions ?? data?.tools ?? data ?? []) as ToolDefinition[];
 }
+export type PheromoneSignalType =
+  | 'risk'
+  | 'novelty'
+  | 'question'
+  | 'claim'
+  | 'contradiction'
+  | 'breaking_change'
+  | 'opportunity'
+  | 'attention';
+
+export interface ResourceAnchorInput {
+  anchor_kind:
+    | 'docx-page'
+    | 'docx-paragraph'
+    | 'xlsx-cell'
+    | 'xlsx-range'
+    | 'file'
+    | 'folder'
+    | 'pdf-page'
+    | 'web-url'
+    | 'web-selection'
+    | 'code-span';
+  resource_uri: string;
+  resource_label?: string;
+  locator_json: Record<string, unknown>;
+  anchor_text?: string;
+  content_fingerprint?: string;
+}
+
+export interface CreatePheromoneRequest {
+  anchor: ResourceAnchorInput;
+  signal_type: PheromoneSignalType;
+  rationale?: string;
+  strength?: number;
+  created_by?: string;
+  client_surface: 'canvas' | 'word_addin' | 'excel_addin' | 'web_overlay' | 'filesystem_shell';
+  client_session_id?: string;
+  consent_grant_id?: string;
+}
+
+export interface CreatePheromoneResponse {
+  success: boolean;
+  status: 'accepted';
+  pheromone_id: string;
+  anchor_id: string;
+  inspection_enqueued: boolean;
+  accepted_at: string;
+  directive_run_id: string;
+}
+
+export interface InspectPheromoneResponse {
+  success: boolean;
+  status: 'completed';
+  pheromone_id: string;
+  inspection_id: string;
+  verdict: string;
+  candidate_actions: string[];
+}
+
+export interface PromotePheromoneResponse {
+  success: boolean;
+  status: 'accepted';
+  pheromone_id: string;
+  target_kind: string;
+  target_id: string;
+}
+
+export interface PheromoneDetailResponse {
+  success: boolean;
+  pheromone_id: string;
+  status: string;
+  signal_type: string;
+  rationale: string | null;
+  anchor: {
+    anchor_id: string;
+    anchor_kind: string;
+    resource_uri: string;
+    resource_label: string | null;
+    locator_json: Record<string, unknown>;
+    anchor_text: string | null;
+  };
+  latest_inspection: {
+    inspection_id: string;
+    verdict: string;
+    candidate_actions: string[];
+    created_at: string | null;
+  } | null;
+  related_entities: Array<{
+    id: string;
+    label: string;
+    type: string;
+    relation: string;
+  }>;
+}
+
+export interface ResolveAnchorResponse {
+  success: boolean;
+  anchor_id: string;
+  resolved: boolean;
+  confidence: number;
+  current_locator_json: Record<string, unknown>;
+  current_snippet: string | null;
+  drift_detected: boolean;
+}
+
+async function pheromoneRequest<T>(path: string, init: RequestInit): Promise<T> {
+  const apiKey = getApiKey();
+  const res = await fetch(`${getApiUrl()}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(apiKey
+        ? {
+            'Authorization': `Bearer ${apiKey}`,
+            'X-API-Key': apiKey,
+          }
+        : {}),
+      ...(init.headers ?? {}),
+    },
+    signal: AbortSignal.timeout(15_000),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`pheromone request failed: ${res.status} ${text || res.statusText}`);
+  }
+
+  return (await res.json()) as T;
+}
+
+export async function createPheromone(payload: CreatePheromoneRequest): Promise<CreatePheromoneResponse> {
+  return pheromoneRequest<CreatePheromoneResponse>('/api/pheromones', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getPheromone(id: string): Promise<PheromoneDetailResponse> {
+  return pheromoneRequest<PheromoneDetailResponse>(`/api/pheromones/${encodeURIComponent(id)}`, {
+    method: 'GET',
+  });
+}
+
+export async function inspectPheromone(id: string): Promise<InspectPheromoneResponse> {
+  return pheromoneRequest<InspectPheromoneResponse>(`/api/pheromones/${encodeURIComponent(id)}/inspect`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+export async function promotePheromone(
+  id: string,
+  targetKind: 'innovation_ticket' | 'training_proposal' | 'contradiction_review',
+): Promise<PromotePheromoneResponse> {
+  return pheromoneRequest<PromotePheromoneResponse>(`/api/pheromones/${encodeURIComponent(id)}/promote`, {
+    method: 'POST',
+    body: JSON.stringify({ target_kind: targetKind }),
+  });
+}
+
+export async function resolveAnchor(anchorId: string): Promise<ResolveAnchorResponse> {
+  return pheromoneRequest<ResolveAnchorResponse>(`/api/anchors/resolve?anchor_id=${encodeURIComponent(anchorId)}`, {
+    method: 'GET',
+  });
+}
+
