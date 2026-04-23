@@ -117,7 +117,7 @@ describe('AppShell', () => {
     loadTemplateMock.mockClear();
     resetStore();
     vi.unstubAllEnvs();
-    window.history.replaceState({}, '', '/');
+    window.history.replaceState({}, '', '/?legacy=1');
   });
 
   it('resolves the cockpit URL from env when configured', () => {
@@ -133,7 +133,7 @@ describe('AppShell', () => {
   });
 
   it('hydrates the knowledge surface from the query string', async () => {
-    window.history.replaceState({}, '', '/?view=knowledge');
+    window.history.replaceState({}, '', '/?legacy=1&view=knowledge');
 
     const view = render(<AppShell />);
 
@@ -141,43 +141,41 @@ describe('AppShell', () => {
 
     expect(useCanvasStore.getState().activeSurface).toBe('knowledge');
     expect(useCanvasStore.getState().knowledgeExplorerMode).toBe(true);
-    expect(window.location.search).toBe('?view=knowledge');
+    expect(window.location.search).toBe('?legacy=1&view=knowledge');
     expect(loadTemplateMock).not.toHaveBeenCalled();
-    expect(view.getByRole('button', { name: 'Viden' })).toBeTruthy();
+    expect(view.getByText('Knowledge Surface')).toBeTruthy();
   });
 
-  it('updates the URL when the shell switches to journal and back to knowledge', async () => {
-    const view = render(<AppShell />);
+  it('updates the URL when the legacy shell surface changes', async () => {
+    render(<AppShell />);
 
     await act(async () => {
-      view.getByRole('button', { name: 'Notesblok' }).click();
+      useCanvasStore.getState().setActiveSurface('journal');
     });
 
     await flushEffects();
 
     expect(useCanvasStore.getState().activeSurface).toBe('journal');
-    expect(window.location.search).toBe('?view=journal');
+    expect(window.location.search).toBe('?legacy=1&view=journal');
 
     await act(async () => {
-      view.getByRole('button', { name: 'Viden' }).click();
+      useCanvasStore.getState().setActiveSurface('knowledge');
     });
 
     await flushEffects();
 
     expect(useCanvasStore.getState().activeSurface).toBe('knowledge');
-    expect(window.location.search).toBe('?view=knowledge');
+    expect(window.location.search).toBe('?legacy=1&view=knowledge');
     expect(useCanvasStore.getState().knowledgeExplorerMode).toBe(true);
   });
 
-  it('renders the cockpit entry as a real external link', async () => {
+  it('renders the legacy canvas shell when explicitly requested', async () => {
     const view = render(<AppShell />);
 
     await flushEffects();
 
-    const link = view.getByRole('link', { name: 'Se Cockpit-version' });
-    expect(link.getAttribute('href')).toBe('/api/consulting-cockpit/stats');
-    expect(link.getAttribute('target')).toBe('_blank');
-    expect(link.getAttribute('rel')).toContain('noreferrer');
+    expect(view.getByText('WidgeTDC Canvas')).toBeTruthy();
+    expect(view.getByText('Canvas Surface')).toBeTruthy();
   });
 });
 

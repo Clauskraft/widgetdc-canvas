@@ -17,6 +17,8 @@ export default defineConfig({
       '**/node_modules/**',
       '**/dist/**',
       '**/.worktrees/**',
+      '.claude/**',
+      'tests/**/*.spec.ts',
     ],
   },
 });
