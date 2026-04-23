@@ -27,7 +27,7 @@ import { HostMessageToast } from './components/HostMessageToast';
 import { ComposeOpsDock } from './components/ComposeOpsDock';
 import { PheromonePanel } from './components/PheromonePanel';
 // M5 panes
-import { PhantomBOMPane } from './panes/PhantomBOMPane';
+import { PhantomCoreWorkbenchPane } from './panes/PhantomCoreWorkbenchPane';
 import { ArchitectureSpecPane } from './panes/ArchitectureSpecPane';
 import { InnovationBacklogPane } from './panes/InnovationBacklogPane';
 import { ResearchPane } from './panes/ResearchPane';
@@ -114,7 +114,7 @@ function UC5PaneRouter() {
       );
     // M5 panes
     case 'phantom_bom':
-      return <PhantomBOMPane />;
+      return <PhantomCoreWorkbenchPane />;
     case 'architecture_spec':
       return <ArchitectureSpecPane />;
     case 'innovation_backlog':
