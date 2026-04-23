@@ -13,7 +13,7 @@ import { SnoutObserver } from './components/SnoutObserver';
 import { useCanvasStore, type CanvasSurface } from './store/canvasStore';
 
 // UC5 imports
-import { useCanvasSession } from './state/canvasSession';
+import { PANE_IDS, useCanvasSession } from './state/canvasSession';
 import { attachBridge, emitSessionReady } from './bridge/hostBridge';
 import { TextPane } from './panes/TextPane';
 import { SlidePane } from './panes/SlidePane';
@@ -27,7 +27,8 @@ import { HostMessageToast } from './components/HostMessageToast';
 import { ComposeOpsDock } from './components/ComposeOpsDock';
 import { PheromonePanel } from './components/PheromonePanel';
 // M5 panes
-import { PhantomCoreWorkbenchPane } from './panes/PhantomCoreWorkbenchPane';
+import { PhantomBOMPane } from './panes/PhantomBOMPane';
+import { WorkCorePhantomPane } from './panes/WorkCorePhantomPane';
 import { ArchitectureSpecPane } from './panes/ArchitectureSpecPane';
 import { InnovationBacklogPane } from './panes/InnovationBacklogPane';
 import { ResearchPane } from './panes/ResearchPane';
@@ -55,9 +56,7 @@ interface UC5Params {
 const VALID_TRACKS: ReadonlySet<string> = new Set([
   'textual', 'slide_flow', 'diagram', 'architecture', 'graphical', 'code', 'experiment',
 ]);
-const VALID_PANES: ReadonlySet<string> = new Set([
-  'canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec', 'innovation_backlog', 'research', 'telemetry', 'pattern_palette', 'evidence', 'timeline', 'diff',
-]);
+const VALID_PANES: ReadonlySet<string> = new Set(PANE_IDS);
 
 function readUC5Params(): UC5Params {
   const url = new URL(window.location.href);
@@ -114,7 +113,9 @@ function UC5PaneRouter() {
       );
     // M5 panes
     case 'phantom_bom':
-      return <PhantomCoreWorkbenchPane />;
+      return <PhantomBOMPane />;
+    case 'workcore_phantom':
+      return <WorkCorePhantomPane />;
     case 'architecture_spec':
       return <ArchitectureSpecPane />;
     case 'innovation_backlog':
@@ -265,7 +266,7 @@ function TrackLegend() {
 
       {/* Pane switcher pills */}
       <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-        {(['canvas', 'markdown', 'slides', 'drawio', 'split', 'phantom_bom', 'architecture_spec', 'innovation_backlog', 'research', 'telemetry', 'pattern_palette', 'evidence', 'timeline', 'diff'] as PaneId[]).map((pane) => {
+        {PANE_IDS.map((pane) => {
           const isActive = pane === activePane;
           return (
             <button

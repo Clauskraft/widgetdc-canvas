@@ -19,6 +19,7 @@ export type PaneId =
   | 'drawio'
   | 'split'
   | 'phantom_bom'
+  | 'workcore_phantom'
   | 'architecture_spec'
   | 'innovation_backlog'
   | 'research'
