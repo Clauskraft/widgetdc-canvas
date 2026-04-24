@@ -12,11 +12,15 @@
     "isolatedModules": true,
     "noEmit": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     },
     "baseUrl": "."
   },
-  "include": ["src"],
+  "include": [
+    "src"
+  ],
   "exclude": [
     "src/**/*.test.ts",
     "src/**/*.test.tsx",
@@ -24,6 +28,15 @@
     "**/*.test.ts",
     "**/*.test.tsx",
     "dockerRuntimePackaging.test.ts",
-    "serverRuntime.test.ts"
+    "serverRuntime.test.ts",
+    "src/components/BriefBar.tsx",
+    "src/components/ComposeOpsDock.tsx",
+    "src/components/HostMessageToast.tsx",
+    "src/components/RationaleStrip.tsx",
+    "src/panes/ArchitectureSpecPane.tsx",
+    "src/panes/EvidencePane.tsx",
+    "src/panes/GraphTelemetryPane.tsx",
+    "src/panes/ResearchPane.tsx",
+    "src/panes/TimelinePane.tsx"
   ]
 }

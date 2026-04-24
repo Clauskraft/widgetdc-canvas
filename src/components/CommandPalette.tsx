@@ -1,32 +1,25 @@
-import { useState, useEffect, useCallback, useMemo, useRef, type ComponentType } from 'react';
-import { Search, GitBranch, Terminal, Wrench, Bot, Database, Lightbulb, FileSearch, BrainCircuit, Layers, Sparkles, Save, Upload, Trash2, LayoutGrid, BookOpen, Link2, FileCheck, Clock3, SplitSquareVertical } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Search, GitBranch, Terminal, Wrench, Bot, Database, Lightbulb, FileSearch, BrainCircuit, Layers, Sparkles, Save, Upload, Trash2, LayoutGrid, BookOpen, Link2, FileCheck } from 'lucide-react';
 import { useCanvasStore } from '../store/canvasStore';
-import { useCanvasSession } from '../state/canvasSession';
-import type { PaneId } from '../types/session';
 import type { CanvasNodeInputType } from '../types/canvas';
+import { fetchAgentRouterPhonebook, type AgentPhonebookEntry } from '../lib/api';
 
 interface PaletteItem {
   id: string;
   label: string;
   description: string;
   category: 'action' | 'node' | 'view' | 'ai';
-  icon: ComponentType<{ size?: number; className?: string }>;
+  icon: typeof Search;
   action: () => void;
 }
 
-interface CommandPaletteProps {
-  mode?: 'legacy' | 'uc5';
-}
-
-export function CommandPalette({ mode = 'legacy' }: CommandPaletteProps) {
+export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [phonebook, setPhonebook] = useState<AgentPhonebookEntry[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const store = useCanvasStore();
-  const switchPane = useCanvasSession((s) => s.switchPane);
-  const refreshInnovationBacklog = useCanvasSession((s) => s.refreshInnovationBacklog);
-  const fetchPatternPalette = useCanvasSession((s) => s.fetchPatternPalette);
 
   // Ctrl+K to open
   useEffect(() => {
@@ -49,25 +42,17 @@ export function CommandPalette({ mode = 'legacy' }: CommandPaletteProps) {
     if (open) inputRef.current?.focus();
   }, [open]);
 
-  const uc5Items = useMemo<PaletteItem[]>(() => {
-    const openPane = (pane: PaneId) => () => switchPane(pane);
-    return [
-      { id: 'uc5-research', label: 'research', description: 'Open graph-native research pane', category: 'view', icon: Search, action: openPane('research') },
-      { id: 'uc5-pattern-palette', label: 'pattern palette', description: 'Browse ingested patterns and extraction pressure', category: 'view', icon: BookOpen, action: openPane('pattern_palette') },
-      { id: 'uc5-evidence', label: 'evidence inspector', description: 'Inspect live lineage around the current bomrun', category: 'view', icon: FileSearch, action: openPane('evidence') },
-      { id: 'uc5-timeline', label: 'timeline', description: 'Scan recent bomruns by fitness and rejection', category: 'view', icon: Clock3, action: openPane('timeline') },
-      { id: 'uc5-diff', label: 'diff view', description: 'Compare two recent runs side by side', category: 'view', icon: SplitSquareVertical, action: openPane('diff') },
-      { id: 'uc5-telemetry', label: 'telemetry', description: 'Open graph telemetry and arbitration pane', category: 'view', icon: ActivityIcon, action: openPane('telemetry') },
-      { id: 'uc5-innovation', label: 'innovation backlog', description: 'Open innovation backlog triage pane', category: 'view', icon: Lightbulb, action: openPane('innovation_backlog') },
-      { id: 'uc5-architecture', label: 'architecture canvas', description: 'Return to canvas architecture pane', category: 'view', icon: LayoutGrid, action: openPane('canvas') },
-      { id: 'uc5-patterns', label: 'refresh patterns', description: 'Refresh the current pattern palette from graph', category: 'action', icon: BookOpen, action: () => { void fetchPatternPalette(); } },
-      { id: 'uc5-backlog-refresh', label: 'refresh backlog', description: 'Refresh innovation tickets from backend', category: 'action', icon: RefreshIcon, action: () => { void refreshInnovationBacklog(); } },
-      { id: 'uc5-slides', label: 'slides pane', description: 'Switch to slide flow pane', category: 'view', icon: LayoutGrid, action: openPane('slides') },
-      { id: 'uc5-markdown', label: 'text pane', description: 'Switch to markdown/text output pane', category: 'view', icon: FileCheck, action: openPane('markdown') },
-    ];
-  }, [fetchPatternPalette, refreshInnovationBacklog, switchPane]);
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
 
-  const legacyItems: PaletteItem[] = [
+    fetchAgentRouterPhonebook()
+      .then((entries) => setPhonebook(entries))
+      .catch(() => setPhonebook([]));
+  }, [open]);
+
+  const items: PaletteItem[] = [
     // Views
     { id: 'open-canvas', label: 'Open Canvas Surface', description: 'Switch to the main canvas shell', category: 'view', icon: Search, action: () => store.setActiveSurface('canvas') },
     { id: 'open-knowledge', label: 'Open Knowledge Surface', description: 'Expose the knowledge-focused canvas shell', category: 'view', icon: BookOpen, action: () => store.setActiveSurface('knowledge') },
@@ -104,10 +89,34 @@ export function CommandPalette({ mode = 'legacy' }: CommandPaletteProps) {
     { id: 'export-audit-md', label: 'Export Audit Trail Markdown', description: 'Export full provenance audit trail as Markdown', category: 'action', icon: FileCheck, action: () => { store.exportAuditTrail('markdown'); } },
   ];
 
-  const items: PaletteItem[] = mode === 'uc5' ? uc5Items : legacyItems;
+  const slashItems: PaletteItem[] = query.startsWith('/')
+    ? phonebook
+        .filter((entry) => entry.alias?.toLowerCase().includes(query.toLowerCase()))
+        .map((entry) => ({
+          id: `dispatch-${entry.id}`,
+          label: `Dispatch to ${entry.alias}`,
+          description: `${entry.id}${entry.trustLevel ? ` • ${entry.trustLevel}` : ''}`,
+          category: 'ai' as const,
+          icon: Bot,
+          action: () => {
+            store.addNodeWithData('Agent', {
+              label: entry.alias ? `${entry.alias} (${entry.id})` : entry.id,
+              subtitle: `${entry.role ?? 'Agent'}${entry.trustLevel ? ` • ${entry.trustLevel}` : ''}`,
+              nodeType: 'Agent',
+              routeSelectedAgent: entry.id,
+              routeSelectedAgentAlias: entry.alias,
+              routeSelectedAgentTrustLevel: entry.trustLevel,
+              routeSelectedAgentProcessDna: entry.processDna,
+              routeSelectedAgentGovernedBy: entry.governedBy,
+              routeSelectedAgentAdoptionGate: entry.adoptionProtocol,
+            });
+            store.toggleAiPanel();
+          },
+        }))
+    : [];
 
   const filtered = query
-    ? items.filter(i =>
+    ? [...slashItems, ...items].filter(i =>
         i.label.toLowerCase().includes(query.toLowerCase()) ||
         i.description.toLowerCase().includes(query.toLowerCase())
       )
@@ -131,68 +140,6 @@ export function CommandPalette({ mode = 'legacy' }: CommandPaletteProps) {
   };
 
   if (!open) return null;
-
-  if (mode === 'uc5') {
-    return (
-      <div className="fixed inset-0 z-[300] flex items-start justify-center pt-[12vh]" onClick={() => setOpen(false)}>
-        <div className="absolute inset-0 bg-black/70" />
-        <div
-          className="relative w-[640px] overflow-hidden border"
-          style={{ background: '#0c0c0c', borderColor: '#333333' }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderBottom: '1px solid #333333' }}>
-            <span style={{ fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace', fontSize: '12px', color: '#7a7a7a' }}>⌘K</span>
-            <input
-              ref={inputRef}
-              type="text"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setSelectedIndex(0);
-              }}
-              onKeyDown={handleKeyDown}
-              placeholder="find · research · telemetry · patterns"
-              style={{
-                flex: 1,
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                color: '#e6e6e6',
-                fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace',
-                fontSize: '13px',
-              }}
-            />
-            <span style={{ fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace', fontSize: '11px', color: '#7a7a7a' }}>Esc</span>
-          </div>
-          <div style={{ maxHeight: '420px', overflowY: 'auto' }}>
-            {filtered.map((item, index) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => handleSelect(item)}
-                style={{
-                  width: '100%',
-                  textAlign: 'left',
-                  border: 'none',
-                  borderBottom: '1px solid #333333',
-                  background: index === selectedIndex ? '#1e1e1e' : 'transparent',
-                  color: '#e6e6e6',
-                  padding: '10px 12px',
-                  cursor: 'pointer',
-                  fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace',
-                }}
-              >
-                <div style={{ fontSize: '11px', color: '#7db4ff', marginBottom: '4px' }}>[{item.category}]</div>
-                <div style={{ fontSize: '13px', marginBottom: '4px' }}>{item.label}</div>
-                <div style={{ fontSize: '11px', color: '#7a7a7a' }}>{item.description}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   const categories = ['action', 'ai', 'node', 'view'] as const;
   const categoryLabels = { action: 'Actions', ai: 'AI Intelligence', node: 'Add Node', view: 'Views' };
@@ -261,12 +208,4 @@ export function CommandPalette({ mode = 'legacy' }: CommandPaletteProps) {
       </div>
     </div>
   );
-}
-
-function ActivityIcon(props: { size?: number; className?: string }) {
-  return <Sparkles {...props} />;
-}
-
-function RefreshIcon(props: { size?: number; className?: string }) {
-  return <Layers {...props} />;
 }

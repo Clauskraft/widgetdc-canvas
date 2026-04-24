@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { motion } from 'framer-motion';
 
@@ -9,36 +9,21 @@ import { NodeInspector } from './components/NodeInspector';
 import { CommandPalette } from './components/CommandPalette';
 import { ToastProvider, useToast } from './components/Toast';
 import { SnoutObserver } from './components/SnoutObserver';
+import { PheromonePanel } from './components/PheromonePanel';
 // LIN-584: AIPanel, Journal, StatusBar deleted — replaced by Open WebUI tools
 import { useCanvasStore, type CanvasSurface } from './store/canvasStore';
+import { fetchWorkRunCockpit, type WorkRunCanvasProjection } from './lib/api';
 
 // UC5 imports
-import { PANE_IDS, useCanvasSession } from './state/canvasSession';
+import { useCanvasSession } from './state/canvasSession';
 import { attachBridge, emitSessionReady } from './bridge/hostBridge';
 import { TextPane } from './panes/TextPane';
 import { SlidePane } from './panes/SlidePane';
 import { DrawioEmbed } from './panes/DrawioEmbed';
-import { ArchitectureCanvas } from './panes/ArchitectureCanvas';
 import { SplitPaneLayout } from './layouts/SplitPaneLayout';
-import type { BuilderTrack, PaneId } from './types/session';
-import { BriefBar } from './components/BriefBar';
-import { RationaleStrip } from './components/RationaleStrip';
-import { HostMessageToast } from './components/HostMessageToast';
-import { ComposeOpsDock } from './components/ComposeOpsDock';
-import { PheromonePanel } from './components/PheromonePanel';
-// M5 panes
-import { PhantomBOMPane } from './panes/PhantomBOMPane';
-import { WorkCorePhantomPane } from './panes/WorkCorePhantomPane';
-import { ArchitectureSpecPane } from './panes/ArchitectureSpecPane';
-import { InnovationBacklogPane } from './panes/InnovationBacklogPane';
-import { ResearchPane } from './panes/ResearchPane';
-import { GraphTelemetryPane } from './panes/GraphTelemetryPane';
-import { PatternPalettePane } from './panes/PatternPalettePane';
-import { EvidencePane } from './panes/EvidencePane';
-import { TimelinePane } from './panes/TimelinePane';
-import { DiffViewPane } from './panes/DiffViewPane';
+import type { BuilderTrack, CanvasModeId, PaneId, ProductFrameId } from './types/session';
 
-export const DEBUG_BUILD_STAMP = 'M5-2026-04-19';
+export const DEBUG_BUILD_STAMP = 'UC5-2026-04-18';
 
 export function resolveCockpitUrl(): string {
   const configured = String(import.meta.env.VITE_COCKPIT_URL ?? '').trim().replace(/\/$/, '');
@@ -51,44 +36,35 @@ interface UC5Params {
   sessionId: string | null;
   track: BuilderTrack | null;
   pane: PaneId | null;
+  workrunId: string | null;
 }
 
 const VALID_TRACKS: ReadonlySet<string> = new Set([
   'textual', 'slide_flow', 'diagram', 'architecture', 'graphical', 'code', 'experiment',
 ]);
-const VALID_PANES: ReadonlySet<string> = new Set(PANE_IDS);
+const VALID_PANES: ReadonlySet<string> = new Set([
+  'canvas', 'markdown', 'slides', 'drawio', 'split',
+]);
 
 function readUC5Params(): UC5Params {
   const url = new URL(window.location.href);
   const sessionId = url.searchParams.get('session');
   const rawTrack = url.searchParams.get('track') ?? '';
   const rawPane = url.searchParams.get('pane') ?? '';
+  const workrunId = url.searchParams.get('workrun');
 
   return {
     sessionId: sessionId ?? null,
     track: VALID_TRACKS.has(rawTrack) ? (rawTrack as BuilderTrack) : null,
     pane: VALID_PANES.has(rawPane) ? (rawPane as PaneId) : null,
+    workrunId: workrunId ?? null,
   };
 }
 
-/** Returns true if the user explicitly opted into the legacy ReactFlow shell via ?legacy=1. */
-function isLegacyOptIn(): boolean {
-  try {
-    return new URL(window.location.href).searchParams.get('legacy') === '1';
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Returns true if the app should render UC5 as the default shell. UC5 is the
- * canonical canvas — the legacy ReactFlow shell is only reachable via the
- * `?legacy=1` query-param escape hatch for rollback scenarios. Explicit UC5
- * session params (`?session=...`) are also supported for embed URLs returned
- * by the orchestrator `canvas_builder` tool.
- */
+/** Returns true if the app was launched with UC5 session params */
 function isUC5Mode(): boolean {
-  return !isLegacyOptIn();
+  const { sessionId } = readUC5Params();
+  return sessionId !== null;
 }
 
 // ── UC5 Pane router ───────────────────────────────────────────────────────────
@@ -97,6 +73,8 @@ function UC5PaneRouter() {
   const activePane = useCanvasSession((s) => s.activePane);
   const track = useCanvasSession((s) => s.track);
 
+  // The canvas pane re-uses the legacy ReactFlow Canvas — it is already
+  // mounted in the UC5 shell below. This router only governs the non-canvas panes.
   switch (activePane) {
     case 'markdown':
       return <TextPane />;
@@ -107,52 +85,25 @@ function UC5PaneRouter() {
     case 'split':
       return (
         <SplitPaneLayout
-          left={<ArchitecturePane track={track} />}
+          left={<LegacyCanvas />}
           right={<TextPane />}
         />
       );
-    // M5 panes
-    case 'phantom_bom':
-      return <PhantomBOMPane />;
-    case 'workcore_phantom':
-      return <WorkCorePhantomPane />;
-    case 'architecture_spec':
-      return <ArchitectureSpecPane />;
-    case 'innovation_backlog':
-      return <InnovationBacklogPane />;
-    case 'research':
-      return <ResearchPane />;
-    case 'telemetry':
-      return <GraphTelemetryPane />;
-    case 'pattern_palette':
-      return <PatternPalettePane />;
-    case 'evidence':
-      return <EvidencePane />;
-    case 'timeline':
-      return <TimelinePane />;
-    case 'diff':
-      return <DiffViewPane />;
     case 'canvas':
     default:
-      return <ArchitecturePane track={track} />;
+      return <LegacyCanvas track={track} />;
   }
 }
 
-// ── UC5 Architecture pane — substrate-cartography isoline surface ─────────────
+// ── Thin wrapper around legacy ReactFlow canvas ───────────────────────────────
 
-/**
- * Frames `ArchitectureCanvas` with the canonical pane header
- * ("CANVAS · ARCHITECTURE" + "isolines · 7 tracks · 18 ticks/ring"). This
- * replaces the pre-UC5 ReactFlow shell that used to render strategic-template
- * chips (VISION / PILLARS / MARKET / GAPS) on a dark background — those chips
- * clashed with the substrate-cartography light theme and are off-scope for
- * the UC5 canvas pane. The legacy ReactFlow surface is still reachable via
- * `?legacy=1` for rollback.
- */
-function ArchitecturePane({ track }: { track?: BuilderTrack | null }) {
+function LegacyCanvas({ track }: { track?: BuilderTrack | null }) {
   const trackHue = track
     ? `var(--sc-track-${track.replace('_', '-')})`
     : 'var(--sc-ink-graphite)';
+  const productFrameId = useCanvasSession((s) => s.productFrameId);
+  const resolvedFrame = resolveShellFrame(productFrameId, track ?? null);
+  const frameLabel = resolvedFrame ? FRAME_REGISTRY[resolvedFrame].label : humanizeTrack(track ?? null);
 
   return (
     <div
@@ -166,15 +117,27 @@ function ArchitecturePane({ track }: { track?: BuilderTrack | null }) {
         position: 'relative',
       }}
     >
-      <div style={{ padding: 'var(--sc-pane-pad) var(--sc-pane-pad) 0' }}>
+      <div
+        style={{
+          padding: 'var(--sc-pane-pad) var(--sc-pane-pad) 0',
+        }}
+      >
         <div className="sc-pane-head">
           <span className="sc-pane-label" style={{ color: trackHue }}>
-            Canvas · Architecture
+            {`Canvas · ${frameLabel}`}
           </span>
           <span className="sc-pane-meta">isolines · 7 tracks · 18 ticks/ring</span>
         </div>
       </div>
-      <ArchitectureCanvas track={track} />
+      {/* ReactFlow canvas fills the remaining space */}
+      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+        <ToolPalette />
+        <Canvas />
+        <NodeInspector />
+        <CanvasCollaboration />
+        <SnoutObserver />
+        <PheromonePanel />
+      </div>
     </div>
   );
 }
@@ -191,10 +154,110 @@ const TRACKS: Array<{ key: BuilderTrack; label: string; index: number }> = [
   { key: 'experiment', label: 'T7 · experiment', index: 7 },
 ];
 
+const FRAME_REGISTRY: Record<ProductFrameId, {
+  label: string;
+  strapline: string;
+  tint: string;
+}> = {
+  'book.authoring': {
+    label: 'Book Authoring',
+    strapline: 'long-form structure · chapter cadence · manuscript flow',
+    tint: 'var(--sc-track-textual)',
+  },
+  'software.feature-delivery': {
+    label: 'Software Feature Delivery',
+    strapline: 'brief to implementation · capability targeting · traceable runtime',
+    tint: 'var(--sc-track-code)',
+  },
+  'consulting.discovery': {
+    label: 'Consulting Discovery',
+    strapline: 'framework fit · stakeholder narrative · decision-ready outputs',
+    tint: 'var(--sc-track-slide-flow)',
+  },
+  'architecture.system-design': {
+    label: 'Architecture System Design',
+    strapline: 'system topology · pattern fit · artifact traceability',
+    tint: 'var(--sc-track-architecture)',
+  },
+  'research.synthesis': {
+    label: 'Research Synthesis',
+    strapline: 'evidence first · synthesis spine · governed outputs',
+    tint: 'var(--sc-track-graphical)',
+  },
+};
+
+const TRACK_FRAME_FALLBACK: Record<BuilderTrack, ProductFrameId> = {
+  textual: 'research.synthesis',
+  slide_flow: 'consulting.discovery',
+  diagram: 'architecture.system-design',
+  architecture: 'architecture.system-design',
+  graphical: 'research.synthesis',
+  code: 'software.feature-delivery',
+  experiment: 'research.synthesis',
+};
+
+const TRACK_MODE_FALLBACK: Record<BuilderTrack, CanvasModeId[]> = {
+  textual: ['document', 'split'],
+  slide_flow: ['slides', 'document', 'split'],
+  diagram: ['diagram', 'graph', 'split'],
+  architecture: ['graph', 'diagram', 'document', 'split'],
+  graphical: ['graph', 'document', 'split'],
+  code: ['document', 'graph', 'diff'],
+  experiment: ['split', 'timeline', 'document'],
+};
+
+function humanizeTrack(track: BuilderTrack | null): string {
+  if (!track) return 'No Track';
+  return TRACKS.find((entry) => entry.key === track)?.label ?? track.replace('_', ' ');
+}
+
+export function naturalPaneForTrack(track: BuilderTrack): PaneId {
+  switch (track) {
+    case 'textual':
+    case 'code':
+      return 'markdown';
+    case 'slide_flow':
+      return 'slides';
+    case 'diagram':
+      return 'drawio';
+    case 'architecture':
+    case 'experiment':
+      return 'split';
+    case 'graphical':
+    default:
+      return 'canvas';
+  }
+}
+
+function humanizeMode(mode: CanvasModeId): string {
+  return mode.replace(/_/g, ' ');
+}
+
+function resolveShellFrame(
+  productFrameId: ProductFrameId | null,
+  track: BuilderTrack | null,
+): ProductFrameId | null {
+  if (productFrameId) return productFrameId;
+  if (!track) return null;
+  return TRACK_FRAME_FALLBACK[track];
+}
+
+function resolveShellModes(
+  allowedModes: CanvasModeId[],
+  track: BuilderTrack | null,
+): CanvasModeId[] {
+  if (allowedModes.length > 0) return allowedModes;
+  if (!track) return [];
+  return TRACK_MODE_FALLBACK[track];
+}
+
 function TrackLegend() {
   const track = useCanvasSession((s) => s.track);
   const switchPane = useCanvasSession((s) => s.switchPane);
   const activePane = useCanvasSession((s) => s.activePane);
+  const productFrameId = useCanvasSession((s) => s.productFrameId);
+  const resolvedFrame = resolveShellFrame(productFrameId, track);
+  const resolvedTint = resolvedFrame ? FRAME_REGISTRY[resolvedFrame].tint : null;
 
   return (
     <nav
@@ -219,13 +282,13 @@ function TrackLegend() {
             onClick={() => {
               // Map track to its natural pane
               const paneMap: Record<BuilderTrack, PaneId> = {
-                textual: 'markdown',
-                slide_flow: 'slides',
-                diagram: 'drawio',
-                architecture: 'split',
-                graphical: 'canvas',
-                code: 'markdown',
-                experiment: 'split',
+                textual: naturalPaneForTrack('textual'),
+                slide_flow: naturalPaneForTrack('slide_flow'),
+                diagram: naturalPaneForTrack('diagram'),
+                architecture: naturalPaneForTrack('architecture'),
+                graphical: naturalPaneForTrack('graphical'),
+                code: naturalPaneForTrack('code'),
+                experiment: naturalPaneForTrack('experiment'),
               };
               switchPane(paneMap[t.key]);
             }}
@@ -238,7 +301,7 @@ function TrackLegend() {
               fontSize: '10px',
               letterSpacing: '0.18em',
               textTransform: 'uppercase',
-              color: isActive ? 'var(--sc-ink-graphite)' : hue,
+              color: isActive ? (resolvedTint ?? 'var(--sc-ink-graphite)') : hue,
               background: 'transparent',
               border: 'none',
               cursor: 'pointer',
@@ -265,8 +328,8 @@ function TrackLegend() {
       })}
 
       {/* Pane switcher pills */}
-      <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-        {PANE_IDS.map((pane) => {
+      <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
+        {(['canvas', 'markdown', 'slides', 'drawio', 'split'] as PaneId[]).map((pane) => {
           const isActive = pane === activePane;
           return (
             <button
@@ -298,53 +361,527 @@ function TrackLegend() {
   );
 }
 
-// UC5StatusBar has been replaced by RationaleStrip (src/components/RationaleStrip.tsx).
-// Session + host-bridge info is merged into the strip's left column.
+function FrameMetadataStrip() {
+  const track = useCanvasSession((s) => s.track);
+  const productFrameId = useCanvasSession((s) => s.productFrameId);
+  const domainProfileId = useCanvasSession((s) => s.domainProfileId);
+  const starterTemplateIds = useCanvasSession((s) => s.starterTemplateIds);
+  const allowedModes = useCanvasSession((s) => s.allowedModes);
+  const requiredCapabilityIds = useCanvasSession((s) => s.requiredCapabilityIds);
+  const requiredEvaluationHookIds = useCanvasSession((s) => s.requiredEvaluationHookIds);
+  const rationale = useCanvasSession((s) => s.rationale);
+  const isHydrating = useCanvasSession((s) => s.isHydrating);
+
+  const resolvedFrame = resolveShellFrame(productFrameId, track);
+  const frameMeta = resolvedFrame ? FRAME_REGISTRY[resolvedFrame] : null;
+  const resolvedModes = resolveShellModes(allowedModes, track);
+  const modeSource = allowedModes.length > 0 ? 'frame-native' : 'track fallback';
+  const trackLabel = humanizeTrack(track);
+
+  return (
+    <section
+      aria-label="Frame metadata"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)',
+        gap: '18px',
+        padding: '16px var(--sc-pane-pad) 18px',
+        borderBottom: '0.5px solid var(--sc-paper-whisper)',
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0.36))',
+        flexShrink: 0,
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'var(--sc-font-mono)',
+              fontSize: '10px',
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+              color: frameMeta?.tint ?? 'var(--sc-ink-graphite)',
+            }}
+          >
+            {resolvedFrame ? `Frame · ${frameMeta?.label}` : `Track · ${trackLabel}`}
+          </span>
+          <span
+            style={{
+              fontFamily: 'var(--sc-font-mono)',
+              fontSize: '9px',
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              color: 'var(--sc-ink-fog)',
+            }}
+          >
+            {productFrameId ? 'frame-native' : 'track fallback'}
+          </span>
+          {isHydrating ? (
+            <span
+              style={{
+                fontFamily: 'var(--sc-font-mono)',
+                fontSize: '9px',
+                letterSpacing: '0.16em',
+                textTransform: 'uppercase',
+                color: 'var(--sc-ink-fog)',
+              }}
+            >
+              hydrating
+            </span>
+          ) : null}
+        </div>
+
+        <span
+          style={{
+            fontSize: '12px',
+            lineHeight: 1.5,
+            color: 'var(--sc-ink-fog)',
+            maxWidth: '78ch',
+          }}
+        >
+          {frameMeta?.strapline ?? `Current shell remains governed by ${trackLabel.toLowerCase()}.`}
+        </span>
+
+        <div
+          style={{
+            display: 'flex',
+            gap: '8px',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'var(--sc-font-mono)',
+              fontSize: '9px',
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              color: 'var(--sc-ink-fog)',
+            }}
+          >
+            Track · {trackLabel}
+          </span>
+          {domainProfileId ? (
+            <span
+              style={{
+                fontFamily: 'var(--sc-font-mono)',
+                fontSize: '9px',
+                letterSpacing: '0.16em',
+                textTransform: 'uppercase',
+                color: 'var(--sc-ink-fog)',
+              }}
+            >
+              Domain · {domainProfileId}
+            </span>
+          ) : null}
+          {rationale.length > 0 ? (
+            <span
+              style={{
+                fontFamily: 'var(--sc-font-mono)',
+                fontSize: '9px',
+                letterSpacing: '0.16em',
+                textTransform: 'uppercase',
+                color: 'var(--sc-ink-fog)',
+              }}
+            >
+              Rationale · {rationale.length} checks
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+          gap: '12px',
+          minWidth: 0,
+        }}
+      >
+        <div
+          style={{
+            border: '0.5px solid var(--sc-paper-whisper)',
+            borderRadius: 'var(--sc-radius-md)',
+            padding: '12px',
+            background: 'rgba(255,255,255,0.44)',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: 'var(--sc-font-mono)',
+              fontSize: '9px',
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              color: 'var(--sc-ink-fog)',
+              marginBottom: '6px',
+            }}
+          >
+            Modes · {modeSource}
+          </div>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {resolvedModes.map((mode) => (
+              <span
+                key={mode}
+                style={{
+                  fontFamily: 'var(--sc-font-mono)',
+                  fontSize: '9px',
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  color: 'var(--sc-ink-graphite)',
+                  border: '0.5px solid var(--sc-paper-whisper)',
+                  borderRadius: '999px',
+                  padding: '3px 8px',
+                }}
+              >
+                {humanizeMode(mode)}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div
+          style={{
+            border: '0.5px solid var(--sc-paper-whisper)',
+            borderRadius: 'var(--sc-radius-md)',
+            padding: '12px',
+            background: 'rgba(255,255,255,0.44)',
+            display: 'grid',
+            gap: '6px',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: 'var(--sc-font-mono)',
+              fontSize: '9px',
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              color: 'var(--sc-ink-fog)',
+            }}
+          >
+            Contracts
+          </div>
+          <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)' }}>
+            {starterTemplateIds.length} starter templates
+          </span>
+          <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)' }}>
+            {requiredCapabilityIds.length} required capabilities
+          </span>
+          <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)' }}>
+            {requiredEvaluationHookIds.length} evaluation hooks
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function seedWorkRunProjection(payload: WorkRunCanvasProjection) {
+  const store = useCanvasStore.getState();
+  const existing = store.nodes.some((node) => {
+    const metadata = node.data.metadata as Record<string, unknown> | undefined;
+    return metadata?.workrunProjectionId === payload.id;
+  });
+  if (existing) return;
+
+  const runNodeId = store.addNodeWithData('Track', {
+    label: payload.canonical_pattern ?? payload.id,
+    subtitle: payload.brief ?? 'Live WorkRun',
+    nodeType: 'Track',
+    metadata: {
+      workrunProjectionId: payload.id,
+      workrunStatus: payload.status,
+      sourcePhantomRunId: payload.source_phantom_run_id,
+      workspecId: payload.workspec_id,
+      domainProfileId: payload.domain_profile_id,
+    },
+  }, { x: 180, y: 220 });
+
+  if (payload.workspec_id || payload.workspec_name) {
+    store.addNodeWithData('Claim', {
+      label: payload.workspec_name ?? payload.workspec_id ?? 'WorkSpec',
+      subtitle: payload.workspec_id ?? undefined,
+      nodeType: 'Claim',
+      metadata: {
+        workrunProjectionId: payload.id,
+        workcoreKind: 'workspec',
+      },
+    }, { x: 520, y: 180 });
+  }
+
+  payload.workitems.slice(0, 6).forEach((item, index) => {
+    store.addNodeWithData('Decision', {
+      label: item.title ?? item.id,
+      subtitle: [item.kind, item.status].filter(Boolean).join(' · '),
+      nodeType: 'Decision',
+      metadata: {
+        workrunProjectionId: payload.id,
+        workitemId: item.id,
+        workcoreKind: 'workitem',
+        orderIndex: item.order_index,
+      },
+    }, { x: 520 + (index % 2) * 280, y: 320 + Math.floor(index / 2) * 150 });
+  });
+
+  payload.artifacts.slice(0, 4).forEach((artifact, index) => {
+    const trustScope = artifact.trust_scope ?? undefined;
+    const pubkeyPrefix =
+      artifact.signing_pubkey && artifact.signing_pubkey.length >= 8
+        ? artifact.signing_pubkey.slice(0, 8)
+        : undefined;
+    const trustBadgeLabel =
+      trustScope === 'canonical'
+        ? `CANONICAL · ${pubkeyPrefix ?? 'unsigned'}`
+        : trustScope
+          ? `EPHEMERAL · ${trustScope.replace(/^ephemeral-?/, '')}`
+          : 'UNSIGNED';
+    store.addNodeWithData('Artifact', {
+      label: artifact.title ?? artifact.id,
+      subtitle: [artifact.artifact_type, artifact.status, artifact.verified_at].filter(Boolean).join(' · '),
+      nodeType: 'Artifact',
+      artifactId: artifact.id,
+      artifactFamily: artifact.artifact_type ?? undefined,
+      reviewState: trustScope === 'canonical' ? 'canonical' : trustScope ? 'ephemeral' : 'unsigned',
+      qualityGate: trustBadgeLabel,
+      metadata: {
+        workrunProjectionId: payload.id,
+        workcoreKind: 'workartifact',
+        trustScope,
+        signingPubkey: artifact.signing_pubkey,
+        verifiedAt: artifact.verified_at,
+        verificationStatus: trustBadgeLabel,
+        controlHubs: artifact.control_hubs,
+      },
+    }, { x: 1120, y: 240 + index * 150 });
+  });
+
+  store.selectNode(runNodeId);
+}
+
+export function WorkRunCockpitStrip({ projection }: { projection: WorkRunCanvasProjection | null }) {
+  if (!projection) return null;
+
+  const primaryHub = projection.artifacts.flatMap((artifact) => artifact.control_hubs ?? [])[0] ?? null;
+
+  return (
+    <section
+      aria-label="Live WorkRun cockpit"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)',
+        gap: '18px',
+        padding: '14px var(--sc-pane-pad) 18px',
+        borderBottom: '0.5px solid var(--sc-paper-whisper)',
+        background: 'rgba(244, 248, 255, 0.64)',
+        flexShrink: 0,
+      }}
+    >
+      <div style={{ display: 'grid', gap: '8px' }}>
+        <span
+          style={{
+            fontFamily: 'var(--sc-font-mono)',
+            fontSize: '10px',
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: 'var(--sc-track-architecture)',
+          }}
+        >
+          Live WorkRun · {projection.id}
+        </span>
+        <span style={{ fontSize: '13px', color: 'var(--sc-ink-graphite)' }}>
+          {projection.brief ?? projection.canonical_pattern ?? 'Live runtime projection'}
+        </span>
+        <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)' }}>
+          Status · {projection.status ?? 'unknown'}
+          {projection.all_moves_canonical ? ' · All moves canonical' : ''}
+          {projection.completed_at ? ` · Completed ${projection.completed_at}` : ''}
+          {projection.workspec_name ? ` · Spec · ${projection.workspec_name}` : ''}
+          {projection.domain_profile_name ? ` · Domain · ${projection.domain_profile_name}` : ''}
+        </span>
+        {primaryHub ? (
+          <span style={{ fontSize: '12px', color: 'var(--sc-track-architecture)' }}>
+            Hub · {primaryHub}
+          </span>
+        ) : null}
+      </div>
+      <div style={{ display: 'grid', gap: '12px' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+            gap: '12px',
+          }}
+        >
+        <div style={{ border: '0.5px solid var(--sc-paper-whisper)', borderRadius: 'var(--sc-radius-md)', padding: '12px', background: 'rgba(255,255,255,0.5)' }}>
+          <div style={{ fontFamily: 'var(--sc-font-mono)', fontSize: '9px', letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--sc-ink-fog)' }}>WorkItems</div>
+          <div style={{ fontSize: '18px', color: 'var(--sc-ink-graphite)', marginTop: '6px' }}>{projection.workitems.length}</div>
+        </div>
+        <div style={{ border: '0.5px solid var(--sc-paper-whisper)', borderRadius: 'var(--sc-radius-md)', padding: '12px', background: 'rgba(255,255,255,0.5)' }}>
+          <div style={{ fontFamily: 'var(--sc-font-mono)', fontSize: '9px', letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--sc-ink-fog)' }}>Artifacts</div>
+          <div style={{ fontSize: '18px', color: 'var(--sc-ink-graphite)', marginTop: '6px' }}>{projection.artifacts.length}</div>
+        </div>
+        <div style={{ border: '0.5px solid var(--sc-paper-whisper)', borderRadius: 'var(--sc-radius-md)', padding: '12px', background: 'rgba(255,255,255,0.5)' }}>
+          <div style={{ fontFamily: 'var(--sc-font-mono)', fontSize: '9px', letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--sc-ink-fog)' }}>Source</div>
+          <div style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)', marginTop: '6px' }}>
+            {projection.source_phantom_run_id ?? projection.profile_id ?? 'native'}
+          </div>
+        </div>
+      </div>
+        <div style={{ display: 'grid', gap: '8px' }}>
+          {projection.artifacts.map((artifact) => {
+            const trustScope = artifact.trust_scope ?? null;
+            const pubkeyPrefix = artifact.signing_pubkey ? artifact.signing_pubkey.slice(0, 8) : null;
+            const badge =
+              trustScope === 'canonical'
+                ? { label: `CANONICAL · ${pubkeyPrefix ?? 'unknown'}`, color: '#166534', background: 'rgba(22,101,52,0.12)', border: 'rgba(34,197,94,0.35)' }
+                : trustScope
+                  ? { label: `EPHEMERAL · ${trustScope.replace(/^ephemeral-?/, '')}`, color: '#92400e', background: 'rgba(146,64,14,0.12)', border: 'rgba(245,158,11,0.35)' }
+                  : { label: 'UNSIGNED', color: '#991b1b', background: 'rgba(153,27,27,0.12)', border: 'rgba(239,68,68,0.35)' };
+
+            return (
+              <div
+                key={artifact.id}
+                style={{
+                  border: '0.5px solid var(--sc-paper-whisper)',
+                  borderRadius: 'var(--sc-radius-md)',
+                  padding: '12px',
+                  background: 'rgba(255,255,255,0.5)',
+                  display: 'grid',
+                  gap: '6px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)', fontWeight: 500 }}>
+                    {artifact.title ?? artifact.id}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: 'var(--sc-font-mono)',
+                      fontSize: '9px',
+                      letterSpacing: '0.14em',
+                      textTransform: 'uppercase',
+                      color: badge.color,
+                      background: badge.background,
+                      border: `1px solid ${badge.border}`,
+                      borderRadius: '999px',
+                      padding: '3px 8px',
+                    }}
+                  >
+                    {trustScope === 'canonical' ? '🛡 ' : trustScope ? '🟠 ' : '⛔ '}
+                    {badge.label}
+                  </span>
+                </div>
+                <span style={{ fontSize: '11px', color: 'var(--sc-ink-fog)' }}>
+                  {[artifact.artifact_type, artifact.verified_at].filter(Boolean).join(' · ')}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── UC5 status bar (bottom) ───────────────────────────────────────────────────
+
+function UC5StatusBar() {
+  const canvasSessionId = useCanvasSession((s) => s.canvasSessionId);
+  const hostOrigin = useCanvasSession((s) => s.hostOrigin);
+  const isHydrating = useCanvasSession((s) => s.isHydrating);
+  const productFrameId = useCanvasSession((s) => s.productFrameId);
+  const track = useCanvasSession((s) => s.track);
+  const resolvedFrame = resolveShellFrame(productFrameId, track);
+  const frameLabel = resolvedFrame ? FRAME_REGISTRY[resolvedFrame].label : humanizeTrack(track);
+
+  return (
+    <footer
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '16px',
+        padding: '10px var(--sc-pane-pad)',
+        borderTop: '0.5px solid var(--sc-paper-whisper)',
+        background: 'var(--sc-surface-bg)',
+        flexShrink: 0,
+      }}
+    >
+      <span
+        style={{
+          fontFamily: 'var(--sc-font-mono)',
+          fontSize: '9px',
+          letterSpacing: '0.18em',
+          textTransform: 'uppercase',
+          color: 'var(--sc-ink-fog)',
+          display: 'flex',
+          alignItems: 'center',
+        }}
+      >
+        <span className="sc-bridge-dot" aria-hidden="true" />
+        Bridge · postMessage
+        {hostOrigin ? ` · ${new URL(hostOrigin).hostname}` : ' · unattached'}
+      </span>
+      <span
+        style={{
+          fontFamily: 'var(--sc-font-mono)',
+          fontSize: '9px',
+          letterSpacing: '0.15em',
+          color: 'var(--sc-ink-fog)',
+          marginLeft: 'auto',
+        }}
+      >
+        {isHydrating ? 'hydrating…' : canvasSessionId ? `session ${canvasSessionId.slice(0, 8)}` : 'no session'}
+        {` · ${frameLabel} · one surface · many windows`}
+      </span>
+    </footer>
+  );
+}
 
 // ── UC5 Shell ─────────────────────────────────────────────────────────────────
 
 function UC5Shell() {
-  // FIX (P1): Read actions via getState() inside the effect so we never need
-  // them as reactive deps. Pulling `hydrate` as a selector causes the effect
-  // to re-run on re-renders because Zustand action references — while stable —
-  // still register as deps and can trigger double-hydrate in development.
-  // Using getState() is the canonical Zustand pattern for imperative calls.
+  const hydrate = useCanvasSession((s) => s.hydrate);
+  const [workRunProjection, setWorkRunProjection] = useState<WorkRunCanvasProjection | null>(null);
+  const workrunSeededRef = useRef<string | null>(null);
 
-  // On mount: read URL params, attach bridge, call hydrate; destroy docs on unmount
+  // On mount: read URL params, attach bridge, call hydrate
   useEffect(() => {
     const detach = attachBridge();
-    const store = useCanvasSession.getState();
-    const { sessionId, track, pane } = readUC5Params();
+    const { sessionId, track, pane, workrunId } = readUC5Params();
 
-    // Default entry (no session param) → auto-bootstrap a local session so
-    // the canvas is immediately usable from the root URL. Uses the same UUID
-    // scheme the orchestrator's canvas_builder would return.
-    const effectiveSessionId =
-      sessionId ??
-      (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? `local-${crypto.randomUUID()}`
-        : `local-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
-
-    store
-      .hydrate({
-        sessionId: effectiveSessionId,
+    if (sessionId) {
+      hydrate({
+        sessionId,
         track: track ?? 'textual',
-        initialPane: pane ?? 'markdown',
+        initialPane: pane ?? naturalPaneForTrack(track ?? 'textual'),
       })
-      .then(() => { emitSessionReady(); })
-      .catch((err: unknown) => {
-        // Backend hydrate endpoint may 404 until UC3+backend wiring lands; non-fatal.
-        console.warn('[UC5Shell] hydrate soft-fail (backend endpoint may not be live yet):', err);
-        emitSessionReady();
-      });
+        .then(() => { emitSessionReady(); })
+        .catch((err: unknown) => { console.error('[UC5Shell] hydrate failed:', err); });
+    } else {
+      emitSessionReady();
+    }
 
-    return () => {
-      detach();
-      // FIX (P1): destroy all Y.Doc instances on unmount to prevent memory leaks.
-      useCanvasSession.getState().destroyDocs();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (workrunId) {
+      fetchWorkRunCockpit(workrunId)
+        .then((projection) => {
+          setWorkRunProjection(projection);
+          if (workrunSeededRef.current !== projection.id) {
+            seedWorkRunProjection(projection);
+            workrunSeededRef.current = projection.id;
+          }
+        })
+        .catch((err: unknown) => {
+          console.error('[UC5Shell] workrun cockpit load failed:', err);
+        });
+    }
+
+    return detach;
+  }, [hydrate]);
 
   return (
     <div
@@ -371,14 +908,14 @@ function UC5Shell() {
       >
         <span
           style={{
-            fontFamily: 'var(--sc-font-sans)',
-            fontSize: '14px',
+            fontFamily: 'var(--sc-font-mono)',
+            fontSize: '11px',
             letterSpacing: 'var(--sc-tracking-label)',
             textTransform: 'uppercase',
             color: 'var(--sc-ink-graphite)',
           }}
         >
-          WidgeTDC · Canvas Power-Lift
+          WidgeTDC · Unified Canvas · Substrate Cartography
         </span>
         <span
           style={{
@@ -388,22 +925,15 @@ function UC5Shell() {
             color: 'var(--sc-ink-fog)',
           }}
         >
-          command authority · evidence first · graph native
+          55°40&prime;N · 12°34&prime;E · Plate I
         </span>
       </header>
 
-      {/* UC5 intelligence: brief input — user describes what they want,
-          canvas calls orchestrator canvas_builder, auto-switches track+pane */}
-      <BriefBar />
+      <FrameMetadataStrip />
+      <WorkRunCockpitStrip projection={workRunProjection} />
 
       {/* Track legend + pane switcher */}
       <TrackLegend />
-
-      {/* Wave G1: real-time composition telemetry + provenance + pattern palette */}
-      <ComposeOpsDock />
-      <PheromonePanel />
-
-      <CommandPalette mode="uc5" />
 
       {/* Pane content */}
       <main style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
@@ -412,27 +942,8 @@ function UC5Shell() {
         </ReactFlowProvider>
       </main>
 
-      {/* UC5 intelligence: rationale + reward loop (replaces former status bar) */}
-      <RationaleStrip />
-
-      {/* UC5 intelligence: inbound host message toast (LibreChat/WebUI/Office) */}
-      <HostMessageToast />
-
-      {/* M5: Accessibility global focus-visible ring + responsive 900px breakpoint */}
-      <style>{`
-        .sc-root button:focus-visible,
-        .sc-root a:focus-visible {
-          outline: 2px solid var(--sc-focus-ring);
-          outline-offset: 2px;
-          border-radius: var(--sc-radius-sm);
-        }
-        @media (max-width: 900px) {
-          .sc-root nav[aria-label="Builder tracks"] {
-            gap: 12px;
-            padding: 10px var(--sc-gutter) 14px;
-          }
-        }
-      `}</style>
+      {/* Status bar */}
+      <UC5StatusBar />
     </div>
   );
 }
@@ -575,4 +1086,3 @@ export function AppShell() {
   // Legacy mode: original dark-theme ReactFlow canvas
   return <LegacyShell />;
 }
-

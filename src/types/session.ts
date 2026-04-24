@@ -12,41 +12,25 @@ export type BuilderTrack =
   | 'code'
   | 'experiment';
 
-export type PaneId =
-  | 'canvas'
-  | 'markdown'
+export type PaneId = 'canvas' | 'markdown' | 'slides' | 'drawio' | 'split';
+
+export type ProductFrameId =
+  | 'book.authoring'
+  | 'software.feature-delivery'
+  | 'consulting.discovery'
+  | 'architecture.system-design'
+  | 'research.synthesis';
+
+export type CanvasModeId =
+  | 'document'
   | 'slides'
-  | 'drawio'
+  | 'diagram'
+  | 'graph'
   | 'split'
-  | 'phantom_bom'
-  | 'workcore_phantom'
-  | 'architecture_spec'
-  | 'innovation_backlog'
-  | 'research'
-  | 'telemetry'
-  | 'pattern_palette'
-  | 'evidence'
+  | 'inspector'
   | 'timeline'
+  | 'risk_overlay'
   | 'diff';
-
-/** Modality artifact status from multi-modal SSE stream */
-export type ModalityStatus = 'pending' | 'streaming' | 'ready' | 'error';
-
-/** Single modality artifact produced by multi-modal endpoint */
-export interface ModalityArtifact {
-  status: ModalityStatus;
-  uri?: string;
-  content_hash?: string;
-  content?: unknown;
-}
-
-/** Multi-modal order state from POST /api/mrp/produce/multi-modal */
-export interface MultiModalOrder {
-  order_id: string;
-  sse_url: string;
-  sse_connected: boolean;
-  artifacts: Record<string, ModalityArtifact>;
-}
 
 /** Wire shape returned by /api/session/:id/hydrate */
 export interface CanvasResolutionWire {
@@ -58,10 +42,12 @@ export interface CanvasResolutionWire {
   rationale?: string[];
   bom_version: '2.0';
   resolved_at: string;
-  /** M5: framework and blueprint IDs for RationaleExpander drill */
-  framework_id?: string;
-  blueprint_id?: string;
-  patterns_applied?: string[];
+  product_frame_id?: ProductFrameId;
+  domain_profile_id?: string;
+  starter_template_ids?: string[];
+  allowed_modes?: CanvasModeId[];
+  required_capability_ids?: string[];
+  required_evaluation_hook_ids?: string[];
 }
 
 export interface PreSeededNode {
@@ -81,6 +67,12 @@ export interface CanvasResolution {
   rationale: string[];
   bomVersion: '2.0';
   resolvedAt: string;
+  productFrameId?: ProductFrameId;
+  domainProfileId?: string;
+  starterTemplateIds: string[];
+  allowedModes: CanvasModeId[];
+  requiredCapabilityIds: string[];
+  requiredEvaluationHookIds: string[];
 }
 
 /** postMessage bridge message shapes */

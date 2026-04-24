@@ -8,8 +8,15 @@ import {
   BookOpen, Fingerprint, Route, ArrowLeftRight, Blocks
 } from 'lucide-react';
 import { useCanvasStore } from '../../store/canvasStore';
-import type { CanvasNodeData, CanvasNodeType, CanvasNode } from '../../types/canvas';
-import { normalizeRegulatoryLevel } from '../../types/canvas';
+import {
+  getCanvasNodeFamilyLabel,
+  getCanvasNodeModeLabel,
+  normalizeRegulatoryLevel,
+  resolveCanvasNodePresentation,
+  type CanvasNodeData,
+  type CanvasNodeType,
+  type CanvasNode,
+} from '../../types/canvas';
 
 // Strict comparison for memoization to fix O(N) re-render bottleneck (Audit Day 5)
 const areNodePropsEqual = (prev: NodeProps<CanvasNode>, next: NodeProps<CanvasNode>) => {
@@ -70,6 +77,21 @@ const REGULATORY_COLORS = {
   guideline: { bg: '#3b82f633', border: '#3b82f6', label: 'GUIDE' },
   info: { bg: '#6b728033', border: '#6b7280', label: 'INFO' },
 } as const;
+
+function NodeViewContractBadges({ data }: { data: CanvasNodeData }) {
+  const presentation = resolveCanvasNodePresentation(data);
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+      <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-sky-500/10 text-sky-200 border border-sky-500/20">
+        {getCanvasNodeFamilyLabel(presentation.nodeFamily)}
+      </span>
+      <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-emerald-500/10 text-emerald-200 border border-emerald-500/20">
+        {getCanvasNodeModeLabel(presentation.defaultMode)}
+      </span>
+    </div>
+  );
+}
 
 function FloatingToolbar({ id, nodeType, isVisible }: { id: string; nodeType: CanvasNodeType; isVisible: boolean }) {
   const { expandNode, autoAnalyze, crossReference, matchTenders, evaluateHypothesis, verifyNode, assessConsequences } = useCanvasStore();
@@ -245,6 +267,7 @@ function BaseNode({ id, data, selected }: NodeProps<CanvasNode>) {
             {data.subtitle && (
               <p className="text-[11px] text-gray-400 mt-1 truncate opacity-70 leading-tight">{data.subtitle}</p>
             )}
+            <NodeViewContractBadges data={data} />
             {compScore !== undefined && (
               <div className="mt-2 h-1 rounded-full bg-neural-border/50 overflow-hidden">
                 <div
@@ -343,6 +366,7 @@ function QueryNode({ id, data, selected }: NodeProps<CanvasNode>) {
             {data.queryText}
           </pre>
         )}
+        {!isLowDetail && <NodeViewContractBadges data={data} />}
 
         <div className="flex items-center gap-1.5 mt-2">
           <span
@@ -387,6 +411,35 @@ function ArtifactNode({ id, data, selected }: NodeProps<CanvasNode>) {
     typeof (data.metadata as Record<string, unknown> | undefined)?.verificationStatus === 'string'
       ? String((data.metadata as Record<string, unknown>).verificationStatus)
       : undefined;
+  const trustScope =
+    typeof (data.metadata as Record<string, unknown> | undefined)?.trustScope === 'string'
+      ? String((data.metadata as Record<string, unknown>).trustScope)
+      : undefined;
+  const signingPubkey =
+    typeof (data.metadata as Record<string, unknown> | undefined)?.signingPubkey === 'string'
+      ? String((data.metadata as Record<string, unknown>).signingPubkey)
+      : undefined;
+  const trustBadge =
+    trustScope === 'canonical'
+      ? {
+          label: `CANONICAL · ${(signingPubkey ?? '').slice(0, 8) || 'unknown'}`,
+          bg: 'rgba(22,101,52,0.12)',
+          color: '#86efac',
+          border: 'rgba(34,197,94,0.35)',
+        }
+      : trustScope
+        ? {
+            label: `EPHEMERAL · ${trustScope.replace(/^ephemeral-?/, '')}`,
+            bg: 'rgba(146,64,14,0.12)',
+            color: '#fbbf24',
+            border: 'rgba(245,158,11,0.35)',
+          }
+        : {
+            label: 'UNSIGNED',
+            bg: 'rgba(153,27,27,0.12)',
+            color: '#fca5a5',
+            border: 'rgba(239,68,68,0.35)',
+          };
   const provenanceSource = typeof data.provenance?.source === 'string' ? data.provenance.source : undefined;
   const provenanceConfidence = typeof data.provenance?.confidence === 'number' ? data.provenance.confidence : undefined;
   const isDegraded = qualityGate === 'degraded' || reviewState === 'degraded';
@@ -425,6 +478,12 @@ function ArtifactNode({ id, data, selected }: NodeProps<CanvasNode>) {
         </div>
         {!isLowDetail && (reviewState || artifactId) && (
           <div className="mt-2 flex flex-wrap gap-1.5">
+            <span
+              className="inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium"
+              style={{ backgroundColor: trustBadge.bg, color: trustBadge.color, border: `1px solid ${trustBadge.border}` }}
+            >
+              {trustBadge.label}
+            </span>
             {reviewState && (
               <span
                 className="inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium"
@@ -463,6 +522,7 @@ function ArtifactNode({ id, data, selected }: NodeProps<CanvasNode>) {
             </pre>
           </div>
         )}
+        {!isLowDetail && <NodeViewContractBadges data={data} />}
         <div className="flex items-center gap-1.5 mt-1.5">
           <span
             className="inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium"
@@ -626,6 +686,7 @@ function ThoughtNode({ id, data, selected }: NodeProps<CanvasNode>) {
               ))}
             </div>
           )}
+          {!isLowDetail && <NodeViewContractBadges data={data} />}
         </div>
       </motion.div>
     </>
@@ -650,6 +711,7 @@ function ComboNode({ id, data, selected }: NodeProps<CanvasNode>) {
           <Layers size={16} style={{ color: config.color }} />
           <span className="text-sm font-semibold text-gray-100 truncate">{data.label}</span>
         </div>
+        <NodeViewContractBadges data={data} />
         <div className="flex items-center gap-1.5 mt-1.5">
           <span
             className="inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium"
@@ -730,6 +792,7 @@ function FoundryBlockNode({ id, data, selected }: NodeProps<CanvasNode>) {
             />
           </div>
         )}
+        {!isLowDetail && <NodeViewContractBadges data={data} />}
 
         <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-neural-border/20">
           <span
