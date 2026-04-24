@@ -86,208 +86,152 @@ export async function graphWrite(query: string, params: Record<string, unknown> 
   return mcpCall('graph.write_cypher', { query, params });
 }
 
-export type ComposeTopic =
-  | 'composition.started'
-  | 'composition.arbitration_triggered'
-  | 'composition.artifact_ready'
-  | 'composition.fitness_scored'
-  | 'composition.completed'
-  | 'composition.failed';
-
-export interface ComposeRequest {
-  brief: string;
-  modalities?: string[];
-  request_features_override?: Record<string, unknown>;
-}
-
-export interface ComposeAcceptedResponse {
-  bomrun_id: string;
-  status: 'accepted';
-  sse_url: string;
-  poll_url: string;
-  accepted_at: string;
-  timeout_ms: number;
-}
-
-export interface ComposeLineageEdge {
-  rel_type: string;
-  from_label: string;
-  from_name: string;
-  to_label: string;
-  to_name: string;
-}
-
-export interface PatternPaletteEntry {
+export interface AgentPhonebookEntry {
   id: string;
-  name: string;
-  semantic_summary?: string | null;
+  alias?: string;
+  trustLevel?: string;
+  processDna: string[];
+  governedBy: string[];
+  adoptionProtocol?: string;
+  role?: string;
+  className?: string;
 }
 
-export interface InnovationTicketEntry {
-  id: string;
-  title: string;
-  status: 'candidate' | 'approved' | 'rejected';
-  divergence_score: number;
-  severity: 'high' | 'medium' | 'low';
-  rationale: string[];
-  lifecycle: string;
-  updated_at: string | null;
-  component_id: string | null;
-  blueprint_id: string | null;
-  pattern_id: string | null;
-  arbitration_decision: string | null;
-  arbitration_rationale: string | null;
+interface AgentGenesisEvidenceAgent {
+  id?: string;
+  alias?: string | null;
+  role?: string | null;
+  class?: string | null;
+  trust_level?: string | null;
+  outgoing?: Array<{ rel?: string | null; target?: string | null }>;
 }
 
-export async function composeRequest(body: ComposeRequest): Promise<ComposeAcceptedResponse> {
-  const apiKey = getApiKey();
-  const res = await fetch(`${getApiUrl()}/api/mrp/compose`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(apiKey
-        ? {
-            'Authorization': `Bearer ${apiKey}`,
-            'X-API-Key': apiKey,
-          }
-        : {}),
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`compose request failed: ${res.status} ${text || res.statusText}`);
+interface AgentGenesisEvidenceCanonical {
+  agents?: AgentGenesisEvidenceAgent[];
+  process_dna?: string[];
+}
+
+function parseCanonicalJson<T>(value: unknown): T | null {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return null;
   }
-  return (await res.json()) as ComposeAcceptedResponse;
-}
 
-export function composeEventSourceUrl(ssePath: string): string {
-  const normalizedPath = ssePath.startsWith('http')
-    ? ssePath
-    : `${getApiUrl()}${ssePath.startsWith('/') ? '' : '/'}${ssePath}`;
-  const apiKey = getApiKey();
-  if (!apiKey) return normalizedPath;
-  const url = new URL(normalizedPath);
-  // EventSource cannot attach Authorization headers in browser runtime.
-  // Backend may ignore this param; when ignored, auth falls back to host-session/cookie.
-  url.searchParams.set('bearer', apiKey);
-  return url.toString();
-}
-
-export async function fetchComposeLineage(bomrunId: string): Promise<ComposeLineageEdge[]> {
-  const rows = await graphRead(
-    `MATCH (run:PhantomBOMRun {id: $bomrunId})-[r]->(n)
-     WITH run, r, n
-     RETURN type(r) AS rel_type,
-            labels(run)[0] AS from_label,
-            coalesce(run.id, run.name, run.run_id, 'run') AS from_name,
-            labels(n)[0] AS to_label,
-            coalesce(n.name, n.title, n.id, 'node') AS to_name
-     ORDER BY rel_type ASC
-     LIMIT 30`,
-    { bomrunId },
-  );
-  return (rows as Array<Record<string, unknown>>).map((row) => ({
-    rel_type: String(row.rel_type ?? ''),
-    from_label: String(row.from_label ?? ''),
-    from_name: String(row.from_name ?? ''),
-    to_label: String(row.to_label ?? ''),
-    to_name: String(row.to_name ?? ''),
-  }));
-}
-
-export async function fetchPatternPalette(limit = 200): Promise<PatternPaletteEntry[]> {
-  const rows = await graphRead(
-    `MATCH (p:Pattern)
-     RETURN p.id AS id,
-            coalesce(p.name, p.title, p.id) AS name,
-            p.semantic_summary AS semantic_summary
-     ORDER BY coalesce(p.last_audited, datetime('1970-01-01T00:00:00Z')) DESC
-     LIMIT $limit`,
-    { limit },
-  );
-  return (rows as Array<Record<string, unknown>>)
-    .map((row) => ({
-      id: String(row.id ?? ''),
-      name: String(row.name ?? ''),
-      semantic_summary: row.semantic_summary ? String(row.semantic_summary) : null,
-    }))
-    .filter((row) => row.id.length > 0);
-}
-
-export async function fetchInnovationTickets(
-  options: { status?: 'candidate' | 'approved' | 'rejected'; severity?: 'high' | 'medium' | 'low'; limit?: number } = {},
-): Promise<InnovationTicketEntry[]> {
-  const apiKey = getApiKey();
-  const url = new URL(`${getApiUrl()}/api/mrp/innovation-tickets`);
-  if (options.status) url.searchParams.set('status', options.status);
-  if (options.severity) url.searchParams.set('severity', options.severity);
-  if (options.limit) url.searchParams.set('limit', String(options.limit));
-
-  const res = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(apiKey
-        ? {
-            'Authorization': `Bearer ${apiKey}`,
-            'X-API-Key': apiKey,
-          }
-        : {}),
-    },
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`innovation tickets fetch failed: ${res.status} ${text || res.statusText}`);
-  }
-  const payload = (await res.json()) as { items?: InnovationTicketEntry[] };
-  return Array.isArray(payload.items) ? payload.items : [];
-}
-
-export async function approveInnovationTicket(id: string): Promise<void> {
-  const apiKey = getApiKey();
-  const res = await fetch(`${getApiUrl()}/api/mrp/innovation-tickets/${encodeURIComponent(id)}/approve`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(apiKey
-        ? {
-            'Authorization': `Bearer ${apiKey}`,
-            'X-API-Key': apiKey,
-          }
-        : {}),
-    },
-    body: JSON.stringify({}),
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`innovation ticket approve failed: ${res.status} ${text || res.statusText}`);
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
   }
 }
 
-export async function rejectInnovationTicket(id: string, reason = 'rejected-by-operator'): Promise<void> {
-  const apiKey = getApiKey();
-  const res = await fetch(`${getApiUrl()}/api/mrp/innovation-tickets/${encodeURIComponent(id)}/reject`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(apiKey
-        ? {
-            'Authorization': `Bearer ${apiKey}`,
-            'X-API-Key': apiKey,
-          }
-        : {}),
-    },
-    body: JSON.stringify({ reason }),
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`innovation ticket reject failed: ${res.status} ${text || res.statusText}`);
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
   }
+  return value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0);
+}
+
+function mergeAgentPhonebookEntry(
+  base: AgentPhonebookEntry | undefined,
+  next: Partial<AgentPhonebookEntry>,
+): AgentPhonebookEntry {
+  return {
+    id: next.id ?? base?.id ?? 'unknown',
+    alias: next.alias ?? base?.alias,
+    trustLevel: next.trustLevel ?? base?.trustLevel,
+    processDna: next.processDna && next.processDna.length > 0 ? next.processDna : (base?.processDna ?? []),
+    governedBy: next.governedBy && next.governedBy.length > 0 ? next.governedBy : (base?.governedBy ?? []),
+    adoptionProtocol: next.adoptionProtocol ?? base?.adoptionProtocol,
+    role: next.role ?? base?.role,
+    className: next.className ?? base?.className,
+  };
+}
+
+function normalizeAgentPhonebookEntry(
+  directRows: unknown[],
+  evidenceRows: unknown[],
+): AgentPhonebookEntry[] {
+  const merged = new Map<string, AgentPhonebookEntry>();
+
+  const directAgents = (Array.isArray(directRows) ? directRows : []) as Array<Record<string, unknown>>;
+  directAgents.forEach((row) => {
+    const id = typeof row.id === 'string' ? row.id : undefined;
+    if (!id) {
+      return;
+    }
+    merged.set(id, mergeAgentPhonebookEntry(merged.get(id), {
+      id,
+      alias: typeof row.alias === 'string' ? row.alias : undefined,
+      trustLevel: typeof row.trust_level === 'string' ? row.trust_level : undefined,
+      processDna: toStringArray(row.process_dna),
+      governedBy: toStringArray(row.governed_by),
+    }));
+  });
+
+  const evidenceRow = ((Array.isArray(evidenceRows) ? evidenceRows : []) as Array<Record<string, unknown>>)[0];
+  const evidence = parseCanonicalJson<AgentGenesisEvidenceCanonical>(evidenceRow?.evidence_canonical);
+  const globalProcessDna = toStringArray(evidenceRow?.process_dna).length > 0
+    ? toStringArray(evidenceRow?.process_dna)
+    : toStringArray(evidence?.process_dna);
+
+  (evidence?.agents ?? []).forEach((agent) => {
+    if (typeof agent.id !== 'string' || agent.id.length === 0) {
+      return;
+    }
+    const governedBy = (agent.outgoing ?? [])
+      .filter((edge) => edge?.rel === 'GOVERNED_BY' || edge?.rel === 'GOVERNED_BY_POLICY')
+      .map((edge) => edge?.target)
+      .filter((target): target is string => typeof target === 'string' && target.length > 0);
+    const adoptionProtocol = governedBy.find((target) => target === 'rules:adoption_protocol');
+
+    merged.set(agent.id, mergeAgentPhonebookEntry(merged.get(agent.id), {
+      id: agent.id,
+      alias: typeof agent.alias === 'string' ? agent.alias : undefined,
+      trustLevel: typeof agent.trust_level === 'string' ? agent.trust_level : undefined,
+      processDna: globalProcessDna,
+      governedBy,
+      adoptionProtocol,
+      role: typeof agent.role === 'string' ? agent.role : undefined,
+      className: typeof agent.class === 'string' ? agent.class : undefined,
+    }));
+  });
+
+  return Array.from(merged.values()).sort((left, right) => {
+    const leftKey = left.alias ?? left.id;
+    const rightKey = right.alias ?? right.id;
+    return leftKey.localeCompare(rightKey);
+  });
+}
+
+export async function fetchAgentRouterPhonebook(): Promise<AgentPhonebookEntry[]> {
+  const [directRows, evidenceRows] = await Promise.all([
+    graphRead(
+      `
+        MATCH (a:Agent)
+        WHERE a.alias IS NOT NULL
+        RETURN a.id AS id, a.alias AS alias, a.trust_level AS trust_level
+        ORDER BY a.alias
+      `,
+    ),
+    graphRead(
+      `
+        MATCH (a:WorkArtifact {id:$id})
+        RETURN a.process_dna AS process_dna, a.evidence_canonical AS evidence_canonical
+      `,
+      { id: 'artifact:agent-genesis:v3:20260424T1250Z' },
+    ),
+  ]);
+
+  return normalizeAgentPhonebookEntry(directRows, evidenceRows);
+}
+
+export function resolveAgentPhonebookEntry(
+  phonebook: AgentPhonebookEntry[],
+  agentId?: string | null,
+): AgentPhonebookEntry | undefined {
+  if (!agentId) {
+    return undefined;
+  }
+  return phonebook.find((entry) => entry.id === agentId);
 }
 
 // --- Canvas 5X API additions ---
@@ -567,6 +511,50 @@ export async function applyArtifactSurfaceAction(
     throw new Error(data?.error ?? 'Artifact surface action failed');
   }
   return data as ArtifactSurfacePayload;
+}
+
+export interface WorkRunCanvasProjectionItem {
+  id: string;
+  title: string | null;
+  status: string | null;
+  kind: string | null;
+  order_index: number | null;
+}
+
+export interface WorkRunCanvasProjectionArtifact {
+  id: string;
+  title: string | null;
+  artifact_type: string | null;
+  status: string | null;
+  trust_scope: string | null;
+  signing_pubkey: string | null;
+  verified_at: string | null;
+  control_hubs: string[];
+}
+
+export interface WorkRunCanvasProjection {
+  id: string;
+  status: string | null;
+  brief: string | null;
+  canonical_pattern: string | null;
+  profile_id: string | null;
+  source_phantom_run_id: string | null;
+  workspec_id: string | null;
+  workspec_name: string | null;
+  domain_profile_id: string | null;
+  domain_profile_name: string | null;
+  all_moves_canonical: boolean | null;
+  completed_at: string | null;
+  workitems: WorkRunCanvasProjectionItem[];
+  artifacts: WorkRunCanvasProjectionArtifact[];
+}
+
+export async function fetchWorkRunCockpit(workrunId: string): Promise<WorkRunCanvasProjection> {
+  const data = await backendRequest<{ success: boolean; workrun: WorkRunCanvasProjection }>(
+    `/api/workcore/canvas/workrun/${encodeURIComponent(workrunId)}`,
+    { method: 'GET' },
+  );
+  return data.workrun;
 }
 
 export interface LibreChatRuntimeIntelligenceRequest {
@@ -1020,6 +1008,35 @@ export async function listMcpTools(): Promise<ToolDefinition[]> {
   const data = await res.json();
   return (data?.data?.definitions ?? data?.definitions ?? data?.tools ?? data ?? []) as ToolDefinition[];
 }
+
+async function backendRequest<T>(pathname: string, init: RequestInit): Promise<T> {
+  const apiKey = getApiKey();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(apiKey
+      ? {
+          'Authorization': `Bearer ${apiKey}`,
+          'X-API-Key': apiKey,
+        }
+      : {}),
+    ...(init.headers ?? {}),
+  };
+
+  const res = await fetch(`${getApiUrl()}${pathname}`, {
+    ...init,
+    headers,
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const body = (data ?? {}) as Record<string, unknown>;
+    throw new Error(String(body.error ?? body.message ?? `HTTP ${res.status}`));
+  }
+
+  return data as T;
+}
+
 export type PheromoneSignalType =
   | 'risk'
   | 'novelty'
@@ -1125,46 +1142,21 @@ export interface ResolveAnchorResponse {
   drift_detected: boolean;
 }
 
-async function pheromoneRequest<T>(path: string, init: RequestInit): Promise<T> {
-  const apiKey = getApiKey();
-  const res = await fetch(`${getApiUrl()}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(apiKey
-        ? {
-            'Authorization': `Bearer ${apiKey}`,
-            'X-API-Key': apiKey,
-          }
-        : {}),
-      ...(init.headers ?? {}),
-    },
-    signal: AbortSignal.timeout(15_000),
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`pheromone request failed: ${res.status} ${text || res.statusText}`);
-  }
-
-  return (await res.json()) as T;
-}
-
 export async function createPheromone(payload: CreatePheromoneRequest): Promise<CreatePheromoneResponse> {
-  return pheromoneRequest<CreatePheromoneResponse>('/api/pheromones', {
+  return backendRequest<CreatePheromoneResponse>('/api/pheromones', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
 
 export async function getPheromone(id: string): Promise<PheromoneDetailResponse> {
-  return pheromoneRequest<PheromoneDetailResponse>(`/api/pheromones/${encodeURIComponent(id)}`, {
+  return backendRequest<PheromoneDetailResponse>(`/api/pheromones/${encodeURIComponent(id)}`, {
     method: 'GET',
   });
 }
 
 export async function inspectPheromone(id: string): Promise<InspectPheromoneResponse> {
-  return pheromoneRequest<InspectPheromoneResponse>(`/api/pheromones/${encodeURIComponent(id)}/inspect`, {
+  return backendRequest<InspectPheromoneResponse>(`/api/pheromones/${encodeURIComponent(id)}/inspect`, {
     method: 'POST',
     body: JSON.stringify({}),
   });
@@ -1174,15 +1166,14 @@ export async function promotePheromone(
   id: string,
   targetKind: 'innovation_ticket' | 'training_proposal' | 'contradiction_review',
 ): Promise<PromotePheromoneResponse> {
-  return pheromoneRequest<PromotePheromoneResponse>(`/api/pheromones/${encodeURIComponent(id)}/promote`, {
+  return backendRequest<PromotePheromoneResponse>(`/api/pheromones/${encodeURIComponent(id)}/promote`, {
     method: 'POST',
     body: JSON.stringify({ target_kind: targetKind }),
   });
 }
 
 export async function resolveAnchor(anchorId: string): Promise<ResolveAnchorResponse> {
-  return pheromoneRequest<ResolveAnchorResponse>(`/api/anchors/resolve?anchor_id=${encodeURIComponent(anchorId)}`, {
+  return backendRequest<ResolveAnchorResponse>(`/api/anchors/resolve?anchor_id=${encodeURIComponent(anchorId)}`, {
     method: 'GET',
   });
 }
-

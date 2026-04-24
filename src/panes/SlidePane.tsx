@@ -177,19 +177,16 @@ function NavBar({ index, total, onPrev, onNext }: NavBarProps) {
 // ── SlidePane ─────────────────────────────────────────────────────────────────
 
 export function SlidePane() {
-  // FIX (P0): individual selectors to avoid infinite re-render loop from
-  // object-returning selectors (new object ref each render → re-subscribe).
   const canvasSessionId = useCanvasSession((s) => s.canvasSessionId);
   const track = useCanvasSession((s) => s.track);
-  const paneState = useCanvasSession((s) => s.panes.slides);
+  const slidesDoc = useCanvasSession((s) => s.panes.slides.crdtDoc);
   const [slides, setSlides] = useState<SlideItem[]>(DEFAULT_SLIDES);
   const [activeIndex, setActiveIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Observe Y.Array for slide data
   useEffect(() => {
-    const doc = paneState.crdtDoc;
-    const arr = doc.getArray<SlideItem>('slides');
+    const arr = slidesDoc.getArray<SlideItem>('slides');
 
     const sync = () => {
       const items = arr.toArray();
@@ -201,7 +198,7 @@ export function SlidePane() {
     sync(); // initial read
 
     return () => arr.unobserve(sync);
-  }, [paneState.crdtDoc]);
+  }, [slidesDoc]);
 
   const goTo = useCallback(
     (index: number) => {
@@ -236,10 +233,7 @@ export function SlidePane() {
         minHeight: 0,
         padding: 'var(--sc-pane-pad)',
         background: 'var(--sc-surface-bg)',
-        // FIX (P2 / A11Y): Do NOT suppress outline here.
-        // The global :focus-visible rule in substrate-cartography.css provides
-        // a 2px focus ring for keyboard users only (WCAG 2.4.7). Setting
-        // outline:none here would suppress it for all input devices.
+        outline: 'none',
       }}
     >
       {/* Pane header */}

@@ -55,16 +55,7 @@ export function emitToHost(data: BridgeMessageOutbound, targetOrigin?: string): 
     return;
   }
 
-  // SECURITY FIX (P0): never use '*' as targetOrigin — it broadcasts session
-  // IDs to every frame on the page. If no verified hostOrigin is available,
-  // suppress the emit rather than leaking the message to unknown recipients.
-  const origin = targetOrigin ?? useCanvasSession.getState().hostOrigin;
-  if (!origin) {
-    console.warn(
-      '[hostBridge] emitToHost: no verified hostOrigin — message suppressed to prevent open broadcast',
-    );
-    return;
-  }
+  const origin = targetOrigin ?? useCanvasSession.getState().hostOrigin ?? '*';
 
   try {
     if (window.parent && window.parent !== window) {
@@ -97,10 +88,6 @@ function handleInbound(event: MessageEvent): void {
 
   // Record the verified host origin for subsequent outbound messages
   store.setHostOrigin(event.origin);
-
-  // UC5 intelligence layer: surface verified inbound messages to the toast UI.
-  // Only called AFTER allowlist check + shape validation, so XSS surface is narrow.
-  store.appendHostMessage(event.origin, msg);
 
   switch (msg.type) {
     case 'hydrate': {
@@ -163,16 +150,19 @@ function handleInbound(event: MessageEvent): void {
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
-// FIX (P0): Do NOT use a module-level boolean guard.
-// React StrictMode double-mounts: first mount registers, cleanup runs, second
-// mount registers again. A module-level flag would make the second call a no-op
-// so the second mount registers no listener, then the second cleanup removes
-// nothing, leaving the app permanently deaf to host messages after StrictMode
-// finishes the double-mount cycle.
-// Each attachBridge() call independently owns its listener registration.
+let attached = false;
+
 export function attachBridge(): () => void {
+  if (attached) {
+    return () => {
+      /* noop if already detached by prior caller */
+    };
+  }
+  attached = true;
   window.addEventListener('message', handleInbound);
+
   return () => {
+    attached = false;
     window.removeEventListener('message', handleInbound);
   };
 }
