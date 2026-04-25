@@ -230,7 +230,7 @@ describe('AppShell', () => {
       await Promise.resolve();
     });
 
-    expect(view.getByText('WidgeTDC · Unified Canvas · Substrate Cartography')).toBeTruthy();
+    expect(view.getByText('WidgeTDC Canvas')).toBeTruthy();
     expect(view.getByText('Frame · Architecture System Design')).toBeTruthy();
     expect(view.getByText('Action Rail')).toBeTruthy();
     expect(view.getByText('Evidence Spine')).toBeTruthy();

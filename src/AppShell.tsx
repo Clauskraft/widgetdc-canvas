@@ -144,7 +144,7 @@ function LegacyCanvas({ track }: { track?: BuilderTrack | null }) {
           <span className="sc-pane-label" style={{ color: trackHue }}>
             {`Canvas · ${frameLabel}`}
           </span>
-          <span className="sc-pane-meta">isolines · 7 tracks · 18 ticks/ring</span>
+          <span className="sc-pane-meta">{frameLabel ? `frame · ${frameLabel}` : 'no frame'}</span>
         </div>
       </div>
       {/* ReactFlow canvas fills the remaining space */}
@@ -2260,7 +2260,7 @@ function UC5Shell() {
 
   return (
     <div
-      className="sc-root sc-paper-grain"
+      className="sc-root"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -2274,33 +2274,35 @@ function UC5Shell() {
       <header
         style={{
           display: 'flex',
-          alignItems: 'baseline',
+          alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '24px var(--sc-pane-pad) 20px',
-          borderBottom: '0.5px solid var(--sc-paper-whisper)',
+          padding: '12px var(--sc-pane-pad)',
+          borderBottom: '1px solid var(--sc-divider)',
+          background: 'var(--sc-surface-bg)',
           flexShrink: 0,
         }}
       >
         <span
           style={{
             fontFamily: 'var(--sc-font-mono)',
-            fontSize: '11px',
+            fontSize: 'var(--sc-size-xs)',
             letterSpacing: 'var(--sc-tracking-label)',
             textTransform: 'uppercase',
-            color: 'var(--sc-ink-graphite)',
+            color: 'var(--sc-text-primary)',
+            fontWeight: 600,
           }}
         >
-          WidgeTDC · Unified Canvas · Substrate Cartography
+          WidgeTDC Canvas
         </span>
         <span
           style={{
             fontFamily: 'var(--sc-font-mono)',
-            fontSize: '10px',
-            letterSpacing: '0.18em',
-            color: 'var(--sc-ink-fog)',
+            fontSize: 'var(--sc-size-xs)',
+            letterSpacing: '0.04em',
+            color: 'var(--sc-text-tertiary)',
           }}
         >
-          55°40&prime;N · 12°34&prime;E · Plate I
+          {workRunProjection ? `run · ${workRunProjection.id.slice(0, 24)}` : 'no active run'}
         </span>
       </header>
 
