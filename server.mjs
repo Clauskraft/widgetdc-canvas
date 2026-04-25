@@ -82,6 +82,15 @@ app.use(
   }),
 );
 
+// LIN-964 / A8 — public verifiable demo pack. Static page that fetches a
+// signed WorkArtifact and validates its Ed25519 signature client-side via
+// @noble/ed25519. No third-party data flow; no auth required.
+const publicDir = path.join(__dirname, 'public');
+app.use('/verify', express.static(publicDir));
+app.get('/verify', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'verify.html'));
+});
+
 app.use(express.static(distDir));
 
 app.get('*', (_req, res) => {
