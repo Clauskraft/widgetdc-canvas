@@ -257,6 +257,28 @@ function paneToMode(pane: PaneId): CanvasModeId {
   }
 }
 
+function modeToPane(mode: CanvasModeId): PaneId {
+  switch (mode) {
+    case 'document':
+      return 'markdown';
+    case 'slides':
+      return 'slides';
+    case 'diagram':
+      return 'drawio';
+    case 'graph':
+      return 'canvas';
+    case 'split':
+      return 'split';
+    case 'timeline':
+    case 'diff':
+    case 'inspector':
+    case 'risk_overlay':
+      return 'canvas';
+    default:
+      return 'canvas';
+  }
+}
+
 function resolveShellFrame(
   productFrameId: ProductFrameId | null,
   track: BuilderTrack | null,
@@ -1002,6 +1024,405 @@ export function BlankCanvasUnfoldingCard({ projection }: { projection: WorkRunCa
         </div>
       ) : null}
     </section>
+  );
+}
+
+function isBlankCanvasEntryState(
+  projection: WorkRunCanvasProjection | null,
+  seededContent: {
+    canvasSessionId: string | null;
+    productFrameId: ProductFrameId | null;
+    starterTemplateIds: string[];
+    requiredCapabilityIds: string[];
+    requiredEvaluationHookIds: string[];
+  },
+): boolean {
+  if (!seededContent.canvasSessionId) {
+    return false;
+  }
+
+  if (!seededContent.productFrameId) {
+    return false;
+  }
+
+  if (!projection) {
+    return true;
+  }
+
+  return projection.workitems.length === 0 && projection.artifacts.length === 0;
+}
+
+export function BlankCanvasEntrySurface({ projection }: { projection: WorkRunCanvasProjection | null }) {
+  const canvasSessionId = useCanvasSession((s) => s.canvasSessionId);
+  const productFrameId = useCanvasSession((s) => s.productFrameId);
+  const domainProfileId = useCanvasSession((s) => s.domainProfileId);
+  const starterTemplateIds = useCanvasSession((s) => s.starterTemplateIds);
+  const activePane = useCanvasSession((s) => s.activePane);
+  const allowedModes = useCanvasSession((s) => s.allowedModes);
+  const requiredCapabilityIds = useCanvasSession((s) => s.requiredCapabilityIds);
+  const requiredEvaluationHookIds = useCanvasSession((s) => s.requiredEvaluationHookIds);
+  const resolvedFrame = resolveShellFrame(productFrameId, useCanvasSession((s) => s.track));
+  const frameMeta = resolvedFrame ? FRAME_REGISTRY[resolvedFrame] : null;
+  const track = useCanvasSession((s) => s.track);
+  const frameLabel = frameMeta?.label ?? humanizeTrack(track);
+  const resolvedModes = resolveShellModes(allowedModes, track);
+  const entryStatus =
+    projection ? (projection.workitems.length > 0 || projection.artifacts.length > 0 ? 'already in progress' : 'seeded') : 'new';
+  const naturalPane = track ? naturalPaneForTrack(track) : activePane;
+
+  const switchToEntryMode = (mode: CanvasModeId) => {
+    useCanvasSession.getState().switchPane(modeToPane(mode));
+  };
+
+  const jumpToEvidence = () => {
+    document.querySelector('[aria-label="Evidence spine"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  return (
+    <section
+      aria-label="Blank canvas entry surface"
+      style={{
+        display: 'grid',
+        gap: '18px',
+        padding: '18px',
+        border: '0.5px solid var(--sc-paper-whisper)',
+        borderRadius: 'var(--sc-radius-xl)',
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,255,255,0.94))',
+      }}
+    >
+      <div style={{ display: 'grid', gap: '8px' }}>
+        <span
+          style={{
+            fontFamily: 'var(--sc-font-mono)',
+            fontSize: '9px',
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: frameMeta?.tint ?? 'var(--sc-ink-fog)',
+          }}
+        >
+          Blank Canvas Entry
+        </span>
+        <span style={{ fontSize: '24px', fontWeight: 500, color: 'var(--sc-ink-graphite)' }}>
+          {frameLabel}
+        </span>
+        <span style={{ fontSize: '13px', color: 'var(--sc-ink-fog)', lineHeight: 1.6 }}>
+          {frameMeta?.strapline ?? 'Mission-first entry before pane immersion.'}
+        </span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(280px, 320px)', gap: '18px' }}>
+        <BlankCanvasUnfoldingCard projection={projection} />
+        <div style={{ display: 'grid', gap: '14px' }}>
+          <div
+            style={{
+              border: '0.5px solid var(--sc-paper-whisper)',
+              borderRadius: 'var(--sc-radius-lg)',
+              padding: '14px',
+              background: 'rgba(255,255,255,0.66)',
+              display: 'grid',
+              gap: '10px',
+            }}
+          >
+            <span
+              style={{
+                fontFamily: 'var(--sc-font-mono)',
+                fontSize: '9px',
+                letterSpacing: '0.16em',
+                textTransform: 'uppercase',
+                color: 'var(--sc-ink-fog)',
+              }}
+            >
+              Entry constraints
+            </span>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)' }}>
+              Mission status · {entryStatus}
+            </span>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)' }}>Templates · {starterTemplateIds.length}</span>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)' }}>Capabilities · {requiredCapabilityIds.length}</span>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)' }}>Eval hooks · {requiredEvaluationHookIds.length}</span>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)' }}>Domain · {domainProfileId ?? 'none'}</span>
+          </div>
+
+          <div
+            style={{
+              border: '0.5px solid var(--sc-paper-whisper)',
+              borderRadius: 'var(--sc-radius-lg)',
+              padding: '14px',
+              background: 'rgba(255,255,255,0.66)',
+              display: 'grid',
+              gap: '10px',
+            }}
+            >
+            <span
+              style={{
+                fontFamily: 'var(--sc-font-mono)',
+                fontSize: '9px',
+                letterSpacing: '0.16em',
+                textTransform: 'uppercase',
+                color: 'var(--sc-ink-fog)',
+              }}
+            >
+              Mission Actions
+            </span>
+            <button
+              type="button"
+              onClick={() => useCanvasSession.getState().switchPane(naturalPane)}
+              style={{
+                justifyContent: 'space-between',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                border: '0.5px solid var(--sc-paper-whisper)',
+                borderRadius: '999px',
+                padding: '8px 12px',
+                background: 'rgba(20,33,61,0.06)',
+                color: 'var(--sc-ink-graphite)',
+                fontFamily: 'var(--sc-font-mono)',
+                fontSize: '9px',
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
+              Enter cockpit
+              <span aria-hidden="true">›</span>
+            </button>
+            <button
+              type="button"
+              onClick={jumpToEvidence}
+              style={{
+                justifyContent: 'space-between',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                border: '0.5px solid var(--sc-paper-whisper)',
+                borderRadius: '999px',
+                padding: '8px 12px',
+                background: 'transparent',
+                color: 'var(--sc-ink-fog)',
+                fontFamily: 'var(--sc-font-mono)',
+                fontSize: '9px',
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
+              Inspect evidence
+              <span aria-hidden="true">↗</span>
+            </button>
+            <span
+              style={{
+                fontFamily: 'var(--sc-font-mono)',
+                fontSize: '9px',
+                letterSpacing: '0.16em',
+                textTransform: 'uppercase',
+                color: 'var(--sc-ink-fog)',
+                marginTop: '2px',
+              }}
+            >
+              Choose another mode
+            </span>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {resolvedModes.length > 0 ? resolvedModes.map((mode) => (
+                <button
+                  type="button"
+                  key={mode}
+                  onClick={() => switchToEntryMode(mode)}
+                  style={{
+                    border: '0.5px solid var(--sc-paper-whisper)',
+                    borderRadius: '999px',
+                    padding: '6px 10px',
+                    background: mode === paneToMode(activePane) ? 'rgba(20,33,61,0.08)' : 'transparent',
+                    color: mode === paneToMode(activePane) ? 'var(--sc-ink-graphite)' : 'var(--sc-ink-fog)',
+                    fontFamily: 'var(--sc-font-mono)',
+                    fontSize: '9px',
+                    letterSpacing: '0.14em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {humanizeMode(mode)}
+                </button>
+              )) : (
+                <span style={{ fontSize: '11px', color: 'var(--sc-ink-fog)' }}>Modes still resolving.</span>
+              )}
+            </div>
+            <span
+              style={{
+                fontFamily: 'var(--sc-font-mono)',
+                fontSize: '9px',
+                letterSpacing: '0.16em',
+                color: 'var(--sc-ink-fog)',
+                marginTop: '4px',
+                textTransform: 'uppercase',
+              }}
+            >
+              Session anchor · {canvasSessionId ?? 'not seeded'} · {frameLabel}
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function ActionRail({ projection }: { projection: WorkRunCanvasProjection | null }) {
+  const track = useCanvasSession((s) => s.track);
+  const activePane = useCanvasSession((s) => s.activePane);
+  const allowedModes = useCanvasSession((s) => s.allowedModes);
+  const starterTemplateIds = useCanvasSession((s) => s.starterTemplateIds);
+  const switchPane = useCanvasSession((s) => s.switchPane);
+
+  const naturalPane = track ? naturalPaneForTrack(track) : activePane;
+  const resolvedModes = resolveShellModes(allowedModes, track);
+  const activeMode = paneToMode(activePane);
+  const nextAction =
+    projection?.workitems.find((item) => item.status !== 'completed')?.title
+    ?? starterTemplateIds[0]
+    ?? 'Continue the resolved mission flow';
+
+  const jumpToEvidence = () => {
+    document.querySelector('[aria-label="Evidence spine"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const jumpToPowerLift = () => {
+    document.querySelector('[aria-label="Power-Lift rail"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const jumpToRouter = () => {
+    document.querySelector('[aria-label="Agent router contract"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  return (
+    <aside
+      aria-label="Action rail"
+      style={{
+        display: 'grid',
+        alignContent: 'start',
+        gap: '14px',
+        padding: '16px',
+        borderRight: '0.5px solid var(--sc-paper-whisper)',
+        background: 'linear-gradient(180deg, rgba(252,253,255,0.96), rgba(248,249,252,0.94))',
+        overflowY: 'auto',
+      }}
+    >
+      <section
+        style={{
+          border: '0.5px solid var(--sc-paper-whisper)',
+          borderRadius: 'var(--sc-radius-lg)',
+          padding: '14px',
+          background: 'rgba(255,255,255,0.62)',
+          display: 'grid',
+          gap: '10px',
+        }}
+      >
+        <span
+          style={{
+            fontFamily: 'var(--sc-font-mono)',
+            fontSize: '9px',
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: 'var(--sc-ink-fog)',
+          }}
+        >
+          Action Rail
+        </span>
+        <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)', lineHeight: 1.55 }}>
+          Compact, context-sensitive actions live here so the cockpit no longer scatters its primary moves across unrelated cards.
+        </span>
+        <div style={{ display: 'grid', gap: '6px', fontSize: '12px', color: 'var(--sc-ink-graphite)' }}>
+          <span>Current mode · {humanizeMode(activeMode)}</span>
+          <span>Natural pane · {naturalPane}</span>
+          <span>Next action · {nextAction}</span>
+        </div>
+      </section>
+
+      <div style={{ display: 'grid', gap: '8px' }}>
+        {[
+          { label: 'Enter cockpit', onClick: () => switchPane(naturalPane), tone: 'var(--sc-ink-graphite)', bg: 'rgba(20,33,61,0.06)' },
+          { label: 'Inspect evidence', onClick: jumpToEvidence, tone: 'var(--sc-ink-fog)', bg: 'transparent' },
+          { label: 'Open Power-Lift', onClick: jumpToPowerLift, tone: 'var(--sc-ink-fog)', bg: 'transparent' },
+          { label: 'Route via alias', onClick: jumpToRouter, tone: 'var(--sc-ink-fog)', bg: 'transparent' },
+        ].map((action) => (
+          <button
+            key={action.label}
+            type="button"
+            onClick={action.onClick}
+            style={{
+              justifyContent: 'space-between',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              border: '0.5px solid var(--sc-paper-whisper)',
+              borderRadius: '999px',
+              padding: '9px 12px',
+              background: action.bg,
+              color: action.tone,
+              fontFamily: 'var(--sc-font-mono)',
+              fontSize: '9px',
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+            }}
+          >
+            <span>{action.label}</span>
+            <span aria-hidden="true">›</span>
+          </button>
+        ))}
+      </div>
+
+      <section
+        style={{
+          border: '0.5px solid var(--sc-paper-whisper)',
+          borderRadius: 'var(--sc-radius-lg)',
+          padding: '14px',
+          background: 'rgba(255,255,255,0.62)',
+          display: 'grid',
+          gap: '10px',
+        }}
+      >
+        <span
+          style={{
+            fontFamily: 'var(--sc-font-mono)',
+            fontSize: '9px',
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: 'var(--sc-ink-fog)',
+          }}
+        >
+          Allowed Modes
+        </span>
+        {resolvedModes.length > 0 ? (
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {resolvedModes.map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => switchPane(modeToPane(mode))}
+                style={{
+                  border: '0.5px solid var(--sc-paper-whisper)',
+                  borderRadius: '999px',
+                  padding: '6px 10px',
+                  background: mode === activeMode ? 'rgba(20,33,61,0.08)' : 'transparent',
+                  color: mode === activeMode ? 'var(--sc-ink-graphite)' : 'var(--sc-ink-fog)',
+                  fontFamily: 'var(--sc-font-mono)',
+                  fontSize: '9px',
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                }}
+              >
+                {humanizeMode(mode)}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)' }}>
+            No alternate modes resolved yet.
+          </span>
+        )}
+      </section>
+    </aside>
   );
 }
 
@@ -1779,6 +2200,11 @@ function UC5Shell() {
   const hydrate = useCanvasSession((s) => s.hydrate);
   const [workRunProjection, setWorkRunProjection] = useState<WorkRunCanvasProjection | null>(null);
   const workrunSeededRef = useRef<string | null>(null);
+  const canvasSessionId = useCanvasSession((s) => s.canvasSessionId);
+  const productFrameId = useCanvasSession((s) => s.productFrameId);
+  const starterTemplateIds = useCanvasSession((s) => s.starterTemplateIds);
+  const requiredCapabilityIds = useCanvasSession((s) => s.requiredCapabilityIds);
+  const requiredEvaluationHookIds = useCanvasSession((s) => s.requiredEvaluationHookIds);
 
   // On mount: read URL params, attach bridge, call hydrate
   useEffect(() => {
@@ -1813,6 +2239,14 @@ function UC5Shell() {
 
     return detach;
   }, [hydrate]);
+
+  const showBlankCanvasEntry = isBlankCanvasEntryState(workRunProjection, {
+    canvasSessionId,
+    productFrameId,
+    starterTemplateIds,
+    requiredCapabilityIds,
+    requiredEvaluationHookIds,
+  });
 
   return (
     <div
@@ -1878,10 +2312,26 @@ function UC5Shell() {
       >
         <div style={{ minWidth: 0, minHeight: 0, display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr)' }}>
           <WorkRunCockpitStrip projection={workRunProjection} />
-          <div style={{ minHeight: 0, minWidth: 0 }}>
-            <ReactFlowProvider>
-              <UC5PaneRouter />
-            </ReactFlowProvider>
+          <div
+            style={{
+              minHeight: 0,
+              minWidth: 0,
+              display: 'grid',
+              gridTemplateColumns: '220px minmax(0, 1fr)',
+            }}
+          >
+            <ActionRail projection={workRunProjection} />
+            <div style={{ minHeight: 0, minWidth: 0 }}>
+              <ReactFlowProvider>
+                {showBlankCanvasEntry ? (
+                  <div style={{ padding: '18px', minHeight: '100%', background: 'rgba(255,255,255,0.35)' }}>
+                    <BlankCanvasEntrySurface projection={workRunProjection} />
+                  </div>
+                ) : (
+                  <UC5PaneRouter />
+                )}
+              </ReactFlowProvider>
+            </div>
           </div>
         </div>
         <PowerLiftRail projection={workRunProjection} />

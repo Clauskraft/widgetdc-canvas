@@ -228,13 +228,14 @@ describe('AppShell', () => {
 
     expect(view.getByText('WidgeTDC · Unified Canvas · Substrate Cartography')).toBeTruthy();
     expect(view.getByText('Frame · Architecture System Design')).toBeTruthy();
+    expect(view.getByText('Action Rail')).toBeTruthy();
     expect(view.getByText('Evidence Spine')).toBeTruthy();
     expect(view.getByText('Power-Lift')).toBeTruthy();
-    expect(view.getByText('Blank Canvas Unfolding')).toBeTruthy();
+    expect(view.getAllByText('Blank Canvas Unfolding').length).toBeGreaterThan(0);
     expect(view.getByText('Your Pheromones')).toBeTruthy();
     expect(view.getByText('Agent Router Contract')).toBeTruthy();
     expect(view.getByText('Mission Contracts')).toBeTruthy();
-    expect(view.getByText('Domain · event-driven-platform')).toBeTruthy();
+    expect(view.getAllByText('Domain · event-driven-platform').length).toBeGreaterThan(0);
     expect(view.getByText('Modes · frame-native')).toBeTruthy();
     expect(view.getByText('1 starter templates')).toBeTruthy();
     expect(view.getByText('1 required capabilities')).toBeTruthy();
