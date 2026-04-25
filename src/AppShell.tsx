@@ -2392,7 +2392,12 @@ function AutoLoader() {
     (async () => {
       try {
         if (hasPersistedCanvasState()) return;
-        await useCanvasStore.getState().loadTemplate('h10-strategic-north-star');
+        // Default substrate: real WidgeTDC governance state from AuraDB
+        // (claims, gates, packs, patterns, artifacts, services, affordances).
+        // Operators can switch templates via the canvas surface; this is the
+        // entry-time default per CANVAS_C8 spec ("structured workbench, not a
+        // dead empty field").
+        await useCanvasStore.getState().loadTemplate('governance-spine');
       } catch {
         if (!cancelled) {
           // Keep the shell alive; template bootstrap is not allowed to kill the surface.
