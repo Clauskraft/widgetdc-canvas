@@ -1,0 +1,73 @@
+name: Deploy Canvas to Railway
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: railway-canvas-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy widgetdc-canvas
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_PROJECT_ID: 7f5fd3c8-2f76-44a7-b6e4-7a86b2a3dabb
+      RAILWAY_SERVICE: widgetdc-canvas
+      RAILWAY_ENVIRONMENT: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Require Railway token
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${RAILWAY_TOKEN:-}" ]; then
+            echo "::error::RAILWAY_TOKEN secret is required for automatic Railway deployment."
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps --ignore-scripts
+
+      - name: Validate production build
+        run: npm run build
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Link Railway project
+        run: |
+          railway link \
+            --project "${RAILWAY_PROJECT_ID}" \
+            --service "${RAILWAY_SERVICE}" \
+            --environment "${RAILWAY_ENVIRONMENT}"
+
+      - name: Stamp deployed source commit
+        run: |
+          railway variables \
+            --service "${RAILWAY_SERVICE}" \
+            --environment "${RAILWAY_ENVIRONMENT}" \
+            --skip-deploys \
+            --set "SOURCE_COMMIT=${GITHUB_SHA}"
+
+      - name: Deploy to Railway
+        run: |
+          railway up \
+            --service "${RAILWAY_SERVICE}" \
+            --environment "${RAILWAY_ENVIRONMENT}" \
+            --ci
