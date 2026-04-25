@@ -67,6 +67,29 @@ export const CANVAS_TEMPLATES: CanvasTemplate[] = [
     layoutMode: 'freeform',
     columns: ['VISION', 'PILLARS', 'MARKET', 'GAPS', 'H5_MIDPOINT', 'H3_MOMENTUM', 'H1_LAUNCH', 'RISKS', 'FINANCE', 'ACTION_PLAN'],
   },
+  {
+    id: 'governance-spine',
+    name: 'Governance Spine',
+    description: 'Real WidgeTDC governance state from AuraDB: claims, gates, packs, patterns, artifacts, services, affordances. The default substrate.',
+    queries: [
+      // Claims that have moved beyond L0 — anchor of the spine
+      { cypher: "MATCH (c:Claim) WHERE c.current_level IN ['L1','L2','L3','L4','L5'] RETURN c.id AS id, coalesce(c.title, c.id) AS name, c.text AS description, c.current_level AS severity ORDER BY c.current_level DESC, c.id LIMIT 30", nodeType: 'Claim', labelField: 'name' },
+      // ProductionGates that validate claims
+      { cypher: "MATCH (g:ProductionGate) RETURN g.id AS id, coalesce(g.title, g.id) AS name, coalesce(g.scope, g.pass_threshold) AS description LIMIT 20", nodeType: 'GuardrailRule', labelField: 'name' },
+      // KnowledgePacks (curated pattern libraries)
+      { cypher: "MATCH (k:KnowledgePack) WHERE k.id <> 'kp:claims-registry' RETURN k.id AS id, coalesce(k.name, k.id) AS name, k.summary AS description ORDER BY k.created_at DESC LIMIT 15", nodeType: 'Insight', labelField: 'name' },
+      // KnowledgePatterns (technique-level abstractions)
+      { cypher: "MATCH (k:KnowledgePattern) WHERE k.id IS NOT NULL RETURN k.id AS id, k.name AS name, k.summary AS description, k.evidence_strength AS confidence ORDER BY k.evidence_strength DESC, k.created_at DESC LIMIT 30", nodeType: 'KnowledgePattern', labelField: 'name' },
+      // WorkArtifacts (cryptographically-signed evidence)
+      { cypher: "MATCH (w:WorkArtifact) RETURN w.id AS id, coalesce(w.title, w.kind, w.id) AS name, coalesce(w.signature_domain, w.kind) AS description LIMIT 20", nodeType: 'Artifact', labelField: 'name' },
+      // ProductionServices (deployed services)
+      { cypher: "MATCH (s:ProductionService) RETURN s.id AS id, coalesce(s.name, s.id) AS name, coalesce(s.url, s.description) AS description LIMIT 15", nodeType: 'Tool', labelField: 'name' },
+      // CanvasAffordances (the surfaces the canvas exposes)
+      { cypher: "MATCH (a:CanvasAffordance) RETURN a.id AS id, coalesce(a.name, a.id) AS name, coalesce(a.role, a.spec_id) AS description LIMIT 15", nodeType: 'Track', labelField: 'name' },
+    ],
+    autoAnalyze: false,
+    layoutMode: 'mindmap',
+  },
 ];
 
 // Column mapping for engagement canvas layout
