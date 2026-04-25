@@ -19,6 +19,7 @@ import {
   type AgentPhonebookEntry,
   type InnovationApprovalProofResponse,
   fetchWorkRunCockpit,
+  graphRead,
   type WorkRunCanvasProjection,
 } from './lib/api';
 
@@ -1348,37 +1349,84 @@ export function ActionRail({ projection }: { projection: WorkRunCanvasProjection
       </section>
 
       <div style={{ display: 'grid', gap: '8px' }}>
-        {[
-          { label: 'Enter cockpit', onClick: () => switchPane(naturalPane), tone: 'var(--sc-ink-graphite)', bg: 'rgba(20,33,61,0.06)' },
-          { label: 'Inspect evidence', onClick: jumpToEvidence, tone: 'var(--sc-ink-fog)', bg: 'transparent' },
-          { label: 'Open Power-Lift', onClick: jumpToPowerLift, tone: 'var(--sc-ink-fog)', bg: 'transparent' },
-          { label: 'Route via alias', onClick: jumpToRouter, tone: 'var(--sc-ink-fog)', bg: 'transparent' },
-        ].map((action) => (
+        {(() => {
+          const hasProjection = projection !== null;
+          const hasPendingItems = projection?.workitems?.some((i) => i.status !== 'completed') ?? false;
+          // Operator actions per CANVAS_COCKPIT_VISION_SPEC §5 Z4 Action Rail.
+          // Disabled when no workrun selected — gives operator a clear contract
+          // about when actions are available and what they apply to.
+          const operatorActions = [
+            {
+              label: 'Approve',
+              onClick: () => projection && switchPane(naturalPane),
+              enabled: hasProjection && hasPendingItems,
+              tone: hasPendingItems ? '#1f7a4d' : 'var(--sc-ink-fog)',
+              bg: hasPendingItems ? 'rgba(31,122,77,0.08)' : 'transparent',
+              hint: hasPendingItems ? 'Promote work-items to completed' : 'No pending items',
+            },
+            {
+              label: 'Escalate',
+              onClick: () => jumpToRouter(),
+              enabled: hasProjection,
+              tone: 'var(--sc-ink-graphite)',
+              bg: hasProjection ? 'rgba(184,98,54,0.08)' : 'transparent',
+              hint: 'Route to operator agent',
+            },
+            {
+              label: 'Inspect',
+              onClick: jumpToEvidence,
+              enabled: true,
+              tone: 'var(--sc-ink-graphite)',
+              bg: 'rgba(26,29,35,0.06)',
+              hint: 'Focus evidence spine',
+            },
+            {
+              label: 'Run',
+              onClick: () => projection && switchPane(naturalPane),
+              enabled: hasProjection,
+              tone: 'var(--sc-ink-graphite)',
+              bg: hasProjection ? 'rgba(47,79,126,0.08)' : 'transparent',
+              hint: hasProjection ? 'Continue mission flow' : 'Select a workrun',
+            },
+            {
+              label: 'Compare',
+              onClick: jumpToPowerLift,
+              enabled: hasProjection,
+              tone: 'var(--sc-ink-fog)',
+              bg: 'transparent',
+              hint: 'Open power-lift diff lane',
+            },
+          ];
+          return operatorActions.map((action) => (
           <button
             key={action.label}
             type="button"
-            onClick={action.onClick}
+            onClick={action.enabled ? action.onClick : undefined}
+            disabled={!action.enabled}
+            title={action.hint}
             style={{
               justifyContent: 'space-between',
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              border: '0.5px solid var(--sc-paper-whisper)',
-              borderRadius: '999px',
+              border: '1px solid var(--sc-divider)',
+              borderRadius: 'var(--sc-radius-sm)',
               padding: '9px 12px',
               background: action.bg,
-              color: action.tone,
+              color: action.enabled ? action.tone : 'var(--sc-text-tertiary)',
               fontFamily: 'var(--sc-font-mono)',
-              fontSize: '9px',
-              letterSpacing: '0.14em',
+              fontSize: 'var(--sc-size-xs)',
+              letterSpacing: 'var(--sc-tracking-label)',
               textTransform: 'uppercase',
-              cursor: 'pointer',
+              cursor: action.enabled ? 'pointer' : 'not-allowed',
+              opacity: action.enabled ? 1 : 0.55,
             }}
           >
             <span>{action.label}</span>
             <span aria-hidden="true">›</span>
           </button>
-        ))}
+        ));
+        })()}
       </div>
 
       <section
@@ -1870,6 +1918,47 @@ export function EvidenceSpine({ projection }: { projection: WorkRunCanvasProject
     );
   }, [projection]);
 
+  // R3b: surface real platform stats when no workrun projection is loaded.
+  // Replaces the prior "0/0/0 + No projected artifacts" empty state with
+  // live AuraDB counts so operators see substrate-density at all times.
+  const [platformStats, setPlatformStats] = useState<{
+    artifacts: number;
+    gates: number;
+    claimsL3plus: number;
+    patterns: number;
+  } | null>(null);
+  useEffect(() => {
+    if (projection) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = (await graphRead(
+          "MATCH (a:WorkArtifact) WITH count(a) AS art " +
+          "MATCH (g:ProductionGate) WITH art, count(g) AS gates " +
+          "MATCH (c:Claim) WHERE c.current_level IN ['L3','L4','L5'] WITH art, gates, count(c) AS claimsL3plus " +
+          "MATCH (k:KnowledgePattern) WHERE k.id IS NOT NULL RETURN art, gates, claimsL3plus, count(k) AS patterns"
+        )) as Array<Record<string, unknown>>;
+        if (cancelled) return;
+        const r = rows[0];
+        if (!r) return;
+        const toInt = (v: unknown): number => {
+          if (typeof v === 'number') return v;
+          if (v && typeof v === 'object' && 'low' in v) return Number((v as { low: number }).low);
+          return 0;
+        };
+        setPlatformStats({
+          artifacts: toInt(r.art),
+          gates: toInt(r.gates),
+          claimsL3plus: toInt(r.claimsL3plus),
+          patterns: toInt(r.patterns),
+        });
+      } catch {
+        // platform stats are diagnostic-only; failure stays silent
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [projection]);
+
   return (
     <aside
       aria-label="Evidence spine"
@@ -2024,9 +2113,24 @@ export function EvidenceSpine({ projection }: { projection: WorkRunCanvasProject
               </div>
             ))}
           </div>
+        ) : platformStats ? (
+          <div style={{ display: 'grid', gap: '4px' }}>
+            <span style={{ fontSize: 'var(--sc-size-xs)', color: 'var(--sc-text-tertiary)', letterSpacing: 'var(--sc-tracking-label)', textTransform: 'uppercase', fontFamily: 'var(--sc-font-mono)' }}>
+              Platform substrate
+            </span>
+            <span style={{ fontSize: '12px', color: 'var(--sc-text-secondary)', lineHeight: 1.5 }}>
+              {platformStats.artifacts} signed artifacts ·{' '}
+              {platformStats.gates} production gates ·{' '}
+              {platformStats.claimsL3plus} L3+ claims ·{' '}
+              {platformStats.patterns} curated patterns
+            </span>
+            <span style={{ fontSize: 'var(--sc-size-xs)', color: 'var(--sc-text-tertiary)', lineHeight: 1.4, marginTop: '2px' }}>
+              Select a workrun to see its artifacts here.
+            </span>
+          </div>
         ) : (
           <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)' }}>
-            No projected artifacts yet. Trust will materialize here as runtime artifacts arrive.
+            Loading platform substrate…
           </span>
         )}
       </section>
