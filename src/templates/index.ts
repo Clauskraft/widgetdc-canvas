@@ -86,6 +86,13 @@ export const CANVAS_TEMPLATES: CanvasTemplate[] = [
       { cypher: "MATCH (s:ProductionService) RETURN s.id AS id, coalesce(s.name, s.id) AS name, coalesce(s.url, s.description) AS description LIMIT 15", nodeType: 'Tool', labelField: 'name' },
       // CanvasAffordances (the surfaces the canvas exposes)
       { cypher: "MATCH (a:CanvasAffordance) RETURN a.id AS id, coalesce(a.name, a.id) AS name, coalesce(a.role, a.spec_id) AS description LIMIT 15", nodeType: 'Track', labelField: 'name' },
+      // R5: PMM_Template — 219 EG PMM project-method templates ingested via pmm_import (data_ingest review 2026-04-25)
+      // Property shape: name (canonical), source, language, filename, format. No `id` field — use `name` as id.
+      { cypher: "MATCH (p:PMM_Template) RETURN coalesce(p.id, 'pmm:' + p.name) AS id, p.name AS name, coalesce(p.format, p.language, p.source) AS description LIMIT 25", nodeType: 'Insight', labelField: 'name' },
+      // R5: ConsultingFramework — 89 frameworks from vidensarkiv seed + s2_extract harvests
+      { cypher: "MATCH (f:ConsultingFramework) RETURN coalesce(f.id, 'cf:' + coalesce(f.name, '')) AS id, coalesce(f.name, f.title, f.id) AS name, coalesce(f.description, f.summary) AS description LIMIT 20", nodeType: 'Insight', labelField: 'name' },
+      // R5: ConsultingDomain — 17 canonical taxonomy domains (STR/OPS/FIN/CYB/TEC/RCM/PE/PPL/MKT/CROSS/ESG + 6)
+      { cypher: "MATCH (d:ConsultingDomain) RETURN coalesce(d.id, 'cd:' + coalesce(d.name, '')) AS id, coalesce(d.name, d.id) AS name, coalesce(d.description, d.summary) AS description LIMIT 17", nodeType: 'Track', labelField: 'name' },
     ],
     autoAnalyze: false,
     layoutMode: 'mindmap',
