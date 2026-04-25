@@ -75,6 +75,16 @@ function isUC5Mode(): boolean {
   return sessionId !== null;
 }
 
+function isLegacyMode(): boolean {
+  // Legacy ReactFlow component-library canvas is now opt-in via `?legacy=1`.
+  // UC5/cockpit (with C8 BlankCanvasEntrySurface + C9 ActionRail) is the
+  // default operator entry surface per CANVAS_C8_BLANK_CANVAS_ENTRY_SPEC.
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  const legacy = params.get('legacy');
+  return legacy === '1' || legacy === 'true';
+}
+
 // ── UC5 Pane router ───────────────────────────────────────────────────────────
 
 function UC5PaneRouter() {
@@ -2470,15 +2480,20 @@ function LegacyShell() {
 // ── AppShell — top-level router ───────────────────────────────────────────────
 
 export function AppShell() {
-  // UC5 mode: activated when ?session=... is in the URL
-  if (isUC5Mode()) {
-    return (
-      <ToastProvider>
-        <UC5Shell />
-      </ToastProvider>
-    );
+  // Legacy ReactFlow component-library canvas is now opt-in via ?legacy=1.
+  // Bookmarked legacy demos still resolve when explicitly requested.
+  if (isLegacyMode()) {
+    return <LegacyShell />;
   }
 
-  // Legacy mode: original dark-theme ReactFlow canvas
-  return <LegacyShell />;
+  // Default operator entry surface: UC5 cockpit with C8 BlankCanvasEntrySurface
+  // (mission card + frame label + entry constraints + mission actions) and
+  // C9 ActionRail. UC5Shell handles its own state — when no ?session= is
+  // provided, it renders the cockpit chrome with empty workrun projection,
+  // which is the correct pre-flight surface per CANVAS_C8 spec.
+  return (
+    <ToastProvider>
+      <UC5Shell />
+    </ToastProvider>
+  );
 }

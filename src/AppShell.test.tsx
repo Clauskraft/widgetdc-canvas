@@ -153,7 +153,7 @@ describe('AppShell', () => {
   });
 
   it('hydrates the knowledge surface from the query string', async () => {
-    window.history.replaceState({}, '', '/?view=knowledge');
+    window.history.replaceState({}, '', '/?legacy=1&view=knowledge');
 
     const view = render(<AppShell />);
 
@@ -161,12 +161,14 @@ describe('AppShell', () => {
 
     expect(useCanvasStore.getState().activeSurface).toBe('knowledge');
     expect(useCanvasStore.getState().knowledgeExplorerMode).toBe(true);
-    expect(window.location.search).toBe('?view=knowledge');
+    expect(window.location.search).toContain('view=knowledge');
     expect(loadTemplateMock).not.toHaveBeenCalled();
     expect(view.getByText('Knowledge Surface')).toBeTruthy();
   });
 
   it('updates the URL when the shell switches to journal and back to knowledge', async () => {
+    window.history.replaceState({}, '', '/?legacy=1');
+
     render(<AppShell />);
 
     await act(async () => {
@@ -176,7 +178,7 @@ describe('AppShell', () => {
     await flushEffects();
 
     expect(useCanvasStore.getState().activeSurface).toBe('journal');
-    expect(window.location.search).toBe('?view=journal');
+    expect(window.location.search).toContain('view=journal');
 
     await act(async () => {
       useCanvasStore.getState().setActiveSurface('knowledge');
@@ -185,11 +187,13 @@ describe('AppShell', () => {
     await flushEffects();
 
     expect(useCanvasStore.getState().activeSurface).toBe('knowledge');
-    expect(window.location.search).toBe('?view=knowledge');
+    expect(window.location.search).toContain('view=knowledge');
     expect(useCanvasStore.getState().knowledgeExplorerMode).toBe(true);
   });
 
   it('renders the legacy command badge in canvas mode', async () => {
+    window.history.replaceState({}, '', '/?legacy=1');
+
     const view = render(<AppShell />);
 
     await flushEffects();
