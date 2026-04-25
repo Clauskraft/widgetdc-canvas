@@ -5,7 +5,18 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppShell } from './AppShell';
-import { WorkRunCockpitStrip, naturalPaneForTrack, resolveCockpitUrl, seedWorkRunProjection } from './AppShell';
+import {
+  BlankCanvasUnfoldingCard,
+  EvidenceSpine,
+  OperatorActionProofCard,
+  PowerLiftRail,
+  RouterContractPanel,
+  YourPheromonesCard,
+  WorkRunCockpitStrip,
+  naturalPaneForTrack,
+  resolveCockpitUrl,
+  seedWorkRunProjection,
+} from './AppShell';
 import { useCanvasStore } from './store/canvasStore';
 import { useCanvasSession } from './state/canvasSession';
 
@@ -68,6 +79,8 @@ vi.mock('./lib/api', () => ({
   mcpCall: vi.fn().mockResolvedValue({ success: true }),
   fetchArtifactSurface: vi.fn(),
   applyArtifactSurfaceAction: vi.fn(),
+  fetchAgentRouterPhonebook: vi.fn().mockResolvedValue([]),
+  fetchAgentInbox: vi.fn().mockResolvedValue([]),
   fetchLibreChatRuntimeIntelligence: vi.fn(),
   fetchOrchestratorRoutingSnapshot: vi.fn(),
   fetchWorkRunCockpit: vi.fn(),
@@ -215,6 +228,12 @@ describe('AppShell', () => {
 
     expect(view.getByText('WidgeTDC · Unified Canvas · Substrate Cartography')).toBeTruthy();
     expect(view.getByText('Frame · Architecture System Design')).toBeTruthy();
+    expect(view.getByText('Evidence Spine')).toBeTruthy();
+    expect(view.getByText('Power-Lift')).toBeTruthy();
+    expect(view.getByText('Blank Canvas Unfolding')).toBeTruthy();
+    expect(view.getByText('Your Pheromones')).toBeTruthy();
+    expect(view.getByText('Agent Router Contract')).toBeTruthy();
+    expect(view.getByText('Mission Contracts')).toBeTruthy();
     expect(view.getByText('Domain · event-driven-platform')).toBeTruthy();
     expect(view.getByText('Modes · frame-native')).toBeTruthy();
     expect(view.getByText('1 starter templates')).toBeTruthy();
@@ -269,8 +288,247 @@ describe('AppShell', () => {
     expect(view.getByText('Follow the money')).toBeTruthy();
     expect(view.getByText((content) => content.includes('Follow the Money spec'))).toBeTruthy();
     expect(view.getByText(/All moves canonical/i)).toBeTruthy();
+    expect(view.getByText(/First artifact · Centrality map/i)).toBeTruthy();
+    expect(view.getByText(/Recommended next action · Trace funding paths/i)).toBeTruthy();
     expect(view.getByText(/99999901 SMOKE Holding ApS/i)).toBeTruthy();
     expect(view.getByText(/CANONICAL · WTah4sgu/i)).toBeTruthy();
+  });
+
+  it('renders a permanent evidence spine with trust and rationale summaries', () => {
+    useCanvasSession.setState({
+      productFrameId: 'architecture.system-design',
+      domainProfileId: 'event-driven-platform',
+      starterTemplateIds: ['pit:architecture:brief-v1'],
+      requiredCapabilityIds: ['cap:architecture.resolve'],
+      requiredEvaluationHookIds: ['eval:architecture.coherence'],
+      rationale: ['✓ arch-intent: Architecture keywords'],
+    });
+
+    const projection = {
+      id: 'workrun:follow-the-money:1',
+      status: 'COMPLETED',
+      brief: 'Follow the money',
+      canonical_pattern: 'phantom-core.follow-the-money',
+      profile_id: 'profile:finance',
+      source_phantom_run_id: 'phantom:follow-the-money:1',
+      workspec_id: 'workspec:follow-the-money:1',
+      workspec_name: 'Follow the Money spec',
+      domain_profile_id: 'domain:finance',
+      domain_profile_name: 'Finance Domain',
+      all_moves_canonical: true,
+      completed_at: '2026-04-24T13:20:03Z',
+      workitems: [],
+      artifacts: [
+        {
+          id: 'artifact:1',
+          title: 'Centrality map',
+          artifact_type: 'diagram',
+          status: null,
+          trust_scope: 'canonical',
+          signing_pubkey: 'WTah4sgubyb32T+9obIRR/ifw9NaNhlWfWuVPul+c3E=',
+          verified_at: '2026-04-24T13:20:03Z',
+          control_hubs: ['99999901 SMOKE Holding ApS · betweenness=1.0'],
+        },
+      ],
+    };
+
+    const view = render(<EvidenceSpine projection={projection} />);
+
+    expect(view.getByText('Evidence Spine')).toBeTruthy();
+    expect(view.getByText('Trust Overview')).toBeTruthy();
+    expect(view.getByText('Canonical · 1')).toBeTruthy();
+    expect(view.getByText('Rationale')).toBeTruthy();
+    expect(view.getByText('✓ arch-intent: Architecture keywords')).toBeTruthy();
+    expect(view.getByText('Runtime Lineage')).toBeTruthy();
+    expect(view.getByText('Run · workrun:follow-the-money:1')).toBeTruthy();
+    expect(view.getByText('Signer · WTah4sgu')).toBeTruthy();
+  });
+
+  it('renders a unified power-lift rail instead of separate mini-app surfaces', async () => {
+    const projection = {
+      id: 'workrun:follow-the-money:1',
+      status: 'COMPLETED',
+      brief: 'Follow the money',
+      canonical_pattern: 'phantom-core.follow-the-money',
+      profile_id: 'profile:finance',
+      source_phantom_run_id: 'phantom:follow-the-money:1',
+      workspec_id: 'workspec:follow-the-money:1',
+      workspec_name: 'Follow the Money spec',
+      domain_profile_id: 'domain:finance',
+      domain_profile_name: 'Finance Domain',
+      all_moves_canonical: true,
+      completed_at: '2026-04-24T13:20:03Z',
+      workitems: [
+        { id: 'workitem:1', title: 'Trace funding paths', status: 'in_progress', kind: 'analysis', order_index: 1 },
+      ],
+      artifacts: [
+        {
+          id: 'artifact:1',
+          title: 'Centrality map',
+          artifact_type: 'diagram',
+          status: null,
+          trust_scope: 'canonical',
+          signing_pubkey: 'WTah4sgubyb32T+9obIRR/ifw9NaNhlWfWuVPul+c3E=',
+          verified_at: '2026-04-24T13:20:03Z',
+          control_hubs: ['99999901 SMOKE Holding ApS · betweenness=1.0'],
+        },
+      ],
+    };
+
+    const view = render(<PowerLiftRail projection={projection} />);
+    await flushEffects();
+
+    expect(view.getByText('Power-Lift')).toBeTruthy();
+    expect(view.getByText('Research')).toBeTruthy();
+    expect(view.getByText('Telemetry')).toBeTruthy();
+    expect(view.getByText('Pattern')).toBeTruthy();
+    expect(view.getByText('Timeline')).toBeTruthy();
+    expect(view.getByText('Diff')).toBeTruthy();
+    expect(view.getByText(/Anchored on Centrality map/i)).toBeTruthy();
+    expect(view.getByText(/Canonical runtime lane/i)).toBeTruthy();
+  });
+
+  it('renders blank-canvas unfolding guidance before the mission has artifacts', () => {
+    useCanvasSession.setState({
+      track: 'slide_flow',
+      productFrameId: 'consulting.discovery',
+      domainProfileId: 'public-sector-compliance',
+      starterTemplateIds: ['pit:consulting:discovery-v1'],
+      rationale: ['✓ slide-intent: Discovery narrative requested'],
+    });
+
+    const view = render(<BlankCanvasUnfoldingCard projection={null} />);
+
+    expect(view.getByText('Blank Canvas Unfolding')).toBeTruthy();
+    expect(view.getByText('Consulting Discovery')).toBeTruthy();
+    expect(view.getByText(/Seeded artifact/i)).toBeTruthy();
+    expect(view.getByText('pit:consulting:discovery-v1')).toBeTruthy();
+    expect(view.getByText(/Recommended next action/i)).toBeTruthy();
+    expect(view.getByText(/Open starter template pit:consulting:discovery-v1/i)).toBeTruthy();
+    expect(view.getByText('✓ slide-intent: Discovery narrative requested')).toBeTruthy();
+  });
+
+  it('renders visible pheromone consent and separates soft priors from hard proof', () => {
+    useCanvasSession.setState({
+      rationale: ['priority: operator highlighted a contradiction'],
+    });
+
+    const view = render(
+      <YourPheromonesCard
+        projection={{
+          id: 'workrun:follow-the-money:1',
+          status: 'COMPLETED',
+          brief: 'Follow the money',
+          canonical_pattern: 'phantom-core.follow-the-money',
+          profile_id: 'profile:finance',
+          source_phantom_run_id: 'phantom:follow-the-money:1',
+          workspec_id: 'workspec:follow-the-money:1',
+          workspec_name: 'Follow the Money spec',
+          domain_profile_id: 'domain:finance',
+          domain_profile_name: 'Finance Domain',
+          all_moves_canonical: true,
+          completed_at: '2026-04-24T13:20:03Z',
+          workitems: [
+            { id: 'workitem:1', title: 'Trace funding paths', status: 'in_progress', kind: 'analysis', order_index: 1 },
+          ],
+          artifacts: [
+            {
+              id: 'artifact:1',
+              title: 'Centrality map',
+              artifact_type: 'diagram',
+              status: null,
+              trust_scope: 'canonical',
+              signing_pubkey: 'WTah4sgubyb32T+9obIRR/ifw9NaNhlWfWuVPul+c3E=',
+              verified_at: '2026-04-24T13:20:03Z',
+              control_hubs: [],
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(view.getByText('Your Pheromones')).toBeTruthy();
+    expect(view.getByText(/Consent · granted/i)).toBeTruthy();
+    expect(view.getByText('Soft priors')).toBeTruthy();
+    expect(view.getByText('Hard proof')).toBeTruthy();
+    expect(view.getByText('Signals live')).toBeTruthy();
+    expect(view.getByText('Grant')).toBeTruthy();
+    expect(view.getByText('Revoke')).toBeTruthy();
+  });
+
+  it('renders live alias routing and inbox visibility from the router contract', () => {
+    const view = render(
+      <RouterContractPanel
+        phonebook={[
+          {
+            id: 'agent:claude:lane-a',
+            alias: '/claude',
+            trustLevel: 'CANONICAL',
+            processDna: ['SNOUT_ALIGNED', 'PHANTOM_CORE_STRICT'],
+            governedBy: [],
+            role: 'Lead Architect',
+          },
+          {
+            id: 'agent:codex:lane-c',
+            alias: '/codex',
+            trustLevel: 'EPHEMERAL',
+            processDna: ['SNOUT_ALIGNED', 'PHANTOM_CORE_STRICT', 'ADOPTION_GOVERNED'],
+            governedBy: ['rules:adoption_protocol'],
+            adoptionProtocol: 'rules:adoption_protocol',
+            role: 'Systems Engineer',
+          },
+        ]}
+        inbox={{
+          'agent:codex:lane-c': [
+            {
+              id: 'msg:ISO:CLA-CODEX-F2',
+              fromId: 'agent:claude:lane-a',
+              fromAlias: '/claude',
+              toId: 'agent:codex:lane-c',
+              priority: 'HIGH',
+              kind: 'CUTOVER_DIRECTIVE',
+              body: 'Start F2-F4 cutover.',
+              sentAt: '2026-04-24T10:44:40Z',
+              readAt: null,
+              anchorArtifact: 'artifact:agent-genesis:v3:20260424T1250Z',
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(view.getByText('Agent Router Contract')).toBeTruthy();
+    expect(view.getAllByText('/codex').length).toBeGreaterThan(0);
+    expect(view.getByText(/Trust · EPHEMERAL/i)).toBeTruthy();
+    expect(view.getByText(/DNA · SNOUT_ALIGNED · PHANTOM_CORE_STRICT · ADOPTION_GOVERNED/i)).toBeTruthy();
+    expect(view.getByText(/Adoption gate · rules:adoption_protocol/i)).toBeTruthy();
+    expect(view.getByText(/Inbox · 1 messages · 1 unread/i)).toBeTruthy();
+    expect(view.getByText('CUTOVER_DIRECTIVE')).toBeTruthy();
+    expect(view.getByText('Start F2-F4 cutover.')).toBeTruthy();
+  });
+
+  it('renders an operator action proof card for approval lineage', () => {
+    const view = render(
+      <OperatorActionProofCard
+        proof={{
+          success: true,
+          ticket_id: 'innovation:123',
+          status: 'accepted',
+          proof_id: 'proof:innovation:123:approve',
+          applied_at: '2026-04-24T18:00:00.000Z',
+          adopted_pattern_id: 'adopted:innovation:123',
+          arbitration_decision_id: 'arb:innovation:123',
+          sse_ack_topic: 'innovation.approval_recorded',
+        }}
+      />,
+    );
+
+    expect(view.getByText('Operator Action Proof')).toBeTruthy();
+    expect(view.getByText('Ticket · innovation:123')).toBeTruthy();
+    expect(view.getByText('Proof · proof:innovation:123:approve')).toBeTruthy();
+    expect(view.getByText('Result · adopted:innovation:123')).toBeTruthy();
+    expect(view.getByText('Rationale · arb:innovation:123')).toBeTruthy();
+    expect(view.getByText('Ack · innovation.approval_recorded')).toBeTruthy();
   });
 
   it('seeds WorkRun projection context into the canvas store with canonical node types', () => {
