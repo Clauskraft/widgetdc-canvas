@@ -1,98 +1,124 @@
 /**
- * Substrate Cartography — CSS custom properties
- * Derived from docs/canvas/theme-substrate-cartography.json
- * Consumed by widgetdc-canvas UC5 pane components + host iframe CSS.
+ * Canvas system theme — "governed and exact"
  *
- * Philosophy: one surface, seven tracks, emergent rules.
- * See docs/canvas/DESIGN_PHILOSOPHY.md
+ * Replaces the prior Substrate Cartography newspaper-grain aesthetic with a
+ * neutral application chrome that matches the design.md product implication:
+ *
+ *   "Canvas must feel governed and exact. Layout, state badges, evidence
+ *    chips, and action surfaces must feel like a system, not assembled
+ *    React fragments."
+ *
+ * Same `--sc-*` token contract is preserved so existing components keep
+ * working without import changes. Token VALUES are tightened:
+ *
+ *   - paper -> light neutral surfaces (not beige)
+ *   - pane-pad / canvas-outer -> compact (system, not editorial)
+ *   - paper-grain texture -> removed (was the visual noise)
+ *   - radii -> tighter (sm 2 / md 4 / lg 6) for crisp edges
+ *   - typography sizes preserved; tracking dialed in
+ *
+ * See docs/architecture/CANVAS_COCKPIT_VISION_SPEC_2026-04-24.md for the
+ * source design intent.
  */
 
 :root {
-  /* ── Paper & ink ─────────────────────────────────────────────────── */
-  --sc-paper:         #f2ede1;
-  --sc-paper-deep:    #e8e1d0;
-  --sc-paper-whisper: #d6cfc0;
+  /* ── Surfaces (neutral, not paper) ───────────────────────────────── */
+  --sc-paper:         #ffffff;
+  --sc-paper-deep:    #f6f7f8;
+  --sc-paper-whisper: #e6e8ec;
 
-  --sc-ink-graphite:  #18181b;
-  --sc-ink-stone:     #57534e;
-  --sc-ink-fog:       #a8a29e;
+  --sc-ink-graphite:  #1a1d23;
+  --sc-ink-stone:     #4a5160;
+  --sc-ink-fog:       #8a93a3;
 
-  /* ── Seven builder-track hues ────────────────────────────────────── */
-  --sc-track-textual:      #3a4c6b;
-  --sc-track-slide-flow:   #a85c3e;
-  --sc-track-diagram:      #4a6a4b;
-  --sc-track-architecture: #3e3c63;
-  --sc-track-graphical:    #6e3a4f;
-  --sc-track-code:         #2f3b38;
-  --sc-track-experiment:   #766039;
+  /* ── Seven builder-track hues (slightly desaturated) ─────────────── */
+  --sc-track-textual:      #2f4f7e;
+  --sc-track-slide-flow:   #b66236;
+  --sc-track-diagram:      #3f7a4f;
+  --sc-track-architecture: #4a4878;
+  --sc-track-graphical:    #7c3a55;
+  --sc-track-code:         #2d3b3a;
+  --sc-track-experiment:   #876b3c;
 
   /* ── Semantic surface tokens ─────────────────────────────────────── */
   --sc-surface-bg:       var(--sc-paper);
   --sc-surface-muted:    var(--sc-paper-deep);
-  --sc-surface-elevated: #fdfcf7;
+  --sc-surface-elevated: #ffffff;
 
   --sc-divider:         var(--sc-paper-whisper);
-  --sc-divider-subtle:  var(--sc-paper-deep);
+  --sc-divider-subtle:  #eef0f3;
 
   --sc-text-primary:    var(--sc-ink-graphite);
   --sc-text-secondary:  var(--sc-ink-stone);
   --sc-text-tertiary:   var(--sc-ink-fog);
-  --sc-text-inverted:   var(--sc-paper);
+  --sc-text-inverted:   #ffffff;
 
   --sc-focus-ring:      var(--sc-track-textual);
 
-  /* ── Typography (IBM Plex per prototype spec) ────────────────────── */
-  --sc-font-sans: "IBM Plex Sans", "Inter", "Helvetica Neue", Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
-  --sc-font-mono: "IBM Plex Mono", "JetBrains Mono", "SF Mono", "Menlo", ui-monospace, monospace;
+  /* ── Status colours (state badges) ───────────────────────────────── */
+  --sc-state-success:  #2f7a4d;
+  --sc-state-warning:  #b66236;
+  --sc-state-danger:   #b3344a;
+  --sc-state-pending:  #6b7280;
+
+  /* ── Trust scope colours (evidence chips) ────────────────────────── */
+  --sc-trust-canonical: #2f7a4d;
+  --sc-trust-ephemeral: #876b3c;
+  --sc-trust-unsigned:  #b3344a;
+
+  /* ── Typography ──────────────────────────────────────────────────── */
+  --sc-font-sans: "Inter", "IBM Plex Sans", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --sc-font-mono: "IBM Plex Mono", "JetBrains Mono", "SF Mono", ui-monospace, monospace;
 
   --sc-size-xs:      0.6875rem;  /* 11 px */
   --sc-size-sm:      0.75rem;    /* 12 px */
   --sc-size-base:    0.875rem;   /* 14 px */
-  --sc-size-md:      1rem;       /* 16 px */
-  --sc-size-lg:      1.125rem;   /* 18 px */
-  --sc-size-xl:      1.5rem;     /* 24 px */
-  --sc-size-xxl:     2.25rem;    /* 36 px */
-  --sc-size-display: 3.5rem;     /* 56 px */
+  --sc-size-md:      0.9375rem;  /* 15 px */
+  --sc-size-lg:      1.0625rem;  /* 17 px */
+  --sc-size-xl:      1.25rem;    /* 20 px */
+  --sc-size-xxl:     1.625rem;   /* 26 px */
+  --sc-size-display: 2.25rem;    /* 36 px */
 
-  --sc-tracking-display: 0.12em;
-  --sc-tracking-label:   0.22em;
-  --sc-tracking-body:    0.01em;
+  --sc-tracking-display: 0.0em;
+  --sc-tracking-label:   0.08em;
+  --sc-tracking-body:    0.0em;
 
   --sc-leading-tight:   1.2;
   --sc-leading-snug:    1.4;
-  --sc-leading-normal:  1.6;
-  --sc-leading-relaxed: 1.75;
+  --sc-leading-normal:  1.5;
+  --sc-leading-relaxed: 1.6;
 
-  /* ── Space ───────────────────────────────────────────────────────── */
-  --sc-rule-thin: 0.5px;
+  /* ── Space (system, not editorial) ───────────────────────────────── */
+  --sc-rule-thin: 1px;
   --sc-rule-base: 1px;
-  --sc-gutter:    24px;
-  --sc-section:   64px;
-  --sc-pane-pad:  40px;
-  --sc-canvas-outer: 80px;
-  --sc-canvas-inner: 40px;
-  --sc-isoline-gap:  38px;
+  --sc-gutter:    16px;
+  --sc-section:   32px;
+  --sc-pane-pad:  20px;
+  --sc-canvas-outer: 24px;
+  --sc-canvas-inner: 16px;
+  --sc-isoline-gap:  20px;
 
   --sc-radius-none: 0;
   --sc-radius-sm:   2px;
   --sc-radius-md:   4px;
-  --sc-radius-lg:   8px;
+  --sc-radius-lg:   6px;
+  --sc-radius-xl:   8px;
 
-  /* ── Motion — sparse, state-change only ──────────────────────────── */
+  /* ── Motion ──────────────────────────────────────────────────────── */
   --sc-duration-instant: 0ms;
-  --sc-duration-quick:   120ms;
-  --sc-duration-settle:  240ms;
+  --sc-duration-quick:   100ms;
+  --sc-duration-settle:  180ms;
   --sc-ease-emphasized:  cubic-bezier(0.4, 0, 0.2, 1);
   --sc-ease-standard:    cubic-bezier(0.4, 0, 0.6, 1);
 
-  /* ── Elevation ───────────────────────────────────────────────────── */
+  /* ── Elevation (subtle, system app) ──────────────────────────────── */
   --sc-elev-flat:    none;
-  --sc-elev-resting: 0 1px 0 0 rgba(24, 24, 27, 0.05);
-  --sc-elev-hover:   0 2px 4px 0 rgba(24, 24, 27, 0.06);
-  --sc-elev-raised:  0 6px 18px -4px rgba(24, 24, 27, 0.08);
+  --sc-elev-resting: 0 1px 0 0 rgba(26, 29, 35, 0.04);
+  --sc-elev-hover:   0 1px 2px 0 rgba(26, 29, 35, 0.08);
+  --sc-elev-raised:  0 4px 12px -2px rgba(26, 29, 35, 0.10);
 }
 
-/* ── Reduced motion: honour system preference ───────────────────────── */
+/* ── Reduced motion ────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --sc-duration-quick:  0ms;
@@ -110,15 +136,16 @@
   font-size: var(--sc-size-base);
   line-height: var(--sc-leading-normal);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ── Track chip utility (legend swatch + label) ────────────────────── */
 .sc-track-chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-family: var(--sc-font-mono);
-  font-size: var(--sc-size-sm);
+  font-size: var(--sc-size-xs);
   letter-spacing: var(--sc-tracking-label);
   text-transform: uppercase;
   color: var(--sc-text-secondary);
@@ -126,8 +153,8 @@
 .sc-track-chip::before {
   content: "";
   display: inline-block;
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: var(--sc-radius-sm);
   background: currentColor;
   opacity: 0.85;
@@ -141,58 +168,84 @@
 .sc-track--code         { color: var(--sc-track-code); }
 .sc-track--experiment   { color: var(--sc-track-experiment); }
 
-/* ── Thin-rule divider ──────────────────────────────────────────────── */
+/* ── Thin-rule divider ─────────────────────────────────────────────── */
 .sc-rule {
   border: 0;
   border-top: var(--sc-rule-thin) solid var(--sc-divider);
   margin: var(--sc-section) 0;
 }
 
-/* ── Focus ring (accessibility) ─────────────────────────────────────── */
+/* ── Focus ring (accessibility) ────────────────────────────────────── */
 *:focus-visible {
   outline: 2px solid var(--sc-focus-ring);
   outline-offset: 2px;
+  border-radius: var(--sc-radius-sm);
 }
 
-/* ── Paper grain overlay ─────────────────────────────────────────────── */
+/* ── Paper grain — neutralised (was the editorial noise) ───────────── */
 .sc-paper-grain::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.55;
-  background-image:
-    radial-gradient(circle at 20% 30%, rgba(24,24,27,.018) 0 0.5px, transparent 1px),
-    radial-gradient(circle at 70% 65%, rgba(24,24,27,.015) 0 0.5px, transparent 1px),
-    radial-gradient(circle at 45% 85%, rgba(24,24,27,.012) 0 0.5px, transparent 1px);
-  background-size: 7px 7px, 11px 11px, 13px 13px;
+  content: none;
 }
 
-/* ── Pane header ─────────────────────────────────────────────────────── */
+/* ── Pane header ───────────────────────────────────────────────────── */
 .sc-pane-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding-bottom: 14px;
-  margin-bottom: 24px;
-  border-bottom: var(--sc-rule-thin) solid var(--sc-paper-whisper);
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+  border-bottom: var(--sc-rule-thin) solid var(--sc-divider);
 }
 .sc-pane-label {
   font-family: var(--sc-font-mono);
-  font-size: 10px;
+  font-size: var(--sc-size-xs);
   letter-spacing: var(--sc-tracking-label);
   text-transform: uppercase;
-  color: var(--sc-ink-stone);
+  color: var(--sc-text-secondary);
 }
 .sc-pane-meta {
   font-family: var(--sc-font-mono);
-  font-size: 9px;
-  letter-spacing: 0.15em;
-  color: var(--sc-ink-fog);
+  font-size: var(--sc-size-xs);
+  letter-spacing: 0.04em;
+  color: var(--sc-text-tertiary);
 }
 
-/* ── Bridge status dot pulse ─────────────────────────────────────────── */
+/* ── State badge (system contract — used by Z1/Z3 surfaces) ────────── */
+.sc-state-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: var(--sc-radius-sm);
+  font-family: var(--sc-font-mono);
+  font-size: var(--sc-size-xs);
+  letter-spacing: var(--sc-tracking-label);
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  background: rgba(255, 255, 255, 0.6);
+}
+.sc-state--ready    { color: var(--sc-state-success); }
+.sc-state--pending  { color: var(--sc-state-pending); }
+.sc-state--warning  { color: var(--sc-state-warning); }
+.sc-state--danger   { color: var(--sc-state-danger); }
+
+/* ── Evidence chip (trust scope marker) ────────────────────────────── */
+.sc-evidence-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-family: var(--sc-font-mono);
+  font-size: var(--sc-size-xs);
+  letter-spacing: 0.04em;
+  border: 1px solid currentColor;
+}
+.sc-evidence--canonical { color: var(--sc-trust-canonical); }
+.sc-evidence--ephemeral { color: var(--sc-trust-ephemeral); }
+.sc-evidence--unsigned  { color: var(--sc-trust-unsigned); }
+
+/* ── Bridge status dot pulse ───────────────────────────────────────── */
 @keyframes sc-pulse {
   0%, 100% { opacity: 0.35; }
   50%       { opacity: 1; }
@@ -202,7 +255,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--sc-track-diagram);
+  background: var(--sc-state-success);
   margin-right: 6px;
   vertical-align: 1px;
   animation: sc-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
