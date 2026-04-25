@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>WidgeTDC — WorkArtifact Cryptographic Verification</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --bg-panel: #11172a;
+    --fg: #e6e9f0;
+    --fg-muted: #8b94aa;
+    --accent: #4ade80;
+    --accent-fail: #ef4444;
+    --accent-warn: #f59e0b;
+    --border: #1f2940;
+    --mono: 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: -apple-system, system-ui, sans-serif; line-height: 1.5; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 48px 24px; }
+  h1 { font-size: 24px; margin: 0 0 8px; }
+  .subtitle { color: var(--fg-muted); margin-bottom: 32px; }
+  .panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin-bottom: 16px; }
+  .field { display: grid; grid-template-columns: 200px 1fr; gap: 12px; margin-bottom: 12px; align-items: start; }
+  .field-label { color: var(--fg-muted); font-size: 13px; }
+  .field-value { font-family: var(--mono); font-size: 13px; word-break: break-all; }
+  .verdict { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-radius: 8px; font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+  .verdict.ok { background: rgba(74, 222, 128, 0.1); border: 1px solid var(--accent); color: var(--accent); }
+  .verdict.fail { background: rgba(239, 68, 68, 0.1); border: 1px solid var(--accent-fail); color: var(--accent-fail); }
+  .verdict.warn { background: rgba(245, 158, 11, 0.1); border: 1px solid var(--accent-warn); color: var(--accent-warn); }
+  .verdict-icon { font-size: 24px; }
+  input { background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 8px 12px; font-family: var(--mono); width: 100%; }
+  button { background: var(--accent); color: var(--bg); border: 0; border-radius: 4px; padding: 10px 20px; font-weight: 600; cursor: pointer; margin-top: 12px; font-size: 14px; }
+  button:hover { background: #6ee7a0; }
+  .footer { margin-top: 48px; color: var(--fg-muted); font-size: 12px; }
+  pre { background: var(--bg); padding: 16px; border-radius: 4px; overflow-x: auto; font-size: 12px; margin: 0; }
+  .hidden { display: none; }
+  .lookup { display: flex; gap: 8px; align-items: end; }
+  .lookup input { flex: 1; }
+  .lookup button { margin-top: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>WidgeTDC — WorkArtifact Verification</h1>
+  <div class="subtitle">Validates Ed25519 signature on a canonical WorkArtifact. Public, read-only, client-side cryptography.</div>
+
+  <div class="panel">
+    <div class="field-label" style="margin-bottom: 8px;">Artifact ID</div>
+    <div class="lookup">
+      <input id="artifact-id-input" placeholder="artifact:follow-money:extract-cvr:canonical:20260424T1235Z" />
+      <button id="verify-btn">Verify</button>
+    </div>
+    <div style="margin-top: 8px; color: var(--fg-muted); font-size: 12px;">
+      Tip: Append <code>?id=&lt;artifact-id&gt;</code> to URL to auto-load.
+    </div>
+  </div>
+
+  <div id="result" class="hidden">
+    <div id="verdict" class="verdict"></div>
+
+    <div class="panel">
+      <div class="field"><div class="field-label">Artifact ID</div><div class="field-value" id="r-id"></div></div>
+      <div class="field"><div class="field-label">Kind</div><div class="field-value" id="r-kind"></div></div>
+      <div class="field"><div class="field-label">Domain</div><div class="field-value" id="r-domain"></div></div>
+      <div class="field"><div class="field-label">Status</div><div class="field-value" id="r-status"></div></div>
+      <div class="field"><div class="field-label">Created at</div><div class="field-value" id="r-created"></div></div>
+      <div class="field"><div class="field-label">Verified at</div><div class="field-value" id="r-verified"></div></div>
+    </div>
+
+    <div class="panel">
+      <div class="field-label" style="margin-bottom: 12px; font-weight: 600; color: var(--fg);">Signature Bundle</div>
+      <div class="field"><div class="field-label">Algorithm</div><div class="field-value" id="r-algo"></div></div>
+      <div class="field"><div class="field-label">Public Key</div><div class="field-value" id="r-pubkey"></div></div>
+      <div class="field"><div class="field-label">Server Nonce</div><div class="field-value" id="r-nonce"></div></div>
+      <div class="field"><div class="field-label">Evidence Hash</div><div class="field-value" id="r-evidence-hash"></div></div>
+      <div class="field"><div class="field-label">Signature</div><div class="field-value" id="r-signature"></div></div>
+    </div>
+
+    <div class="panel">
+      <div class="field-label" style="margin-bottom: 12px; font-weight: 600; color: var(--fg);">Canonical Payload (signed bytes)</div>
+      <pre id="r-canonical"></pre>
+    </div>
+  </div>
+
+  <div class="footer">
+    Verification logic is performed entirely in your browser using <code>@noble/ed25519</code> (loaded from CDN).
+    No data is sent to any third party. The artifact JSON is fetched from <code>/api/public/workartifact/:id</code>
+    on this domain (proxied to widgetdc backend).<br /><br />
+    Source: this page is part of <a href="https://github.com/Clauskraft/widgetdc-canvas" style="color: var(--accent);">widgetdc-canvas</a>.
+    See LIN-964 / EPIC LIN-953 for the verifiable demo pack action plan.
+  </div>
+</div>
+
+<script type="module">
+  // @noble/ed25519 — pure-JS Ed25519, browser-friendly
+  import * as ed from 'https://cdn.jsdelivr.net/npm/@noble/ed25519@2.1.0/+esm';
+
+  const els = {
+    input: document.getElementById('artifact-id-input'),
+    btn: document.getElementById('verify-btn'),
+    result: document.getElementById('result'),
+    verdict: document.getElementById('verdict'),
+    id: document.getElementById('r-id'),
+    kind: document.getElementById('r-kind'),
+    domain: document.getElementById('r-domain'),
+    status: document.getElementById('r-status'),
+    created: document.getElementById('r-created'),
+    verified: document.getElementById('r-verified'),
+    algo: document.getElementById('r-algo'),
+    pubkey: document.getElementById('r-pubkey'),
+    nonce: document.getElementById('r-nonce'),
+    evhash: document.getElementById('r-evidence-hash'),
+    signature: document.getElementById('r-signature'),
+    canonical: document.getElementById('r-canonical'),
+  };
+
+  function setVerdict(kind, msg) {
+    els.verdict.className = 'verdict ' + kind;
+    const icon = kind === 'ok' ? '✅' : kind === 'fail' ? '❌' : '⚠️';
+    els.verdict.innerHTML = `<span class="verdict-icon">${icon}</span><span>${msg}</span>`;
+  }
+
+  function fromHex(hex) {
+    const m = hex.match(/.{1,2}/g) ?? [];
+    return new Uint8Array(m.map((b) => parseInt(b, 16)));
+  }
+
+  function fromBase64(b64) {
+    const bin = atob(b64);
+    const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return u8;
+  }
+
+  async function verifyArtifact(artifactId) {
+    els.result.classList.remove('hidden');
+    setVerdict('warn', `Fetching artifact ${artifactId}...`);
+
+    let artifact;
+    try {
+      const resp = await fetch(`/api/public/workartifact/${encodeURIComponent(artifactId)}`);
+      if (!resp.ok) {
+        setVerdict('fail', `Backend returned HTTP ${resp.status}. Endpoint may not be deployed yet (LIN-964 follow-up).`);
+        return;
+      }
+      artifact = await resp.json();
+    } catch (err) {
+      setVerdict('fail', `Network error: ${err.message}. Endpoint /api/public/workartifact/* may not exist yet.`);
+      return;
+    }
+
+    els.id.textContent = artifact.id ?? '—';
+    els.kind.textContent = artifact.kind ?? '—';
+    els.domain.textContent = artifact.signature_domain ?? '—';
+    els.status.textContent = artifact.status ?? 'active';
+    els.created.textContent = artifact.created_at ?? '—';
+    els.verified.textContent = artifact.verified_at ?? '—';
+    els.algo.textContent = artifact.signing_algorithm ?? 'ed25519';
+    els.pubkey.textContent = artifact.signing_pubkey ?? '—';
+    els.nonce.textContent = artifact.server_nonce ?? '—';
+    els.evhash.textContent = artifact.evidence_hash ?? '—';
+    els.signature.textContent = artifact.signature ?? '—';
+    els.canonical.textContent = artifact.evidence_canonical ?? '—';
+
+    if (!artifact.signature || !artifact.signing_pubkey || !artifact.evidence_canonical) {
+      setVerdict('warn', 'Artifact found but missing signature fields — cannot verify');
+      return;
+    }
+
+    setVerdict('warn', 'Validating Ed25519 signature in browser...');
+
+    try {
+      const pubKey = fromBase64(artifact.signing_pubkey);
+      const sig = fromHex(artifact.signature);
+      const msg = new TextEncoder().encode(artifact.evidence_canonical);
+      const ok = await ed.verifyAsync(sig, msg, pubKey);
+      if (ok) {
+        setVerdict('ok', `Cryptographically verified — Ed25519 signature valid for artifact ${artifactId}`);
+      } else {
+        setVerdict('fail', 'Tamper detected — Ed25519 signature does NOT match canonical payload + public key');
+      }
+    } catch (err) {
+      setVerdict('fail', `Verification crashed: ${err.message}`);
+    }
+  }
+
+  els.btn.addEventListener('click', () => {
+    const id = els.input.value.trim();
+    if (id) verifyArtifact(id);
+  });
+  els.input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') els.btn.click();
+  });
+
+  // Auto-load from ?id=... query param
+  const params = new URLSearchParams(window.location.search);
+  const initialId = params.get('id');
+  if (initialId) {
+    els.input.value = initialId;
+    verifyArtifact(initialId);
+  }
+</script>
+</body>
+</html>
