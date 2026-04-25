@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { motion } from 'framer-motion';
 
@@ -12,7 +12,15 @@ import { SnoutObserver } from './components/SnoutObserver';
 import { PheromonePanel } from './components/PheromonePanel';
 // LIN-584: AIPanel, Journal, StatusBar deleted — replaced by Open WebUI tools
 import { useCanvasStore, type CanvasSurface } from './store/canvasStore';
-import { fetchWorkRunCockpit, type WorkRunCanvasProjection } from './lib/api';
+import {
+  fetchAgentInbox,
+  fetchAgentRouterPhonebook,
+  type AgentInboxMessage,
+  type AgentPhonebookEntry,
+  type InnovationApprovalProofResponse,
+  fetchWorkRunCockpit,
+  type WorkRunCanvasProjection,
+} from './lib/api';
 
 // UC5 imports
 import { useCanvasSession } from './state/canvasSession';
@@ -233,6 +241,22 @@ function humanizeMode(mode: CanvasModeId): string {
   return mode.replace(/_/g, ' ');
 }
 
+function paneToMode(pane: PaneId): CanvasModeId {
+  switch (pane) {
+    case 'markdown':
+      return 'document';
+    case 'slides':
+      return 'slides';
+    case 'drawio':
+      return 'diagram';
+    case 'split':
+      return 'split';
+    case 'canvas':
+    default:
+      return 'graph';
+  }
+}
+
 function resolveShellFrame(
   productFrameId: ProductFrameId | null,
   track: BuilderTrack | null,
@@ -361,8 +385,9 @@ function TrackLegend() {
   );
 }
 
-function FrameMetadataStrip() {
+function MissionHeader({ projection }: { projection: WorkRunCanvasProjection | null }) {
   const track = useCanvasSession((s) => s.track);
+  const activePane = useCanvasSession((s) => s.activePane);
   const productFrameId = useCanvasSession((s) => s.productFrameId);
   const domainProfileId = useCanvasSession((s) => s.domainProfileId);
   const starterTemplateIds = useCanvasSession((s) => s.starterTemplateIds);
@@ -377,21 +402,34 @@ function FrameMetadataStrip() {
   const resolvedModes = resolveShellModes(allowedModes, track);
   const modeSource = allowedModes.length > 0 ? 'frame-native' : 'track fallback';
   const trackLabel = humanizeTrack(track);
+  const activeMode = humanizeMode(paneToMode(activePane));
+  const primaryTrustArtifact = projection?.artifacts.find((artifact) => artifact.trust_scope === 'canonical')
+    ?? projection?.artifacts[0]
+    ?? null;
+  const trustSummary = primaryTrustArtifact?.trust_scope === 'canonical'
+    ? `Canonical · ${(primaryTrustArtifact.signing_pubkey ?? '').slice(0, 8) || 'unknown'}`
+    : primaryTrustArtifact?.trust_scope
+      ? `Ephemeral · ${primaryTrustArtifact.trust_scope.replace(/^ephemeral-?/, '')}`
+      : 'Unsigned';
+  const missionTitle = projection?.brief
+    ?? frameMeta?.label
+    ?? trackLabel;
+  const missionStatus = projection?.status ?? (isHydrating ? 'HYDRATING' : 'READY');
 
   return (
     <section
-      aria-label="Frame metadata"
+      aria-label="Mission header"
       style={{
         display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)',
+        gridTemplateColumns: 'minmax(0, 1.35fr) minmax(320px, 0.85fr)',
         gap: '18px',
-        padding: '16px var(--sc-pane-pad) 18px',
+        padding: '18px var(--sc-pane-pad) 20px',
         borderBottom: '0.5px solid var(--sc-paper-whisper)',
-        background: 'linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0.36))',
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.78), rgba(248,249,251,0.72))',
         flexShrink: 0,
       }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0 }}>
         <div
           style={{
             display: 'flex',
@@ -437,63 +475,79 @@ function FrameMetadataStrip() {
           ) : null}
         </div>
 
-        <span
-          style={{
-            fontSize: '12px',
-            lineHeight: 1.5,
-            color: 'var(--sc-ink-fog)',
-            maxWidth: '78ch',
-          }}
-        >
-          {frameMeta?.strapline ?? `Current shell remains governed by ${trackLabel.toLowerCase()}.`}
-        </span>
-
         <div
           style={{
             display: 'flex',
-            gap: '8px',
-            flexWrap: 'wrap',
-            alignItems: 'center',
+            flexDirection: 'column',
+            gap: '6px',
           }}
         >
           <span
             style={{
-              fontFamily: 'var(--sc-font-mono)',
-              fontSize: '9px',
-              letterSpacing: '0.16em',
-              textTransform: 'uppercase',
-              color: 'var(--sc-ink-fog)',
+              fontSize: '28px',
+              lineHeight: 1.15,
+              color: 'var(--sc-ink-graphite)',
+              letterSpacing: '-0.03em',
+              fontWeight: 500,
+              maxWidth: '22ch',
             }}
           >
-            Track · {trackLabel}
+            {missionTitle}
           </span>
-          {domainProfileId ? (
-            <span
-              style={{
-                fontFamily: 'var(--sc-font-mono)',
-                fontSize: '9px',
-                letterSpacing: '0.16em',
-                textTransform: 'uppercase',
-                color: 'var(--sc-ink-fog)',
-              }}
-            >
-              Domain · {domainProfileId}
-            </span>
-          ) : null}
-          {rationale.length > 0 ? (
-            <span
-              style={{
-                fontFamily: 'var(--sc-font-mono)',
-                fontSize: '9px',
-                letterSpacing: '0.16em',
-                textTransform: 'uppercase',
-                color: 'var(--sc-ink-fog)',
-              }}
-            >
-              Rationale · {rationale.length} checks
-            </span>
-          ) : null}
+          <span
+            style={{
+              fontSize: '12px',
+              lineHeight: 1.55,
+              color: 'var(--sc-ink-fog)',
+              maxWidth: '76ch',
+            }}
+          >
+            {frameMeta?.strapline ?? `Current shell remains governed by ${trackLabel.toLowerCase()}.`}
+          </span>
         </div>
+
+        <span
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, minmax(0, max-content))',
+            gap: '10px',
+            alignItems: 'center',
+            width: 'fit-content',
+            maxWidth: '100%',
+          }}
+        >
+          {[
+            { label: 'Track', value: trackLabel },
+            { label: 'Mode', value: activeMode },
+            { label: 'Status', value: missionStatus },
+            { label: 'Trust', value: trustSummary },
+          ].map((item) => (
+            <div
+              key={item.label}
+              style={{
+                border: '0.5px solid var(--sc-paper-whisper)',
+                borderRadius: 'var(--sc-radius-md)',
+                padding: '10px 12px',
+                background: 'rgba(255,255,255,0.52)',
+                minWidth: '120px',
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: 'var(--sc-font-mono)',
+                  fontSize: '9px',
+                  letterSpacing: '0.16em',
+                  textTransform: 'uppercase',
+                  color: 'var(--sc-ink-fog)',
+                  marginBottom: '5px',
+                }}
+              >
+                {item.label}
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)' }}>{item.value}</div>
+            </div>
+          ))}
+        </span>
       </div>
 
       <div
@@ -564,7 +618,7 @@ function FrameMetadataStrip() {
               color: 'var(--sc-ink-fog)',
             }}
           >
-            Contracts
+            Mission Contracts
           </div>
           <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)' }}>
             {starterTemplateIds.length} starter templates
@@ -575,6 +629,16 @@ function FrameMetadataStrip() {
           <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)' }}>
             {requiredEvaluationHookIds.length} evaluation hooks
           </span>
+          {domainProfileId ? (
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)' }}>
+              Domain · {domainProfileId}
+            </span>
+          ) : null}
+          {rationale.length > 0 ? (
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)' }}>
+              Rationale · {rationale.length} checks
+            </span>
+          ) : null}
         </div>
       </div>
     </section>
@@ -667,6 +731,8 @@ export function WorkRunCockpitStrip({ projection }: { projection: WorkRunCanvasP
   if (!projection) return null;
 
   const primaryHub = projection.artifacts.flatMap((artifact) => artifact.control_hubs ?? [])[0] ?? null;
+  const firstArtifact = projection.artifacts[0] ?? null;
+  const nextWorkItem = projection.workitems.find((item) => item.status !== 'completed') ?? projection.workitems[0] ?? null;
 
   return (
     <section
@@ -703,6 +769,16 @@ export function WorkRunCockpitStrip({ projection }: { projection: WorkRunCanvasP
           {projection.workspec_name ? ` · Spec · ${projection.workspec_name}` : ''}
           {projection.domain_profile_name ? ` · Domain · ${projection.domain_profile_name}` : ''}
         </span>
+        {firstArtifact ? (
+          <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)' }}>
+            First artifact · {firstArtifact.title ?? firstArtifact.id}
+          </span>
+        ) : null}
+        {nextWorkItem ? (
+          <span style={{ fontSize: '12px', color: 'var(--sc-track-code)' }}>
+            Recommended next action · {nextWorkItem.title ?? nextWorkItem.id}
+          </span>
+        ) : null}
         {primaryHub ? (
           <span style={{ fontSize: '12px', color: 'var(--sc-track-architecture)' }}>
             Hub · {primaryHub}
@@ -788,6 +864,861 @@ export function WorkRunCockpitStrip({ projection }: { projection: WorkRunCanvasP
   );
 }
 
+function buildPowerLiftLayers(projection: WorkRunCanvasProjection | null) {
+  const canonicalArtifacts = projection?.artifacts.filter((artifact) => artifact.trust_scope === 'canonical') ?? [];
+  const inFlightItems = projection?.workitems.filter((item) => item.status !== 'completed') ?? [];
+  const primaryArtifact = projection?.artifacts[0] ?? null;
+  const primaryDiffTarget = projection?.artifacts[1] ?? primaryArtifact;
+
+  return [
+    {
+      key: 'research',
+      label: 'Research',
+      tone: 'var(--sc-track-textual)',
+      summary: primaryArtifact
+        ? `Anchored on ${primaryArtifact.title ?? primaryArtifact.id}`
+        : 'No evidence artifact projected yet',
+      detail: `${projection?.artifacts.length ?? 0} artifacts in mission context`,
+    },
+    {
+      key: 'telemetry',
+      label: 'Telemetry',
+      tone: 'var(--sc-track-graphical)',
+      summary: projection?.all_moves_canonical ? 'Canonical runtime lane' : 'Mixed-trust runtime lane',
+      detail: `${inFlightItems.length} active work items · ${canonicalArtifacts.length} canonical artifacts`,
+    },
+    {
+      key: 'pattern',
+      label: 'Pattern',
+      tone: 'var(--sc-track-architecture)',
+      summary: projection?.canonical_pattern ?? 'No canonical pattern linked yet',
+      detail: projection?.workspec_name ?? projection?.profile_id ?? 'Awaiting pattern alignment',
+    },
+    {
+      key: 'timeline',
+      label: 'Timeline',
+      tone: 'var(--sc-track-slide-flow)',
+      summary: projection?.completed_at ? `Completed ${projection.completed_at}` : `Status · ${projection?.status ?? 'ready'}`,
+      detail: projection?.source_phantom_run_id ?? 'No upstream phantom run',
+    },
+    {
+      key: 'diff',
+      label: 'Diff',
+      tone: 'var(--sc-track-code)',
+      summary: primaryDiffTarget ? `Compare against ${primaryDiffTarget.title ?? primaryDiffTarget.id}` : 'No artifact diff target yet',
+      detail: `${projection?.workitems.length ?? 0} work items can still mutate this mission`,
+    },
+  ];
+}
+
+export function BlankCanvasUnfoldingCard({ projection }: { projection: WorkRunCanvasProjection | null }) {
+  const track = useCanvasSession((s) => s.track);
+  const productFrameId = useCanvasSession((s) => s.productFrameId);
+  const domainProfileId = useCanvasSession((s) => s.domainProfileId);
+  const starterTemplateIds = useCanvasSession((s) => s.starterTemplateIds);
+  const rationale = useCanvasSession((s) => s.rationale);
+
+  const resolvedFrame = resolveShellFrame(productFrameId, track);
+  const frameLabel = resolvedFrame ? FRAME_REGISTRY[resolvedFrame].label : humanizeTrack(track);
+  const firstArtifact = projection?.artifacts[0] ?? null;
+  const firstTemplate = starterTemplateIds[0] ?? null;
+  const recommendedNextAction =
+    projection?.workitems.find((item) => item.status !== 'completed')?.title
+    ?? (firstTemplate ? `Open starter template ${firstTemplate}` : null)
+    ?? (resolvedFrame ? `Begin ${FRAME_REGISTRY[resolvedFrame].label.toLowerCase()} mission flow` : null)
+    ?? 'Resolve the first mission move';
+
+  return (
+    <section
+      style={{
+        border: '0.5px solid var(--sc-paper-whisper)',
+        borderRadius: 'var(--sc-radius-lg)',
+        padding: '14px',
+        background: 'rgba(255,255,255,0.66)',
+        display: 'grid',
+        gap: '10px',
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'var(--sc-font-mono)',
+          fontSize: '9px',
+          letterSpacing: '0.18em',
+          textTransform: 'uppercase',
+          color: 'var(--sc-ink-fog)',
+        }}
+      >
+        Blank Canvas Unfolding
+      </div>
+      <div style={{ display: 'grid', gap: '6px' }}>
+        <span style={{ fontSize: '13px', color: 'var(--sc-ink-graphite)', fontWeight: 500 }}>
+          {frameLabel}
+        </span>
+        <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)', lineHeight: 1.55 }}>
+          {domainProfileId
+            ? `Domain profile · ${domainProfileId}`
+            : 'No explicit domain profile yet. Frame guidance is carrying the first paint.'}
+        </span>
+      </div>
+      <div style={{ display: 'grid', gap: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+          <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)' }}>Seeded artifact</span>
+          <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)', textAlign: 'right' }}>
+            {firstArtifact?.title ?? firstTemplate ?? 'Awaiting first artifact'}
+          </span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+          <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)' }}>Recommended next action</span>
+          <span style={{ fontSize: '12px', color: 'var(--sc-track-code)', textAlign: 'right' }}>
+            {recommendedNextAction}
+          </span>
+        </div>
+      </div>
+      {rationale.length > 0 ? (
+        <div
+          style={{
+            borderTop: '0.5px solid var(--sc-paper-whisper)',
+            paddingTop: '8px',
+            display: 'grid',
+            gap: '6px',
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'var(--sc-font-mono)',
+              fontSize: '9px',
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              color: 'var(--sc-ink-fog)',
+            }}
+          >
+            Why this mission unfolded
+          </span>
+          {rationale.slice(0, 2).map((line, index) => (
+            <span key={`${line}-${index}`} style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)', lineHeight: 1.5 }}>
+              {line}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+export function YourPheromonesCard({ projection }: { projection: WorkRunCanvasProjection | null }) {
+  const rationale = useCanvasSession((s) => s.rationale);
+  const [consentState, setConsentState] = useState<'granted' | 'revoked'>('granted');
+
+  const hardProofCount = projection?.artifacts.filter((artifact) => artifact.trust_scope === 'canonical').length ?? 0;
+  const softPriorCount = rationale.length;
+  const reinforcementCount = projection?.workitems.filter((item) => item.status !== 'completed').length ?? 0;
+
+  return (
+    <section
+      style={{
+        border: '0.5px solid var(--sc-paper-whisper)',
+        borderRadius: 'var(--sc-radius-lg)',
+        padding: '14px',
+        background: 'rgba(255,255,255,0.62)',
+        display: 'grid',
+        gap: '10px',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '10px',
+        }}
+      >
+        <span
+          style={{
+            fontFamily: 'var(--sc-font-mono)',
+            fontSize: '9px',
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: 'var(--sc-track-graphical)',
+          }}
+        >
+          Your Pheromones
+        </span>
+        <span
+          style={{
+            fontFamily: 'var(--sc-font-mono)',
+            fontSize: '9px',
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            color: consentState === 'granted' ? '#166534' : '#991b1b',
+          }}
+        >
+          Consent · {consentState}
+        </span>
+      </div>
+      <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)', lineHeight: 1.55 }}>
+        Soft priors stay visible here. Hard proof remains separate in the Evidence Spine so learning pressure never impersonates signed evidence.
+      </span>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '10px' }}>
+        {[
+          { label: 'Soft priors', value: softPriorCount, tone: 'var(--sc-track-slide-flow)' },
+          { label: 'Hard proof', value: hardProofCount, tone: '#166534' },
+          { label: 'Signals live', value: reinforcementCount, tone: 'var(--sc-track-code)' },
+        ].map((metric) => (
+          <div
+            key={metric.label}
+            style={{
+              border: '0.5px solid var(--sc-paper-whisper)',
+              borderRadius: 'var(--sc-radius-md)',
+              padding: '10px 12px',
+              background: 'rgba(248,249,252,0.86)',
+            }}
+          >
+            <div
+              style={{
+                fontFamily: 'var(--sc-font-mono)',
+                fontSize: '9px',
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: 'var(--sc-ink-fog)',
+              }}
+            >
+              {metric.label}
+            </div>
+            <div style={{ fontSize: '18px', color: metric.tone, marginTop: '6px' }}>{metric.value}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={() => setConsentState('granted')}
+          style={{
+            border: '0.5px solid var(--sc-paper-whisper)',
+            borderRadius: '999px',
+            padding: '6px 10px',
+            background: consentState === 'granted' ? 'rgba(22,101,52,0.12)' : 'transparent',
+            color: consentState === 'granted' ? '#166534' : 'var(--sc-ink-fog)',
+            fontFamily: 'var(--sc-font-mono)',
+            fontSize: '9px',
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+          }}
+        >
+          Grant
+        </button>
+        <button
+          type="button"
+          onClick={() => setConsentState('revoked')}
+          style={{
+            border: '0.5px solid var(--sc-paper-whisper)',
+            borderRadius: '999px',
+            padding: '6px 10px',
+            background: consentState === 'revoked' ? 'rgba(153,27,27,0.12)' : 'transparent',
+            color: consentState === 'revoked' ? '#991b1b' : 'var(--sc-ink-fog)',
+            fontFamily: 'var(--sc-font-mono)',
+            fontSize: '9px',
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+          }}
+        >
+          Revoke
+        </button>
+      </div>
+    </section>
+  );
+}
+
+export function RouterContractPanel({
+  phonebook,
+  inbox,
+}: {
+  phonebook: AgentPhonebookEntry[];
+  inbox: Record<string, AgentInboxMessage[]>;
+}) {
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedAgentId) {
+      return;
+    }
+    const codex = phonebook.find((entry) => entry.alias === '/codex') ?? phonebook[0];
+    if (codex) {
+      setSelectedAgentId(codex.id);
+    }
+  }, [phonebook, selectedAgentId]);
+
+  const selectedAgent = phonebook.find((entry) => entry.id === selectedAgentId) ?? null;
+  const messages = selectedAgent ? inbox[selectedAgent.id] ?? [] : [];
+  const unreadCount = messages.filter((message) => !message.readAt).length;
+
+  return (
+    <section
+      style={{
+        border: '0.5px solid var(--sc-paper-whisper)',
+        borderRadius: 'var(--sc-radius-lg)',
+        padding: '14px',
+        background: 'rgba(255,255,255,0.62)',
+        display: 'grid',
+        gap: '10px',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '10px',
+        }}
+      >
+        <span
+          style={{
+            fontFamily: 'var(--sc-font-mono)',
+            fontSize: '9px',
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: 'var(--sc-track-architecture)',
+          }}
+        >
+          Agent Router Contract
+        </span>
+        <span
+          style={{
+            fontFamily: 'var(--sc-font-mono)',
+            fontSize: '9px',
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            color: 'var(--sc-ink-fog)',
+          }}
+        >
+          slash dispatch from live alias graph
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        {phonebook.map((entry) => {
+          const isActive = entry.id === selectedAgentId;
+          return (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => setSelectedAgentId(entry.id)}
+              style={{
+                border: '0.5px solid var(--sc-paper-whisper)',
+                borderRadius: '999px',
+                padding: '6px 10px',
+                background: isActive ? 'rgba(20,33,61,0.10)' : 'transparent',
+                color: isActive ? 'var(--sc-ink-graphite)' : 'var(--sc-ink-fog)',
+                fontFamily: 'var(--sc-font-mono)',
+                fontSize: '9px',
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
+              {entry.alias ?? entry.id}
+            </button>
+          );
+        })}
+      </div>
+
+      {selectedAgent ? (
+        <>
+          <div style={{ display: 'grid', gap: '6px' }}>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)', fontWeight: 500 }}>
+              {selectedAgent.alias ?? selectedAgent.id}
+            </span>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)' }}>
+              Trust · {selectedAgent.trustLevel ?? 'unknown'}
+              {selectedAgent.role ? ` · ${selectedAgent.role}` : ''}
+            </span>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)' }}>
+              DNA · {selectedAgent.processDna.join(' · ') || 'none published'}
+            </span>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)' }}>
+              Adoption gate · {selectedAgent.adoptionProtocol ?? 'not required'}
+            </span>
+            <span style={{ fontSize: '12px', color: unreadCount > 0 ? '#991b1b' : 'var(--sc-ink-fog)' }}>
+              Inbox · {messages.length} messages · {unreadCount} unread
+            </span>
+          </div>
+
+          <div style={{ display: 'grid', gap: '8px' }}>
+            {messages.length > 0 ? messages.slice(0, 3).map((message) => (
+              <div
+                key={message.id}
+                style={{
+                  border: '0.5px solid var(--sc-paper-whisper)',
+                  borderRadius: 'var(--sc-radius-md)',
+                  padding: '10px 12px',
+                  background: 'rgba(248,249,252,0.86)',
+                  display: 'grid',
+                  gap: '4px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)', fontWeight: 500 }}>
+                    {message.kind ?? 'AgentMessage'}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: 'var(--sc-font-mono)',
+                      fontSize: '9px',
+                      letterSpacing: '0.14em',
+                      textTransform: 'uppercase',
+                      color: message.readAt ? 'var(--sc-ink-fog)' : '#991b1b',
+                    }}
+                  >
+                    {message.readAt ? 'read' : 'unread'}
+                  </span>
+                </div>
+                <span style={{ fontSize: '11px', color: 'var(--sc-ink-fog)' }}>
+                  From {message.fromAlias ?? message.fromId}
+                  {message.priority ? ` · ${message.priority}` : ''}
+                  {message.sentAt ? ` · ${message.sentAt}` : ''}
+                </span>
+                {message.body ? (
+                  <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)', lineHeight: 1.5 }}>
+                    {message.body}
+                  </span>
+                ) : null}
+              </div>
+            )) : (
+              <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)' }}>
+                No inbox messages loaded for this alias yet.
+              </span>
+            )}
+          </div>
+        </>
+      ) : (
+        <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)' }}>
+          Loading live alias phonebook…
+        </span>
+      )}
+    </section>
+  );
+}
+
+export function PowerLiftRail({ projection }: { projection: WorkRunCanvasProjection | null }) {
+  const [phonebook, setPhonebook] = useState<AgentPhonebookEntry[]>([]);
+  const [inbox, setInbox] = useState<Record<string, AgentInboxMessage[]>>({});
+  const layers = buildPowerLiftLayers(projection);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchAgentRouterPhonebook()
+      .then(async (entries) => {
+        if (cancelled) return;
+        setPhonebook(entries);
+        const inboxEntries = await Promise.all(
+          entries.slice(0, 3).map(async (entry) => [entry.id, await fetchAgentInbox(entry.id, 5)] as const),
+        );
+        if (!cancelled) {
+          setInbox(Object.fromEntries(inboxEntries));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPhonebook([]);
+          setInbox({});
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <aside
+      aria-label="Power-Lift rail"
+      style={{
+        display: 'grid',
+        alignContent: 'start',
+        gap: '14px',
+        padding: '16px',
+        borderLeft: '0.5px solid var(--sc-paper-whisper)',
+        background: 'linear-gradient(180deg, rgba(250,251,255,0.94), rgba(244,246,250,0.92))',
+        overflowY: 'auto',
+      }}
+    >
+      <section
+        style={{
+          border: '0.5px solid var(--sc-paper-whisper)',
+          borderRadius: 'var(--sc-radius-lg)',
+          padding: '14px',
+          background: 'rgba(255,255,255,0.62)',
+          display: 'grid',
+          gap: '10px',
+        }}
+      >
+        <div
+          style={{
+            fontFamily: 'var(--sc-font-mono)',
+            fontSize: '9px',
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: 'var(--sc-ink-fog)',
+          }}
+        >
+          Power-Lift
+        </div>
+        <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)', lineHeight: 1.55 }}>
+          Research, telemetry, pattern, timeline, and diff now stay inside the same mission rail instead of feeling like product switches.
+        </span>
+      </section>
+
+      <BlankCanvasUnfoldingCard projection={projection} />
+      <YourPheromonesCard projection={projection} />
+      <RouterContractPanel phonebook={phonebook} inbox={inbox} />
+
+      {layers.map((layer) => (
+        <section
+          key={layer.key}
+          style={{
+            border: '0.5px solid var(--sc-paper-whisper)',
+            borderRadius: 'var(--sc-radius-lg)',
+            padding: '14px',
+            background: 'rgba(255,255,255,0.62)',
+            display: 'grid',
+            gap: '8px',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+            }}
+          >
+            <span
+              style={{
+                fontFamily: 'var(--sc-font-mono)',
+                fontSize: '9px',
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: layer.tone,
+              }}
+            >
+              {layer.label}
+            </span>
+          </div>
+          <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)', lineHeight: 1.5 }}>
+            {layer.summary}
+          </span>
+          <span style={{ fontSize: '11px', color: 'var(--sc-ink-fog)', lineHeight: 1.5 }}>
+            {layer.detail}
+          </span>
+        </section>
+      ))}
+    </aside>
+  );
+}
+
+export function EvidenceSpine({ projection }: { projection: WorkRunCanvasProjection | null }) {
+  const rationale = useCanvasSession((s) => s.rationale);
+  const requiredCapabilityIds = useCanvasSession((s) => s.requiredCapabilityIds);
+  const requiredEvaluationHookIds = useCanvasSession((s) => s.requiredEvaluationHookIds);
+  const starterTemplateIds = useCanvasSession((s) => s.starterTemplateIds);
+  const domainProfileId = useCanvasSession((s) => s.domainProfileId);
+  const productFrameId = useCanvasSession((s) => s.productFrameId);
+
+  const trustCounts = useMemo(() => {
+    const artifacts = projection?.artifacts ?? [];
+    return artifacts.reduce(
+      (acc, artifact) => {
+        if (artifact.trust_scope === 'canonical') acc.canonical += 1;
+        else if (artifact.trust_scope) acc.ephemeral += 1;
+        else acc.unsigned += 1;
+        return acc;
+      },
+      { canonical: 0, ephemeral: 0, unsigned: 0 },
+    );
+  }, [projection]);
+
+  return (
+    <aside
+      aria-label="Evidence spine"
+      style={{
+        display: 'grid',
+        alignContent: 'start',
+        gap: '14px',
+        padding: '16px',
+        borderLeft: '0.5px solid var(--sc-paper-whisper)',
+        background: 'linear-gradient(180deg, rgba(252,253,255,0.96), rgba(247,248,250,0.94))',
+        overflowY: 'auto',
+      }}
+    >
+      <section
+        style={{
+          border: '0.5px solid var(--sc-paper-whisper)',
+          borderRadius: 'var(--sc-radius-lg)',
+          padding: '14px',
+          background: 'rgba(255,255,255,0.62)',
+          display: 'grid',
+          gap: '10px',
+        }}
+      >
+        <div
+          style={{
+            fontFamily: 'var(--sc-font-mono)',
+            fontSize: '9px',
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: 'var(--sc-ink-fog)',
+          }}
+        >
+          Evidence Spine
+        </div>
+        <div style={{ display: 'grid', gap: '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)' }}>Frame</span>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)', textAlign: 'right' }}>
+              {productFrameId ?? 'track-governed'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)' }}>Domain</span>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)', textAlign: 'right' }}>
+              {domainProfileId ?? 'unscoped'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)' }}>Templates</span>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)', textAlign: 'right' }}>
+              {starterTemplateIds.length}
+            </span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)' }}>Capabilities</span>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)', textAlign: 'right' }}>
+              {requiredCapabilityIds.length}
+            </span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)' }}>Eval Hooks</span>
+            <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)', textAlign: 'right' }}>
+              {requiredEvaluationHookIds.length}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section
+        style={{
+          border: '0.5px solid var(--sc-paper-whisper)',
+          borderRadius: 'var(--sc-radius-lg)',
+          padding: '14px',
+          background: 'rgba(255,255,255,0.62)',
+          display: 'grid',
+          gap: '10px',
+        }}
+      >
+        <div
+          style={{
+            fontFamily: 'var(--sc-font-mono)',
+            fontSize: '9px',
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: 'var(--sc-ink-fog)',
+          }}
+        >
+          Trust Overview
+        </div>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {[
+            { label: 'Canonical', value: trustCounts.canonical, color: '#166534', bg: 'rgba(22,101,52,0.10)' },
+            { label: 'Ephemeral', value: trustCounts.ephemeral, color: '#92400e', bg: 'rgba(146,64,14,0.10)' },
+            { label: 'Unsigned', value: trustCounts.unsigned, color: '#991b1b', bg: 'rgba(153,27,27,0.10)' },
+          ].map((chip) => (
+            <span
+              key={chip.label}
+              style={{
+                fontFamily: 'var(--sc-font-mono)',
+                fontSize: '9px',
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: chip.color,
+                background: chip.bg,
+                border: '1px solid rgba(0,0,0,0.08)',
+                borderRadius: '999px',
+                padding: '4px 8px',
+              }}
+            >
+              {chip.label} · {chip.value}
+            </span>
+          ))}
+        </div>
+        {projection?.artifacts?.length ? (
+          <div style={{ display: 'grid', gap: '8px' }}>
+            {projection.artifacts.slice(0, 4).map((artifact) => (
+              <div
+                key={artifact.id}
+                style={{
+                  border: '0.5px solid var(--sc-paper-whisper)',
+                  borderRadius: 'var(--sc-radius-md)',
+                  padding: '10px 12px',
+                  background: 'rgba(248,249,252,0.86)',
+                  display: 'grid',
+                  gap: '4px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)', fontWeight: 500 }}>
+                    {artifact.title ?? artifact.id}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: 'var(--sc-font-mono)',
+                      fontSize: '9px',
+                      letterSpacing: '0.14em',
+                      textTransform: 'uppercase',
+                      color: artifact.trust_scope === 'canonical' ? '#166534' : artifact.trust_scope ? '#92400e' : '#991b1b',
+                    }}
+                  >
+                    {artifact.trust_scope ?? 'unsigned'}
+                  </span>
+                </div>
+                <span style={{ fontSize: '11px', color: 'var(--sc-ink-fog)' }}>
+                  {[artifact.artifact_type, artifact.verified_at].filter(Boolean).join(' · ') || 'No verification timestamp'}
+                </span>
+                {artifact.signing_pubkey ? (
+                  <span style={{ fontFamily: 'var(--sc-font-mono)', fontSize: '10px', color: 'var(--sc-ink-fog)' }}>
+                    Signer · {artifact.signing_pubkey.slice(0, 8)}
+                  </span>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)' }}>
+            No projected artifacts yet. Trust will materialize here as runtime artifacts arrive.
+          </span>
+        )}
+      </section>
+
+      <section
+        style={{
+          border: '0.5px solid var(--sc-paper-whisper)',
+          borderRadius: 'var(--sc-radius-lg)',
+          padding: '14px',
+          background: 'rgba(255,255,255,0.62)',
+          display: 'grid',
+          gap: '10px',
+        }}
+      >
+        <div
+          style={{
+            fontFamily: 'var(--sc-font-mono)',
+            fontSize: '9px',
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: 'var(--sc-ink-fog)',
+          }}
+        >
+          Rationale
+        </div>
+        {rationale.length > 0 ? (
+          <div style={{ display: 'grid', gap: '8px' }}>
+            {rationale.map((line, index) => (
+              <div
+                key={`${line}-${index}`}
+                style={{
+                  borderLeft: '2px solid var(--sc-paper-whisper)',
+                  paddingLeft: '10px',
+                  fontSize: '12px',
+                  lineHeight: 1.55,
+                  color: 'var(--sc-ink-graphite)',
+                }}
+              >
+                {line}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <span style={{ fontSize: '12px', color: 'var(--sc-ink-fog)' }}>
+            No rationale recorded yet.
+          </span>
+        )}
+      </section>
+
+      <section
+        style={{
+          border: '0.5px solid var(--sc-paper-whisper)',
+          borderRadius: 'var(--sc-radius-lg)',
+          padding: '14px',
+          background: 'rgba(255,255,255,0.62)',
+          display: 'grid',
+          gap: '8px',
+        }}
+      >
+        <div
+          style={{
+            fontFamily: 'var(--sc-font-mono)',
+            fontSize: '9px',
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: 'var(--sc-ink-fog)',
+          }}
+        >
+          Runtime Lineage
+        </div>
+        <div style={{ fontSize: '12px', color: 'var(--sc-ink-graphite)', display: 'grid', gap: '5px' }}>
+          <span>Run · {projection?.id ?? 'no live workrun'}</span>
+          {projection?.workspec_id ? <span>Spec · {projection.workspec_id}</span> : null}
+          {projection?.source_phantom_run_id ? <span>Source · {projection.source_phantom_run_id}</span> : null}
+          {projection?.all_moves_canonical !== null && projection?.all_moves_canonical !== undefined ? (
+            <span>Moves · {projection.all_moves_canonical ? 'all canonical' : 'mixed trust'}</span>
+          ) : null}
+        </div>
+      </section>
+    </aside>
+  );
+}
+
+export function OperatorActionProofCard({
+  proof,
+}: {
+  proof: InnovationApprovalProofResponse;
+}) {
+  return (
+    <section
+      style={{
+        border: '0.5px solid var(--sc-paper-whisper)',
+        borderRadius: 'var(--sc-radius-lg)',
+        padding: '14px',
+        background: 'rgba(255,255,255,0.62)',
+        display: 'grid',
+        gap: '10px',
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'var(--sc-font-mono)',
+          fontSize: '9px',
+          letterSpacing: '0.18em',
+          textTransform: 'uppercase',
+          color: 'var(--sc-ink-fog)',
+        }}
+      >
+        Operator Action Proof
+      </div>
+      <div style={{ display: 'grid', gap: '6px', fontSize: '12px', color: 'var(--sc-ink-graphite)' }}>
+        <span>Action · approve innovation ticket</span>
+        <span>Ticket · {proof.ticket_id}</span>
+        <span>Proof · {proof.proof_id}</span>
+        <span>Applied · {proof.applied_at}</span>
+        <span>Result · {proof.adopted_pattern_id ?? 'no adopted pattern linked'}</span>
+        <span>Rationale · {proof.arbitration_decision_id ?? 'no arbitration decision linked'}</span>
+        <span>Ack · {proof.sse_ack_topic}</span>
+      </div>
+    </section>
+  );
+}
+
 // ── UC5 status bar (bottom) ───────────────────────────────────────────────────
 
 function UC5StatusBar() {
@@ -836,7 +1767,7 @@ function UC5StatusBar() {
         }}
       >
         {isHydrating ? 'hydrating…' : canvasSessionId ? `session ${canvasSessionId.slice(0, 8)}` : 'no session'}
-        {` · ${frameLabel} · one surface · many windows`}
+        {` · ${frameLabel} · cockpit over shell`}
       </span>
     </footer>
   );
@@ -929,17 +1860,32 @@ function UC5Shell() {
         </span>
       </header>
 
-      <FrameMetadataStrip />
-      <WorkRunCockpitStrip projection={workRunProjection} />
+      <MissionHeader projection={workRunProjection} />
 
       {/* Track legend + pane switcher */}
       <TrackLegend />
 
       {/* Pane content */}
-      <main style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
-        <ReactFlowProvider>
-          <UC5PaneRouter />
-        </ReactFlowProvider>
+      <main
+        style={{
+          flex: 1,
+          minHeight: 0,
+          position: 'relative',
+          overflow: 'hidden',
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) 300px 360px',
+        }}
+      >
+        <div style={{ minWidth: 0, minHeight: 0, display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr)' }}>
+          <WorkRunCockpitStrip projection={workRunProjection} />
+          <div style={{ minHeight: 0, minWidth: 0 }}>
+            <ReactFlowProvider>
+              <UC5PaneRouter />
+            </ReactFlowProvider>
+          </div>
+        </div>
+        <PowerLiftRail projection={workRunProjection} />
+        <EvidenceSpine projection={workRunProjection} />
       </main>
 
       {/* Status bar */}

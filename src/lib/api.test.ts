@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  createPheromone,
+  approveInnovationTicket,
+  fetchAgentInbox,
+  fetchAgentRouterPhonebook,
   fetchGovernanceEvalSnapshot,
   fetchLibreChatRuntimeIntelligence,
   mcpCall,
@@ -198,6 +200,210 @@ describe('Canvas API: MCP route', () => {
         },
       }),
     );
+  });
+});
+
+describe('Canvas API: agent router phonebook', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it('merges live agent aliases with canonical artifact trust and DNA metadata', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://backend.example');
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({
+          result: {
+            results: [
+              { id: 'agent:claude:lane-a', alias: '/claude', trust_level: 'CANONICAL' },
+              { id: 'agent:codex:lane-c', alias: '/codex', trust_level: 'EPHEMERAL' },
+            ],
+          },
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => JSON.stringify({
+          result: {
+            results: [
+              {
+                process_dna: ['SNOUT_ALIGNED', 'PHANTOM_CORE_STRICT'],
+                evidence_canonical: JSON.stringify({
+                  process_dna: ['SNOUT_ALIGNED', 'PHANTOM_CORE_STRICT', 'ADOPTION_GOVERNED'],
+                  agents: [
+                    {
+                      id: 'agent:claude:lane-a',
+                      alias: '/claude',
+                      trust_level: 'CANONICAL',
+                      role: 'Lead Architect',
+                      class: 'Sovereign',
+                      outgoing: [],
+                    },
+                    {
+                      id: 'agent:codex:lane-c',
+                      alias: '/codex',
+                      trust_level: 'EPHEMERAL',
+                      role: 'Systems Engineer',
+                      class: 'Operative',
+                      outgoing: [
+                        { rel: 'GOVERNED_BY', target: 'rules:adoption_protocol' },
+                        { rel: 'HEDGERS_TO', target: 'manifesto:snout' },
+                      ],
+                    },
+                  ],
+                }),
+              },
+            ],
+          },
+        }),
+      } as Response);
+
+    const result = await fetchAgentRouterPhonebook();
+
+    expect(fetchMock.mock.calls.slice(-2).map((call) => call[0])).toEqual([
+      'https://backend.example/api/mcp/route',
+      'https://backend.example/api/mcp/route',
+    ]);
+    expect(result).toEqual([
+      {
+        id: 'agent:claude:lane-a',
+        alias: '/claude',
+        trustLevel: 'CANONICAL',
+        processDna: ['SNOUT_ALIGNED', 'PHANTOM_CORE_STRICT'],
+        governedBy: [],
+        adoptionProtocol: undefined,
+        role: 'Lead Architect',
+        className: 'Sovereign',
+      },
+      {
+        id: 'agent:codex:lane-c',
+        alias: '/codex',
+        trustLevel: 'EPHEMERAL',
+        processDna: ['SNOUT_ALIGNED', 'PHANTOM_CORE_STRICT'],
+        governedBy: ['rules:adoption_protocol'],
+        adoptionProtocol: 'rules:adoption_protocol',
+        role: 'Systems Engineer',
+        className: 'Operative',
+      },
+    ]);
+  });
+});
+
+describe('Canvas API: agent inbox', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it('reads recent alias-routed inbox messages from the live graph', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://backend.example');
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({
+        result: {
+          results: [
+            {
+              id: 'msg:ISO:CLA-CODEX-F2',
+              from_id: 'agent:claude:lane-a',
+              from_alias: '/claude',
+              to_id: 'agent:codex:lane-c',
+              priority: 'HIGH',
+              kind: 'CUTOVER_DIRECTIVE',
+              body: 'Start F2-F4 cutover.',
+              sent_at: '2026-04-24T10:44:40Z',
+              read_at: null,
+              anchor_artifact: 'artifact:agent-genesis:v3:20260424T1250Z',
+            },
+          ],
+        },
+      }),
+    } as Response);
+
+    const result = await fetchAgentInbox('agent:codex:lane-c', 3);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://backend.example/api/mcp/route',
+      expect.objectContaining({
+        method: 'POST',
+      }),
+    );
+
+    const body = JSON.parse(String((fetchMock.mock.calls.at(-1)?.[1] as RequestInit).body));
+    expect(body).toEqual({
+      tool: 'graph.read_cypher',
+      payload: {
+        query: expect.stringContaining('MATCH (msg:AgentMessage {to:$agentId})'),
+        params: {
+          agentId: 'agent:codex:lane-c',
+          limit: 3,
+        },
+      },
+    });
+    expect(result).toEqual([
+      {
+        id: 'msg:ISO:CLA-CODEX-F2',
+        fromId: 'agent:claude:lane-a',
+        fromAlias: '/claude',
+        toId: 'agent:codex:lane-c',
+        priority: 'HIGH',
+        kind: 'CUTOVER_DIRECTIVE',
+        body: 'Start F2-F4 cutover.',
+        sentAt: '2026-04-24T10:44:40Z',
+        readAt: null,
+        anchorArtifact: 'artifact:agent-genesis:v3:20260424T1250Z',
+      },
+    ]);
+  });
+});
+
+describe('Canvas API: innovation approval proof', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it('posts the canonical approve payload and returns proof-native response', async () => {
+    vi.stubEnv('VITE_API_URL', 'https://backend.example');
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        ticket_id: 'innovation:123',
+        status: 'accepted',
+        proof_id: 'proof:innovation:123:approve',
+        applied_at: '2026-04-24T18:00:00.000Z',
+        adopted_pattern_id: 'adopted:innovation:123',
+        arbitration_decision_id: 'arb:innovation:123',
+        sse_ack_topic: 'innovation.approval_recorded',
+      }),
+    } as Response);
+
+    const result = await approveInnovationTicket('innovation:123', {
+      ui_surface: 'canvas',
+      client_session_id: 'session-1',
+      request_id: 'req-1',
+      actor_hash: 'actor-1',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://backend.example/api/mrp/innovation-tickets/innovation%3A123/approve',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const body = JSON.parse(String((fetchMock.mock.calls.at(-1)?.[1] as RequestInit).body));
+    expect(body).toEqual({
+      ui_surface: 'canvas',
+      client_session_id: 'session-1',
+      request_id: 'req-1',
+      actor_hash: 'actor-1',
+    });
+    expect(result.proof_id).toBe('proof:innovation:123:approve');
+    expect(result.sse_ack_topic).toBe('innovation.approval_recorded');
   });
 });
 
@@ -577,56 +783,5 @@ describe('Canvas API: RLM reasoning route', () => {
     });
 
     expect(result.recommendation).toBe('Use the baseline /reason path.');
-  });
-});
-describe('Canvas API: operator-anchored pheromone placement', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllEnvs();
-  });
-
-  it('posts pheromone placement payloads to the canonical backend route', async () => {
-    vi.stubEnv('VITE_API_URL', 'https://backend.example');
-    vi.stubEnv('VITE_API_KEY', 'canvas-key');
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        success: true,
-        status: 'accepted',
-        pheromone_id: 'pheromone-1',
-        anchor_id: 'anchor-1',
-        inspection_enqueued: true,
-        accepted_at: '2026-04-21T12:00:00Z',
-        directive_run_id: 'run-1',
-      }),
-    } as Response);
-
-    const result = await createPheromone({
-      anchor: {
-        anchor_kind: 'web-url',
-        resource_uri: 'https://canvas.widgetdc.test/session/123',
-        locator_json: {
-          pathname: '/session/123',
-          surface: 'canvas',
-        },
-      },
-      signal_type: 'risk',
-      rationale: 'Operator sees risk at this locus.',
-      created_by: 'canvas-operator',
-      client_surface: 'canvas',
-      strength: 0.72,
-    });
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://backend.example/api/pheromones',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({
-          'Authorization': 'Bearer canvas-key',
-          'X-API-Key': 'canvas-key',
-        }),
-      }),
-    );
-    expect(result.pheromone_id).toBe('pheromone-1');
   });
 });

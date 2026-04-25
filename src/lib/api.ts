@@ -97,6 +97,19 @@ export interface AgentPhonebookEntry {
   className?: string;
 }
 
+export interface AgentInboxMessage {
+  id: string;
+  fromId: string;
+  fromAlias?: string;
+  toId: string;
+  priority?: string;
+  kind?: string;
+  body?: string;
+  sentAt?: string;
+  readAt?: string | null;
+  anchorArtifact?: string | null;
+}
+
 interface AgentGenesisEvidenceAgent {
   id?: string;
   alias?: string | null;
@@ -222,6 +235,42 @@ export async function fetchAgentRouterPhonebook(): Promise<AgentPhonebookEntry[]
   ]);
 
   return normalizeAgentPhonebookEntry(directRows, evidenceRows);
+}
+
+export async function fetchAgentInbox(agentId: string, limit = 5): Promise<AgentInboxMessage[]> {
+  const rows = await graphRead(
+    `
+      MATCH (msg:AgentMessage {to:$agentId})
+      OPTIONAL MATCH (from:Agent {id: msg.from})
+      RETURN
+        msg.id AS id,
+        msg.from AS from_id,
+        from.alias AS from_alias,
+        msg.to AS to_id,
+        msg.priority AS priority,
+        msg.kind AS kind,
+        msg.body AS body,
+        msg.sent_at AS sent_at,
+        msg.read_at AS read_at,
+        msg.anchor_artifact AS anchor_artifact
+      ORDER BY msg.sent_at DESC
+      LIMIT $limit
+    `,
+    { agentId, limit },
+  );
+
+  return ((Array.isArray(rows) ? rows : []) as Array<Record<string, unknown>>).map((row) => ({
+    id: typeof row.id === 'string' ? row.id : 'unknown',
+    fromId: typeof row.from_id === 'string' ? row.from_id : 'unknown',
+    fromAlias: typeof row.from_alias === 'string' ? row.from_alias : undefined,
+    toId: typeof row.to_id === 'string' ? row.to_id : agentId,
+    priority: typeof row.priority === 'string' ? row.priority : undefined,
+    kind: typeof row.kind === 'string' ? row.kind : undefined,
+    body: typeof row.body === 'string' ? row.body : undefined,
+    sentAt: typeof row.sent_at === 'string' ? row.sent_at : undefined,
+    readAt: typeof row.read_at === 'string' ? row.read_at : null,
+    anchorArtifact: typeof row.anchor_artifact === 'string' ? row.anchor_artifact : null,
+  }));
 }
 
 export function resolveAgentPhonebookEntry(
@@ -547,6 +596,42 @@ export interface WorkRunCanvasProjection {
   completed_at: string | null;
   workitems: WorkRunCanvasProjectionItem[];
   artifacts: WorkRunCanvasProjectionArtifact[];
+}
+
+export interface InnovationApprovalProofRequest {
+  ui_surface?: string;
+  client_session_id?: string;
+  request_id?: string;
+  actor_hash?: string;
+}
+
+export interface InnovationApprovalProofResponse {
+  success: boolean;
+  ticket_id: string;
+  status: 'accepted';
+  proof_id: string;
+  applied_at: string;
+  adopted_pattern_id: string | null;
+  arbitration_decision_id: string | null;
+  sse_ack_topic: 'innovation.approval_recorded';
+}
+
+export async function approveInnovationTicket(
+  ticketId: string,
+  payload: InnovationApprovalProofRequest = {},
+): Promise<InnovationApprovalProofResponse> {
+  return backendRequest<InnovationApprovalProofResponse>(
+    `/api/mrp/innovation-tickets/${encodeURIComponent(ticketId)}/approve`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        ui_surface: payload.ui_surface ?? 'canvas',
+        client_session_id: payload.client_session_id,
+        request_id: payload.request_id,
+        actor_hash: payload.actor_hash,
+      }),
+    },
+  );
 }
 
 export async function fetchWorkRunCockpit(workrunId: string): Promise<WorkRunCanvasProjection> {
