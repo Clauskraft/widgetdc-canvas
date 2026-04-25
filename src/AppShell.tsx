@@ -156,6 +156,11 @@ function LegacyCanvas({ track }: { track?: BuilderTrack | null }) {
         <CanvasCollaboration />
         <SnoutObserver />
         <PheromonePanel />
+        {/* R4: AutoLoader also mounted here so the governance-spine template
+            loads when LegacyCanvas is rendered inside UC5Shell (default route).
+            Previously it only mounted in LegacyShell, so root-URL visits to UC5
+            saw an empty ReactFlow grid even though canvasStore was ready. */}
+        <AutoLoader />
       </div>
     </div>
   );
